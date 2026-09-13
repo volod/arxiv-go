@@ -19,8 +19,8 @@ Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
 > Status: stage 1 in progress. `scan` writes the resumable file registry (`--metadata media` checks
-> for `ffprobe` and exits 3 with download links without it); `split` moves videos transactionally
-> and writes placeholder stubs; `restore` still exits 70.
+> for `ffprobe` and exits 3 with download links without it); `split` moves videos transactionally,
+> writes Markdown stubs and video registries; `restore` still exits 70.
 
 ```bash
 arxgo --archive /data/archive

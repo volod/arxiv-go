@@ -36,14 +36,27 @@ func splitFixture(t *testing.T) (roots, string, string) {
 func splitConfig(r roots, mode string) (Config, SplitConfig) {
 	cfg := testConfig(r, newClock(), 100)
 	cfg.Preflight.Transfer = mode
-	cfg.Recoverer = NewSplitResolver(nil, fsops.VerifyHash, nil)
 	c := SplitConfig{
 		Scan: ScanConfig{Root: r.archive, Registry: filepath.Join(r.archive, "arxgo-registry.csv"),
 			Metadata: "file", LargeThreshold: 1024, Workers: 2, Window: 4,
 			SkipPaths: []string{r.video}},
 		Transfer: mode, Verify: fsops.VerifyHash,
 	}
+	c.Stubs = NewMarkdownStub(StubConfig{
+		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
+		Version: "test", Verify: c.Verify,
+	})
+	attachRecoverer(&cfg, c, nil)
 	return cfg, c
+}
+
+func attachRecoverer(cfg *Config, c SplitConfig, crash state.CrashHook) {
+	r := NewSplitResolver(cfg.FS, c.Verify, crash)
+	r.Stubs = c.Stubs
+	if m, ok := c.Stubs.(*MarkdownStub); ok && crash != nil {
+		m.cfg.Crash = crash
+	}
+	cfg.Recoverer = r
 }
 
 func runSplit(t *testing.T, cfg Config, c SplitConfig) Result {
@@ -64,8 +77,8 @@ func checkSplit(t *testing.T, src, dst string) {
 	if got := mustRead(t, dst); !bytes.Equal(got, videoFixture) {
 		t.Error("destination bytes differ")
 	}
-	if !strings.Contains(string(mustRead(t, src+".md")), "rel_path: nested/clip.mp4") {
-		t.Error("placeholder stub missing")
+	if got := string(mustRead(t, src+".md")); !strings.Contains(got, "rel_path: nested/clip.mp4") || !strings.Contains(got, "arxgo_stub: 1") {
+		t.Error("stub missing marker or rel_path")
 	}
 	if exists(fsops.PartPath(dst)) {
 		t.Error("part file remains")
@@ -178,7 +191,11 @@ func TestSplitSizeVerifyAdoptsSameSizeDifferentBytes(t *testing.T) {
 	}
 	cfg, c := splitConfig(r, "copy")
 	c.Verify = fsops.VerifySize
-	cfg.Recoverer = NewSplitResolver(nil, fsops.VerifySize, nil)
+	c.Stubs = NewMarkdownStub(StubConfig{
+		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
+		Version: "test", Verify: c.Verify,
+	})
+	attachRecoverer(&cfg, c, nil)
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
 		t.Fatalf("size adopt = %+v", res)
 	}
@@ -199,6 +216,9 @@ func TestSplitDryRunLeavesVideoAndStubUntouched(t *testing.T) {
 	}
 	if !exists(src) || exists(dst) || exists(src+".md") || exists(c.Scan.Registry) {
 		t.Fatal("dry run mutated archive data")
+	}
+	if exists(filepath.Join(r.archive, "arxgo-videos.csv")) || exists(filepath.Join(r.archive, "arxgo-videos.md")) {
+		t.Fatal("dry run wrote a video registry")
 	}
 }
 

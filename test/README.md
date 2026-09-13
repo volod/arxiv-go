@@ -8,7 +8,7 @@ Root-level `test/` holds external test applications and test data, following the
 | `integration/` | Cross-package and end-to-end tests using public interfaces; use the `integration` build tag for heavier future proofs. |
 | `apps/` | Standalone helper applications used only by external-process tests, when needed. |
 | `fixtures/` | Reusable test-only Go builders and in-memory mocks; never import these from production code. |
-| `testdata/` | Captured mock data and golden outputs; Go ignores this directory during `go test ./...`. |
+| `testdata/` | Captured mock data and golden outputs; Go ignores this directory during `go test ./...`. Markdown goldens are product samples, not repository docs (`make lint-doc-links` skips them). |
 
 Keep unit and white-box component tests beside their packages. A test requiring unexported hooks
 stays package-local. Generate runtime archive trees and media in `t.TempDir()`; do not commit

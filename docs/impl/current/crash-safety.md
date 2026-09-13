@@ -167,7 +167,7 @@ level=INFO msg="preflight passed" op=split devices=2
 - Remote-host lock refusal is tested with injected host names, not a live network share.
 - A `Start` that sees corrupt run state releases the lock (exit 5) so `--new-run` does not need
   `--force-unlock`; see the record's audit note.
-- `FSResolver` writes a marker stub (`rel_path: ...`); split supplies a minimal front-matter
-  placeholder until the remaining stub task adds the complete renderer. Crash injection uses a
+- `FSResolver` writes a marker stub (`rel_path: ...`); split writes the full Markdown stub
+  (front matter, links, metadata) through `archive.MarkdownStub`. Crash injection uses a
   hook (error or panic), not a killed process.
 - The 1e6 committed-set gate is an in-memory index, not a million-line WAL file.

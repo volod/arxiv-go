@@ -130,7 +130,7 @@ func TestSplitSkipsSourceRemovedAfterScan(t *testing.T) {
 	h := &crashtest.Hook{FailAt: "wal:commit"}
 	cfg, c := splitConfig(r, "auto")
 	cfg.Crash = h.Func()
-	cfg.Recoverer = NewSplitResolver(nil, c.Verify, h.Func())
+	attachRecoverer(&cfg, c, h.Func())
 	res := runSplit(t, cfg, c)
 	if !errors.Is(res.Err, crashtest.ErrCrash) {
 		t.Fatalf("first commit was not reached: %+v", res)
@@ -192,7 +192,7 @@ func TestSplitCopyRecoversNanosecondMtime(t *testing.T) {
 	h := &crashtest.Hook{FailAt: "wal:placed"}
 	cfg, c := splitConfig(r, "copy")
 	cfg.Crash = h.Func()
-	cfg.Recoverer = NewSplitResolver(nil, c.Verify, h.Func())
+	attachRecoverer(&cfg, c, h.Func())
 	res := runSplit(t, cfg, c)
 	if !errors.Is(res.Err, crashtest.ErrCrash) {
 		t.Fatalf("placed was not reached: %+v", res)
@@ -229,7 +229,7 @@ func TestSplitMirrorsNestedAndUnicodePaths(t *testing.T) {
 		t.Error("destination bytes differ")
 	}
 	if !strings.Contains(string(mustRead(t, src+".md")), "rel_path: "+rel) {
-		t.Error("placeholder stub missing")
+		t.Error("stub missing")
 	}
 	for _, dir := range []string{"deep", "deep/a", "deep/a/b"} {
 		fi, err := os.Stat(filepath.Join(r.video, filepath.FromSlash(dir)))

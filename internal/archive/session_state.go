@@ -43,6 +43,13 @@ func (s *Session) RecordIssue(kind, relPath, reason string) {
 	s.issues = append(s.issues, state.Issue{Kind: kind, RelPath: relPath, Reason: reason})
 }
 
+// Issues returns a copy of the recorded issues.
+func (s *Session) Issues() []state.Issue {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]state.Issue(nil), s.issues...)
+}
+
 // MarkPartial makes a successful run end as partial (exit 6) although this process may have
 // recorded no issue, for items skipped by an earlier process of a resumed run.
 func (s *Session) MarkPartial() {

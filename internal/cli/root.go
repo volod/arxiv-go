@@ -74,11 +74,17 @@ var defaultHandlers = Handlers{
 		if o.Verify == VerifyHash {
 			verify = fsops.VerifyHash
 		}
-		cfg.Recoverer = archive.NewSplitResolver(nil, verify, nil)
 		scan := scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), false)
 		scan.SkipPaths = []string{o.VideoArchive}
+		stubs := archive.NewMarkdownStub(archive.StubConfig{
+			Archive: o.Archive, VideoArchive: o.VideoArchive, BaseURL: o.BaseURL,
+			Registry: o.Registry, Version: version, Verify: verify,
+		})
+		resolver := archive.NewSplitResolver(nil, verify, nil)
+		resolver.Stubs = stubs
+		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
-			Scan: scan, Transfer: o.Transfer, Verify: verify,
+			Scan: scan, Transfer: o.Transfer, Verify: verify, BaseURL: o.BaseURL, Stubs: stubs,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {

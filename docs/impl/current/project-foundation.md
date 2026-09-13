@@ -15,11 +15,12 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
   [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
-  [video transactions](video-split.md), while `restore` exits 70. The version string is stamped
+  [video transactions, stubs and video registry](video-split.md), while `restore` exits 70. The version string is stamped
   with `-ldflags -X`.
-- `internal/media` contains only a `doc.go` naming the files its plan tasks will add;
-  `internal/scanner` and `internal/report` are described in [archive registry](archive-registry.md); `internal/fsops`, `internal/state` and `internal/archive` are described
-  in [crash safety](crash-safety.md).
+- `internal/media` is described in [media metadata](media-metadata.md); `internal/scanner` and
+  `internal/report` are described in [archive registry](archive-registry.md) and
+  [video split](video-split.md); `internal/fsops`, `internal/state` and `internal/archive` are
+  described in [crash safety](crash-safety.md).
 
 ## CLI
 
@@ -79,7 +80,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   matches the group; dependencies resolve to open tasks or existing records; no cycles; planned
   capabilities have open tasks and shipped ones do not; record names use known groups, name their
   task id, are indexed, and are not still planned.
-- `make lint-doc-links`: relative links and GitHub-style heading anchors resolve in every Markdown
-  file outside hidden and build directories; fenced code is ignored.
+- `make lint-doc-links`: relative links and GitHub-style heading anchors resolve in documentation
+  Markdown files; hidden, build and `testdata` directories are skipped (goldens are product
+  output, not docs); fenced code is ignored.
 - `make plan-status`: open agent/human task counts, the next eligible agent task in plan order,
   other tasks eligible in parallel, and human tasks that can be acted on.

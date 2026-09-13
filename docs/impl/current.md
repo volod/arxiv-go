@@ -17,9 +17,10 @@ linked here in the same change.
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery, disk-space preflight | Shipped; session used by every operation; restore preflight awaits candidates |
 | [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
 | [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
-| [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, placeholder stubs | Transactions available; full stubs and video registries remain planned |
+| [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` | Shipped |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).
-`split` moves videos transactionally and writes placeholder stubs. `restore` still exits 70. The
+`split` moves videos transactionally, writes Markdown stubs and regenerates `arxgo-videos.csv`
+and `arxgo-videos.md` in both roots. `restore` still exits 70. The
 next work is reported by `make plan-status`.

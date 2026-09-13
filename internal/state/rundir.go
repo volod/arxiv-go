@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -215,4 +216,24 @@ func mkdirDurable(dir string) error {
 		return err
 	}
 	return fsops.SyncDir(parent)
+}
+
+// ListRunIDs returns the ids of run directories under root/.arxgo/runs, sorted.
+func ListRunIDs(root string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(StateDir(root), runsName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, e := range entries {
+		if !e.IsDir() || !ValidRunID(e.Name()) {
+			continue
+		}
+		ids = append(ids, e.Name())
+	}
+	sort.Strings(ids)
+	return ids, nil
 }

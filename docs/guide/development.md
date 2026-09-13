@@ -47,7 +47,7 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make vet` | `go vet ./...` | Static checks |
 | `make vet-windows` | `GOOS=windows GOARCH=amd64 go vet ./...` | Type-checks Windows build-tagged code and tests on Linux |
 | `make lint-spec-plan` | `go run ./tools/plancheck lint` | Registry, plan and records agree |
-| `make lint-doc-links` | `go run ./tools/plancheck links` | Relative Markdown links and anchors resolve |
+| `make lint-doc-links` | `go run ./tools/plancheck links` | Relative Markdown links and anchors resolve; `testdata` skipped |
 | `make plan-status` | `go run ./tools/plancheck status` | Open task counts and next eligible task |
 | `make coverage` | `go test -coverprofile` | Diagnostic coverage report only |
 | `make ci` | fmt-check, vet, vet-windows, test, build-all, lint-spec-plan, lint-doc-links | Required before accepting a task (Linux) |

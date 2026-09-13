@@ -28,16 +28,16 @@ type forcedOtherDevice struct{ fsops.Ops }
 
 func (forcedOtherDevice) SameDevice(string, string) (bool, error) { return false, nil }
 
-func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, c SplitConfig) error {
+func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, c SplitConfig) (string, error) {
 	if mode == state.TransferRename {
 		fi, err := os.Lstat(rec.Src)
 		if err != nil || !fi.Mode().IsRegular() || fi.Size() != rec.Size || !fi.ModTime().Equal(rec.Mtime) {
-			return fsops.ErrSourceChanged
+			return "", fsops.ErrSourceChanged
 		}
 		if err := renamePlaced(s, rec.Src, rec.Dst, rec.Size); err != nil {
-			return err
+			return "", err
 		}
-		return hitSplit(s.cfg.Crash, "fs:place")
+		return "", hitSplit(s.cfg.Crash, "fs:place")
 	}
 	stage := c.StageCopy
 	if stage == nil {
@@ -47,21 +47,21 @@ func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record,
 		Verify: c.Verify, ExpectSize: rec.Size, ExpectModTime: rec.Mtime,
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := hitSplit(s.cfg.Crash, "fs:copy"); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := w.Append(rec.TxID, state.StepCopied, state.Record{}); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := w.Append(rec.TxID, state.StepVerified, state.Record{SHA256: res.SHA256}); err != nil {
-		return err
+		return "", err
 	}
 	if err := renamePlaced(s, fsops.PartPath(rec.Dst), rec.Dst, rec.Size); err != nil {
-		return err
+		return "", err
 	}
-	return hitSplit(s.cfg.Crash, "fs:place")
+	return res.SHA256, hitSplit(s.cfg.Crash, "fs:place")
 }
 
 // renamePlaced moves oldpath to dst. A directory-flush failure after the rename is already

@@ -8,14 +8,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
 // SplitResolver rolls an interrupted split transaction forward or lets state.Recover abort its
-// unplaced part. Its stub writer is intentionally minimal until the report task adds full stubs.
+// unplaced part. Execute and recovery share the same stub writer.
 type SplitResolver struct {
 	FS     fsops.Ops
 	Verify fsops.VerifyMode
@@ -23,17 +22,12 @@ type SplitResolver struct {
 	Stubs  SplitStubWriter
 }
 
-// SplitStubWriter is the narrow seam for the later full Markdown renderer. Recovery and normal
-// execution use the same writer, so its Path and Write must make the same collision decision.
+// SplitStubWriter is the Markdown renderer used by execute and recovery. Path and Write must
+// make the same collision decision.
 type SplitStubWriter interface {
 	Path(state.Tx) string
 	Write(state.Tx) error
-}
-
-// PlaceholderStub writes only rel_path front matter until the full stub task is accepted.
-type PlaceholderStub struct {
-	FS    fsops.Ops
-	Crash state.CrashHook
+	RememberSHA256(rel, sum string)
 }
 
 func NewSplitResolver(ops fsops.Ops, verify fsops.VerifyMode, crash state.CrashHook) SplitResolver {
@@ -41,7 +35,7 @@ func NewSplitResolver(ops fsops.Ops, verify fsops.VerifyMode, crash state.CrashH
 		ops = fsops.System{}
 	}
 	return SplitResolver{FS: ops, Verify: verify, Crash: crash,
-		Stubs: PlaceholderStub{FS: ops, Crash: crash}}
+		Stubs: NewMarkdownStub(StubConfig{FS: ops, Crash: crash, Verify: verify})}
 }
 
 func (r SplitResolver) Inspect(tx state.Tx) (state.Observation, error) {
@@ -87,51 +81,8 @@ func (r SplitResolver) StubPath(tx state.Tx) string {
 	return r.Stubs.Path(tx)
 }
 
-func (p PlaceholderStub) Path(tx state.Tx) string {
-	primary := tx.Begin.Src + ".md"
-	if stubOwned(primary, tx.Begin.RelPath) {
-		return primary
-	}
-	return tx.Begin.Src + ".arxgo.md"
-}
-
-func stubOwned(path, rel string) bool {
-	b, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return true
-	}
-	if err != nil {
-		return false
-	}
-	lines := strings.Split(string(b), "\n")
-	if len(lines) < 3 || lines[0] != "---" {
-		return false
-	}
-	for _, line := range lines[1:] {
-		if line == "---" {
-			return false
-		}
-		if line == "rel_path: "+rel {
-			return true
-		}
-	}
-	return false
-}
-
 func (r SplitResolver) WriteStub(tx state.Tx) error {
 	return r.Stubs.Write(tx)
-}
-
-func (p PlaceholderStub) Write(tx state.Tx) error {
-	path := p.Path(tx)
-	if !stubOwned(path, tx.Begin.RelPath) {
-		return fmt.Errorf("stub conflict at %s", path)
-	}
-	data := []byte("---\nrel_path: " + tx.Begin.RelPath + "\n---\n")
-	if err := p.FS.AtomicWriteFile(path, data, 0o644); err != nil {
-		return err
-	}
-	return hitSplit(p.Crash, "fs:stub")
 }
 
 func (r SplitResolver) RemoveSource(tx state.Tx) error {

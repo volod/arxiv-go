@@ -25,31 +25,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Video split -- `video-split`
-
-#### implement-stubs-and-video-registry
-
-Leave a Markdown stub at each former video location and write the video registry and summary.
-
-- Serves: `video-split` -- [Data contracts](../openspec/stage-1-core/contracts.md#markdown-stub)
-- Agent status: CLEAR
-- Dependencies: [Video split transactions](records/0018-split-implement-video-split-transactions.md);
-  [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
-- User-visible outcome: Every moved video has `<name>.md` with front matter, relative and absolute
-  links, optional base-URL link and metadata; both roots contain `arxgo-videos.csv` and
-  `arxgo-videos.md`.
-- Scope boundary: Stub renderer and parser (front matter), stub collision rule, URL composition and
-  escaping, video registry regeneration from WAL + existing file, summary aggregation. No previews.
-- Data and artifact paths: `internal/report/markdown.go`, `internal/report/videos.go`,
-  `internal/report/summary.go`.
-- Execution path: `text/template` rendering with golden files; front matter parsed with a minimal
-  line-based reader (flat keys only, no YAML dependency).
-- Acceptance gates: Golden stub for file and media modes, with and without base URL, Unicode and
-  space-containing paths; existing foreign `<name>.md` triggers `<name>.arxgo.md`; registry
-  regeneration after two runs merges rows deterministically; summary bands and top-100 table.
-- Documentation target: `docs/impl/current/video-split.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 ### Video restore -- `video-restore`
 
 #### implement-video-restore
@@ -59,7 +34,7 @@ stub and registry policies.
 
 - Serves: `video-restore` -- [Restore](../openspec/stage-1-core/split-restore.md#restore)
 - Agent status: CLEAR
-- Dependencies: `implement-stubs-and-video-registry`.
+- Dependencies: [Stubs and video registry](records/0019-split-implement-stubs-and-video-registry.md).
 - User-visible outcome: `arxgo restore` moves or copies videos back, skips or recreates missing
   directories, deletes or keeps matching stubs, updates registries, and resumes after a crash.
 - Scope boundary: Restore phases, recovery resolver, registry matching, `--create-dirs`,

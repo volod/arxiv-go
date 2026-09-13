@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0019`.
+Next unused sequence: `0020`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -27,3 +27,4 @@ Next unused sequence: `0019`.
 | [0016 ffprobe metadata](0016-metadata-implement-ffprobe-metadata.md) | Typed ffprobe JSON normalization, bounded execution and scan fallback | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0017 Centralize test layout](0017-foundation-centralize-test-layout.md) | Root-level integration tests, reusable test helpers, static fixtures and documented placement rules | Accepted; `make ci` and integration tests pass on Linux; Windows cross-compiled |
 | [0018 Video split transactions](0018-split-implement-video-split-transactions.md) | Split scan, preflight, WAL transactions and recovery with placeholder stubs | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0019 Stubs and video registry](0019-split-implement-stubs-and-video-registry.md) | Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` after split | Accepted; `make ci` passes on Linux; Windows cross-compiled |

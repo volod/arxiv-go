@@ -3,6 +3,7 @@ package archive
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -18,7 +19,8 @@ type SplitConfig struct {
 	Scan     ScanConfig
 	Transfer string
 	Verify   fsops.VerifyMode
-	Stubs    SplitStubWriter // nil uses the placeholder; recovery must receive the same writer
+	Stubs    SplitStubWriter // nil uses MarkdownStub; recovery must receive the same writer
+	BaseURL  string
 	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 }
@@ -54,16 +56,28 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		s.Log.Info("dry run: split plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
+	if c.Stubs == nil {
+		c.Stubs = NewMarkdownStub(StubConfig{
+			Archive: s.cfg.Archive, VideoArchive: s.cfg.VideoArchive, BaseURL: c.BaseURL,
+			Registry: c.Scan.Registry, Version: s.cfg.Version, Verify: c.Verify,
+			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now,
+		})
+	} else if m, ok := c.Stubs.(*MarkdownStub); ok {
+		if s.cfg.Crash != nil {
+			m.cfg.Crash = s.cfg.Crash
+		}
+		if m.cfg.Now == nil {
+			m.cfg.Now = s.cfg.Now
+		}
+	}
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
 	resolver := NewSplitResolver(s.cfg.FS, c.Verify, s.cfg.Crash)
-	if c.Stubs != nil {
-		resolver.Stubs = c.Stubs
-	}
+	resolver.Stubs = c.Stubs
 	var index int64
 	seen := make(map[string]string)
-	return ReadCandidates(list, func(v Candidate) error {
+	err = ReadCandidates(list, func(v Candidate) error {
 		index++
 		if runtime.GOOS == "windows" {
 			key := strings.ToLower(v.RelPath)
@@ -85,6 +99,10 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		s.Update(func(cp *state.Checkpoint) { cp.CandidateIndex = index })
 		return s.Advance(1)
 	})
+	if err != nil {
+		return err
+	}
+	return writeVideoOutputs(s, c)
 }
 
 func countSplitCandidates(list string, w *state.WAL) (Candidates, error) {
@@ -147,8 +165,10 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		var sum string
 		if !adopted {
-			err = placeSplit(ctx, s, w, rec, mode, *c)
+			var err error
+			sum, err = placeSplit(ctx, s, w, rec, mode, *c)
 			if errors.Is(err, fs.ErrExist) {
 				if e := os.Remove(fsops.PartPath(dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
 					return e
@@ -199,10 +219,14 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 		if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
 			return err
 		}
+		r.Stubs.RememberSHA256(v.RelPath, sum)
 		if err := r.WriteStub(tx); err != nil {
 			return err
 		}
 		stub := r.StubPath(tx)
+		if stub == "" {
+			return fmt.Errorf("stub path for %s", v.RelPath)
+		}
 		if stub != src+".md" {
 			s.Log.Warn("stub collision; wrote fallback", "rel_path", v.RelPath, "stub", stub)
 		}

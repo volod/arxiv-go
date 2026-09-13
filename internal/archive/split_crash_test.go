@@ -19,7 +19,7 @@ func TestSplitCrashPointsConverge(t *testing.T) {
 				h := &crashtest.Hook{FailAt: point}
 				cfg, c := splitConfig(r, mode)
 				cfg.Crash = h.Func()
-				cfg.Recoverer = NewSplitResolver(nil, c.Verify, h.Func())
+				attachRecoverer(&cfg, c, h.Func())
 				res := runSplit(t, cfg, c)
 				if !errors.Is(res.Err, crashtest.ErrCrash) {
 					t.Fatalf("point %s was not reached: %+v", point, res)

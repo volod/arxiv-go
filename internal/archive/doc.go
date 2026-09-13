@@ -6,7 +6,7 @@
 // requirement model), preflight_run.go (device probe, report lines, Session.Preflight),
 // session_state.go (checkpoint hooks used by operation bodies), scan.go and scan_pipeline.go (the
 // resumable registry scan: walker, detection pool, ordered writer), candidates.go
-// (candidates.jsonl), split.go, split_transfer.go and split_recovery.go (video
-// transactions and recovery). Planned: restore.go. Specifications:
+// (candidates.jsonl), split.go, split_transfer.go, split_recovery.go, split_stub.go and
+// split_report.go (video transactions, Markdown stubs, video registry). Planned: restore.go. Specifications:
 // docs/openspec/stage-1-core/integrity.md and docs/openspec/stage-1-core/split-restore.md.
 package archive

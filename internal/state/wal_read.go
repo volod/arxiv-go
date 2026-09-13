@@ -2,9 +2,13 @@ package state
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -108,4 +112,35 @@ func txNumber(txid, runID string) (int64, error) {
 		s = txid[i+1:]
 	}
 	return strconv.ParseInt(s, 10, 64)
+}
+
+// ReadWALRecords reads path as JSON Lines without opening it for append. A missing file
+// returns (nil, nil). A torn last line without a newline is ignored.
+func ReadWALRecords(path string) ([]Record, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	lines := bytes.Split(data, []byte("\n"))
+	var out []Record
+	for i, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		if i == len(lines)-1 && data[len(data)-1] != '\n' {
+			break // torn tail
+		}
+		var rec Record
+		if err := json.Unmarshal(line, &rec); err != nil {
+			return nil, fmt.Errorf("%w: %s: corrupt WAL line %d: %v", ErrStateCorrupt, path, i+1, err)
+		}
+		out = append(out, rec)
+	}
+	return out, nil
 }

@@ -31,7 +31,12 @@ func TestSplitCommandMovesVideo(t *testing.T) {
 		t.Fatalf("source still exists: %v", err)
 	}
 	stub, err := os.ReadFile(src + ".md")
-	if err != nil || !bytes.Contains(stub, []byte("rel_path: clip.mp4")) {
-		t.Fatalf("placeholder stub: %s, %v", stub, err)
+	if err != nil || !bytes.Contains(stub, []byte("arxgo_stub: 1")) || !bytes.Contains(stub, []byte("rel_path: clip.mp4")) {
+		t.Fatalf("stub: %s, %v", stub, err)
+	}
+	for _, root := range []string{archive, video} {
+		if _, err := os.Stat(filepath.Join(root, "arxgo-videos.csv")); err != nil {
+			t.Fatalf("video registry in %s: %v", root, err)
+		}
 	}
 }
