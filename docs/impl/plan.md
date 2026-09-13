@@ -27,44 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media metadata -- `media-metadata`
 
-#### remove-shell-scripts-from-discovery-tests
-
-Discovery tests write POSIX shell scripts as fake `ffprobe`/`ffmpeg` and skip on Windows. A
-portable replacement that plants fake tools named per platform (`ffprobe.exe`) would still be
-confusing, so discovery must be testable in pure Go with no fake tool on disk.
-
-- Serves: `media-metadata` -- [Acceptance](../openspec/stage-1-core/metadata.md#acceptance)
-- Agent status: CLEAR
-- Dependencies: [Tool discovery](records/0013-metadata-implement-tool-discovery.md).
-- User-visible outcome: Tool discovery (next-to-executable precedence, fallback after a failing or
-  hanging `-version`, exit 3 guidance) is tested by the same Go code on every platform without a
-  shell, so step W6 on a Windows host is a plain `go test` run.
-- Scope boundary: Unexported seams on `media.Finder` for the candidate check and the `-version`
-  probe, with defaults that keep today's `exec.LookPath` and `exec.CommandContext` behavior.
-  Migrate the discovery-logic tests in `internal/media` and `internal/cli` to in-memory fakes
-  keyed by candidate path. Test the real probe against the test binary as a helper process that
-  `TestMain` dispatches from an environment variable. Test the real candidate check on a generated
-  directory and non-executable file. Excluded: any change to discovery behavior, log lines or exit
-  codes; copying or renaming binaries as fake tools; sidecar behavior files; `go build` in tests;
-  converting stage-2 runner tests (see `implement-ffmpeg-runner`).
-- Data and artifact paths: `internal/media/tools.go`, `internal/media/tools_test.go`,
-  `internal/media/probe_test.go` (helper process and `TestMain`), `internal/cli/tools_test.go`,
-  `docs/guide/windows-verification.md`.
-- Execution path: `go test ./internal/media ./internal/cli`; the `cli` tests reach the seams through
-  an unexported test hook or by injecting a probe through `media.Finder` fields. The real-probe
-  tests start `os.Executable()` with `-version`, using `t.Setenv` to pass the behavior (version
-  line, exit code, no output, blank first line, output over 64 KiB, sleep past the timeout, child
-  holding stdout). `TestFindRealFFprobe` stays as the optional live check.
-- Acceptance gates: On Linux: every gate in
-  [the tool discovery record](records/0013-metadata-implement-tool-discovery.md#acceptance-evidence)
-  still passes with the migrated tests. `grep -rn '#!/bin/sh\|\.bat' internal/media internal/cli`
-  finds nothing, and no test writes an executable named after a tool. The timeout case with a
-  stdout-holding child finishes within its bound. The six scratch mutations listed in that record,
-  plus dropping the output cap, each fail a named test. `make vet-windows` passes. No test in these
-  packages skips on Windows except the executable-bit case.
-- Documentation target: `docs/impl/current/media-metadata.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-iso-bmff-metadata
 
 Read MP4/MOV/M4A container and stream metadata in pure Go.
@@ -249,7 +211,7 @@ Run ffmpeg safely with progress, timeouts and error capture.
 - Scope boundary: `media.Runner` for ffmpeg/ffprobe, `-progress pipe:1` parsing, stderr ring buffer,
   timeout, cancellation, part-file naming and rename, encoder list probe. No preview planning.
 - Data and artifact paths: `internal/media/ffmpeg.go`.
-- Execution path: Test-binary helper process (the pattern of `remove-shell-scripts-from-discovery-tests`,
+- Execution path: Test-binary helper process (the pattern of [shell-free discovery tests](records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
   no shell scripts) for progress, exit-code and timeout tests; live test on a `lavfi` input.
 - Acceptance gates: Progress parsed; timeout kills the process tree; non-zero exit removes the part
   file and returns the stderr tail; encoder list parsed from captured output.

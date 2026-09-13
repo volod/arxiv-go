@@ -15,64 +15,57 @@ import (
 	"time"
 )
 
-// fakeTool writes an executable shell script named tool into dir that runs body. Fake tools are
-// POSIX scripts; the Windows .bat variant is step W6 of the Windows verification scenario.
-func fakeTool(t *testing.T, dir string, tool Tool, body string) string {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("fake tools are shell scripts; Windows discovery is checked in scenario step W6")
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	p := filepath.Join(dir, ExecutableName(tool, runtime.GOOS))
-	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return p
+const okVersion = "ffprobe version 9.9-fake Copyright (c) the testers"
+
+type fakeToolResult struct {
+	version string
+	err     error
+	probe   func(context.Context) (string, error)
 }
 
-const okVersion = `echo "ffprobe version 9.9-fake Copyright (c) the testers"; echo "built with fake"`
-
-// testFinder searches the executable directory exeDir, then the directories in path.
-func testFinder(exeDir string, path ...string) Finder {
+// fakeFinder searches candidate paths but validates only entries in the in-memory map.
+func fakeFinder(exeDir string, entries map[string]fakeToolResult, path ...string) Finder {
 	list := strings.Join(path, string(os.PathListSeparator))
 	return Finder{
 		Executable: func() (string, error) { return filepath.Join(exeDir, "arxgo"), nil },
 		SearchPath: &list,
-		Timeout:    5 * time.Second,
+		checkCandidate: func(path string) (string, error) {
+			if _, ok := entries[path]; !ok {
+				return "", exec.ErrNotFound
+			}
+			return path, nil
+		},
+		probeVersion: func(ctx context.Context, path string) (string, error) {
+			entry := entries[path]
+			if entry.probe != nil {
+				return entry.probe(ctx)
+			}
+			return entry.version, entry.err
+		},
 	}
+}
+
+func toolPath(dir string, tool Tool) string {
+	return filepath.Join(dir, ExecutableName(tool, runtime.GOOS))
 }
 
 func TestFindPrefersExecutableDirectoryOverPath(t *testing.T) {
 	root := t.TempDir()
 	exeDir, pathDir := filepath.Join(root, "bin"), filepath.Join(root, "path")
-	want := fakeTool(t, exeDir, FFprobe, okVersion)
-	fakeTool(t, pathDir, FFprobe, `echo "ffprobe version from PATH"`)
-
-	got, err := testFinder(exeDir, pathDir).Find(context.Background(), FFprobe)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Path != want || got.Version != "ffprobe version 9.9-fake Copyright (c) the testers" {
-		t.Fatalf("found %+v, want %s with the first version line", got, want)
+	want, other := toolPath(exeDir, FFprobe), toolPath(pathDir, FFprobe)
+	f := fakeFinder(exeDir, map[string]fakeToolResult{want: {version: okVersion}, other: {version: "ffprobe version from PATH"}}, pathDir)
+	got, err := f.Find(context.Background(), FFprobe)
+	if err != nil || got.Path != want || got.Version != okVersion {
+		t.Fatalf("Find = %+v, %v; want %s, %s", got, err, want, okVersion)
 	}
 }
 
 func TestFindOnPathOnly(t *testing.T) {
 	root := t.TempDir()
-	exeDir := filepath.Join(root, "bin")
-	if err := os.Mkdir(exeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	first, second := filepath.Join(root, "p1"), filepath.Join(root, "p2")
-	if err := os.Mkdir(first, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	want := fakeTool(t, second, FFprobe, okVersion)
-	fakeTool(t, filepath.Join(root, "p3"), FFprobe, okVersion)
-
-	got, err := testFinder(exeDir, first, second, filepath.Join(root, "p3")).Find(context.Background(), FFprobe)
+	first, second, third := filepath.Join(root, "p1"), filepath.Join(root, "p2"), filepath.Join(root, "p3")
+	want := toolPath(second, FFprobe)
+	f := fakeFinder(filepath.Join(root, "bin"), map[string]fakeToolResult{want: {version: okVersion}, toolPath(third, FFprobe): {version: okVersion}}, first, second, third)
+	got, err := f.Find(context.Background(), FFprobe)
 	if err != nil || got.Path != want {
 		t.Fatalf("Find = %+v, %v; want %s", got, err, want)
 	}
@@ -81,49 +74,52 @@ func TestFindOnPathOnly(t *testing.T) {
 func TestFindResolvesSymlinkedExecutable(t *testing.T) {
 	root := t.TempDir()
 	realDir, linkDir := filepath.Join(root, "real"), filepath.Join(root, "link")
-	want := fakeTool(t, realDir, FFprobe, okVersion)
-	if err := os.Mkdir(linkDir, 0o755); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{realDir, linkDir} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	exe := filepath.Join(realDir, "arxgo")
-	if err := os.WriteFile(exe, nil, 0o755); err != nil {
+	if err := os.WriteFile(exe, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(linkDir, "arxgo")
 	if err := os.Symlink(exe, link); err != nil {
-		t.Skipf("symlink: %v", err)
+		// Some Windows hosts disallow symlink creation. Keep the candidate-order check
+		// active there; Linux verifies resolution through the real link.
+		t.Logf("symlink unavailable, checking executable directory directly: %v", err)
+		link = exe
 	}
-	empty := ""
-	f := Finder{Executable: func() (string, error) { return link, nil }, SearchPath: &empty}
+	want := toolPath(realDir, FFprobe)
+	f := fakeFinder(realDir, map[string]fakeToolResult{want: {version: okVersion}})
+	f.Executable = func() (string, error) { return link, nil }
 	got, err := f.Find(context.Background(), FFprobe)
 	if err != nil || got.Path != want {
-		t.Fatalf("Find = %+v, %v; want the tool next to the symlink target %s", got, err, want)
+		t.Fatalf("Find = %+v, %v; want %s", got, err, want)
 	}
 }
 
 func TestFindMissing(t *testing.T) {
 	root := t.TempDir()
-	_, err := testFinder(root, root).Find(context.Background(), FFmpeg)
+	_, err := fakeFinder(root, nil, root).Find(context.Background(), FFmpeg)
 	if !errors.Is(err, ErrToolNotFound) {
 		t.Fatalf("err = %v, want ErrToolNotFound", err)
 	}
 }
 
 func TestFindTreatsFailedVersionAsMissing(t *testing.T) {
-	cases := map[string]string{
-		"non-zero exit":  `echo "ffprobe version 9.9"; exit 1`,
-		"killed":         `kill -9 $$`,
-		"no output":      `exit 0`,
-		"blank output":   `echo; echo "second line"`,
-		"not a program":  `exec /nonexistent/arxgo-test-binary`,
-		"args are wrong": `[ "$1" = "-version" ] || { echo ok; exit 0; }; exit 2`,
+	cases := map[string]fakeToolResult{
+		"non-zero exit": {version: okVersion, err: errors.New("exit status 1")},
+		"no output":     {err: errors.New("-version printed nothing")},
+		"blank output":  {err: errors.New("-version printed nothing")},
+		"probe failure": {err: errors.New("could not start")},
+		"timeout":       {err: context.DeadlineExceeded},
 	}
-	for name, body := range cases {
+	for name, result := range cases {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
-			fakeTool(t, dir, FFprobe, body)
 			var logs bytes.Buffer
-			f := testFinder(dir)
+			f := fakeFinder(dir, map[string]fakeToolResult{toolPath(dir, FFprobe): result})
 			f.Log = slog.New(slog.NewTextHandler(&logs, nil))
 			_, err := f.Find(context.Background(), FFprobe)
 			if !errors.Is(err, ErrToolNotFound) {
@@ -137,63 +133,84 @@ func TestFindTreatsFailedVersionAsMissing(t *testing.T) {
 }
 
 func TestFindFallsBackToPathWhenExecutableDirectoryToolFails(t *testing.T) {
-	root := t.TempDir()
-	exeDir, pathDir := filepath.Join(root, "bin"), filepath.Join(root, "path")
-	fakeTool(t, exeDir, FFprobe, `exit 3`)
-	want := fakeTool(t, pathDir, FFprobe, okVersion)
-	got, err := testFinder(exeDir, pathDir).Find(context.Background(), FFprobe)
-	if err != nil || got.Path != want {
-		t.Fatalf("Find = %+v, %v; want %s", got, err, want)
+	for name, failure := range map[string]error{"nonzero": errors.New("exit status 3"), "timeout": context.DeadlineExceeded} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			exeDir, pathDir := filepath.Join(root, "bin"), filepath.Join(root, "path")
+			want := toolPath(pathDir, FFprobe)
+			f := fakeFinder(exeDir, map[string]fakeToolResult{toolPath(exeDir, FFprobe): {err: failure}, want: {version: okVersion}}, pathDir)
+			got, err := f.Find(context.Background(), FFprobe)
+			if err != nil || got.Path != want {
+				t.Fatalf("Find = %+v, %v; want %s", got, err, want)
+			}
+		})
 	}
 }
 
-func TestFindVersionTimeoutKillsTool(t *testing.T) {
+func TestFindRejectsTimedOutProbe(t *testing.T) {
 	dir := t.TempDir()
-	// The background sleep keeps stdout open after the shell is killed; WaitDelay must still end it.
-	fakeTool(t, dir, FFprobe, `sleep 5 & sleep 5`)
-	f := testFinder(dir)
-	f.Timeout = 200 * time.Millisecond
+	f := fakeFinder(dir, map[string]fakeToolResult{toolPath(dir, FFprobe): {probe: func(ctx context.Context) (string, error) {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+			return "", context.DeadlineExceeded
+		}
+	}}})
 	start := time.Now()
 	_, err := f.Find(context.Background(), FFprobe)
 	if !errors.Is(err, ErrToolNotFound) {
 		t.Fatalf("err = %v, want ErrToolNotFound", err)
 	}
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
+	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Fatalf("timeout took %s", elapsed)
 	}
 }
 
-func TestFindIgnoresNonExecutableRelativeAndDirectoryCandidates(t *testing.T) {
+func TestFindIgnoresRelativeAndDirectoryCandidates(t *testing.T) {
 	root := t.TempDir()
-	plain := filepath.Join(root, "plain")
-	if err := os.Mkdir(plain, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(plain, "ffprobe"), []byte("#!/bin/sh\necho ffprobe version\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	dirCandidate := filepath.Join(root, "dir")
-	if err := os.MkdirAll(filepath.Join(dirCandidate, "ffprobe"), 0o755); err != nil {
+	if err := os.MkdirAll(toolPath(dirCandidate, FFprobe), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rel := filepath.Join(root, "rel")
-	fakeTool(t, rel, FFprobe, okVersion)
-	t.Chdir(root)
-
-	f := testFinder(filepath.Join(root, "none"), plain, dirCandidate, "rel", "", ".")
-	if _, err := f.Find(context.Background(), FFprobe); !errors.Is(err, ErrToolNotFound) {
-		t.Fatalf("err = %v, want ErrToolNotFound", err)
+	f := fakeFinder(filepath.Join(root, "none"), nil, dirCandidate, "rel", "", ".")
+	// This test uses the real candidate check, while the probe must never run.
+	f.checkCandidate = nil
+	f.probeVersion = func(context.Context, string) (string, error) {
+		t.Fatal("directory candidate was probed")
+		return "", nil
 	}
-	cands := f.Candidates(FFprobe)
-	want := []string{filepath.Join(root, "none", "ffprobe"), filepath.Join(plain, "ffprobe"), filepath.Join(dirCandidate, "ffprobe")}
-	if !reflect.DeepEqual(cands, want) {
-		t.Errorf("candidates = %q, want %q", cands, want)
+	if _, err := f.Find(context.Background(), FFprobe); !errors.Is(err, ErrToolNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+	want := []string{toolPath(filepath.Join(root, "none"), FFprobe), toolPath(dirCandidate, FFprobe)}
+	if got := f.Candidates(FFprobe); !reflect.DeepEqual(got, want) {
+		t.Errorf("candidates = %q, want %q", got, want)
+	}
+}
+
+func TestFindRejectsNonExecutableFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not use Unix executable bits")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(toolPath(dir, FFprobe), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := fakeFinder(dir, nil)
+	f.checkCandidate = nil
+	f.probeVersion = func(context.Context, string) (string, error) {
+		t.Fatal("non-executable file was probed")
+		return "", nil
+	}
+	if _, err := f.Find(context.Background(), FFprobe); !errors.Is(err, ErrToolNotFound) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestCandidatesDeduplicateAndUseWindowsNames(t *testing.T) {
 	root := t.TempDir()
-	f := testFinder(root, root+string(filepath.Separator), filepath.Join(root, "x"))
+	f := fakeFinder(root, nil, root+string(filepath.Separator), filepath.Join(root, "x"))
 	f.GOOS = "windows"
 	want := []string{filepath.Join(root, "ffmpeg.exe"), filepath.Join(root, "x", "ffmpeg.exe")}
 	if got := f.Candidates(FFmpeg); !reflect.DeepEqual(got, want) {
@@ -201,25 +218,28 @@ func TestCandidatesDeduplicateAndUseWindowsNames(t *testing.T) {
 	}
 	f.Executable = func() (string, error) { return "", errors.New("unknown") }
 	if got := f.Candidates(FFmpeg); !reflect.DeepEqual(got, want) {
-		t.Fatalf("without an executable path: candidates = %q, want %q", got, want)
+		t.Fatalf("without executable: candidates = %q, want %q", got, want)
 	}
 }
 
 func TestFindStopsWhenContextEnds(t *testing.T) {
 	dir := t.TempDir()
-	fakeTool(t, dir, FFprobe, `exec sleep 5`)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	f := fakeFinder(dir, map[string]fakeToolResult{toolPath(dir, FFprobe): {probe: func(ctx context.Context) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}}})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
-	if _, err := testFinder(dir).Find(ctx, FFprobe); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("err = %v, want the context error", err)
+	if _, err := f.Find(ctx, FFprobe); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestDiscoverReportsMissingRequirementsInOrder(t *testing.T) {
 	dir := t.TempDir()
-	want := fakeTool(t, dir, FFmpeg, `echo "ffmpeg version 9.9-fake"`)
+	want := toolPath(dir, FFmpeg)
 	reqs := Requirements(Needs{MetadataMedia: true, Image: "start"})
-	found, missing, err := testFinder(dir).Discover(context.Background(), reqs)
+	found, missing, err := fakeFinder(dir, map[string]fakeToolResult{want: {version: "ffmpeg version 9.9-fake"}}).Discover(context.Background(), reqs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +247,7 @@ func TestDiscoverReportsMissingRequirementsInOrder(t *testing.T) {
 		t.Errorf("found = %+v", found)
 	}
 	if len(missing) != 1 || missing[0].Tool != FFprobe {
-		t.Errorf("missing = %+v, want ffprobe only", missing)
+		t.Errorf("missing = %+v", missing)
 	}
 }
 
@@ -235,7 +255,7 @@ func TestFindRealFFprobe(t *testing.T) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		t.Skip("ffprobe not on PATH; live discovery runs only where it is installed")
 	}
-	got, err := Finder{}.Find(context.Background(), FFprobe)
+	got, err := (Finder{}).Find(context.Background(), FFprobe)
 	if err != nil {
 		t.Fatal(err)
 	}

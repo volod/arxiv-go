@@ -1,6 +1,7 @@
 # Media Metadata
 
-Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-discovery.md).
+Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-discovery.md),
+[0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
 planned: ISO BMFF and ffprobe parsing remain in the
 [plan](../plan.md#media-metadata----media-metadata), so `--metadata media` still writes file
@@ -32,7 +33,8 @@ Then place ffprobe next to arxgo or add it to PATH.
   `WaitDelay`, so a tool whose child keeps stdout open cannot stall startup after the timeout.
 - `Finder.Discover` returns a `Toolset` (path and version per tool) and the missing requirements;
   a cancelled context returns its error. Executable, search path, GOOS and timeout are fields for
-  tests.
+  tests. Private candidate-check and version-probe seams let unit tests exercise the same search
+  logic without creating fake tool files.
 - `media.Guidance(missing, goos, goarch)` and `media.DownloadLinks`: `linux/amd64` and
   `windows/amd64` link tables, `https://ffmpeg.org/download.html` for any other platform.
 
@@ -48,13 +50,14 @@ Then place ffprobe next to arxgo or add it to PATH.
 
 ## Verification
 
-Linux only; the Windows `.exe` naming and link table are unit-tested and cross-compiled, and
-runtime discovery with `.bat` fakes is step W6 of the
+`go test ./internal/media ./internal/cli` covers candidate order, symlink resolution, fallback,
+requirements, exit 3 guidance and interrupt with in-memory candidate and probe results keyed by
+path. The real `-version` probe is tested by running the test binary as a helper process: successful
+output, nonzero exit, empty or blank first line, 64 KiB output cap, timeout and a child holding
+stdout open. The real candidate check rejects a directory on every platform and a non-executable
+file on Linux. No test writes a fake ffprobe/ffmpeg executable or runs a shell script.
+
+`TestFindRealFFprobe` also validates an installed `ffprobe` when one is on `PATH` and skips with a
+reason otherwise. Linux tests and `make ci` pass; Windows behavior is cross-compiled and vetted,
+with runtime step W6 still deferred in the
 [Windows verification scenario](../../guide/windows-verification.md).
-
-```text
-go test ./internal/media ./internal/cli
-```
-
-Tests generate POSIX fake tools in `t.TempDir()`; `TestFindRealFFprobe` also validates a real
-`ffprobe` when one is on `PATH` and skips otherwise.

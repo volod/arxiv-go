@@ -10,6 +10,8 @@ import (
 	"github.com/volod/arxiv-go/internal/media"
 )
 
+type toolDiscover func(media.Finder, context.Context, []media.Requirement) (media.Toolset, []media.Requirement, error)
+
 // scanNeeds returns the tool needs of the scan settings. Stage-2 preview modes join when their
 // flags become available.
 func scanNeeds(sc ScanSettings) media.Needs {
@@ -26,7 +28,11 @@ func requireTools(ctx context.Context, e env, log *slog.Logger, needs media.Need
 	}
 	f := e.finder
 	f.Log = log
-	found, missing, err := f.Discover(ctx, reqs)
+	discover := media.Finder.Discover
+	if e.discover != nil {
+		discover = e.discover
+	}
+	found, missing, err := discover(f, ctx, reqs)
 	if err != nil {
 		log.Error("tool discovery interrupted", "err", err)
 		return nil, ExitInterrupted, false

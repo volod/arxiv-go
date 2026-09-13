@@ -49,7 +49,7 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 			sessionHooks = func(cfg *archive.Config) { lock(cfg); got = *cfg }
 			var out, errOut bytes.Buffer
 			e := testEnv(&out, &errOut, noProcessEnv)
-			e.finder = fakeTools(t, media.FFprobe)
+			fakeTools(t, &e, media.FFprobe)
 			if code := run(context.Background(), tc.args, e); code != tc.code {
 				t.Fatalf("exit code = %d: %s", code, errOut.String())
 			}

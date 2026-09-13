@@ -124,8 +124,8 @@ Coverage (diagnostic): `internal/media` 99.2 %.
   cross-compiled only. Discovery tries only `ffprobe.exe`, so a `ffprobe.bat` fake as W6 describes
   is never a candidate; W6 needs fake `.exe` tools (for example a small Go helper built for the
   test) or a copied real `ffprobe.exe` next to a failing one. Next check: shell-free discovery tests
-  are added by plan task `remove-shell-scripts-from-discovery-tests` (renamed from
-  `add-portable-fake-tools`, which planned copied `.exe` fakes); the Windows run itself is step W6 of the deferred
+  were added by [0014 Shell-free discovery tests](0014-metadata-remove-shell-scripts-from-discovery-tests.md)
+  (renamed from `add-portable-fake-tools`, which planned copied `.exe` fakes); the Windows run itself is step W6 of the deferred
   [Windows verification scenario](../../guide/windows-verification.md#deferred-items). Owner:
   `review-stage-1-integrity` (disposition: deferred).
 - `AUD-implement-tool-discovery-2`: nonblocking. The `-version` timeout kills only the direct child;

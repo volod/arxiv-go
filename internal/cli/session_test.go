@@ -112,7 +112,7 @@ func TestDefiningOptionsIgnoreRuntimeFlags(t *testing.T) {
 
 	var out, errOut bytes.Buffer
 	e := testEnv(&out, &errOut, noProcessEnv)
-	e.finder = fakeTools(t, media.FFprobe)
+	fakeTools(t, &e, media.FFprobe)
 	run(context.Background(), []string{"--archive", root}, e)
 	run(context.Background(), []string{"--archive", root, "--log-level", "debug", "--checkpoint-every", "7", "--dry-run", "--new-run"}, e)
 	run(context.Background(), []string{"--archive", root, "--metadata", "media"}, e)

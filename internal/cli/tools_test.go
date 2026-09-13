@@ -19,26 +19,41 @@ import (
 var noTools = media.Finder{
 	Executable: func() (string, error) { return "", errors.New("no executable in tests") },
 	SearchPath: new(string),
-	GOOS:       "linux",
+	GOOS:       runtime.GOOS,
 }
 
-// fakeTools returns a finder whose search path holds passing fake scripts for tools.
-func fakeTools(t *testing.T, tools ...media.Tool) media.Finder {
+// fakeTools provides discovery results keyed by candidate path, without creating tools.
+func fakeTools(t *testing.T, e *env, tools ...media.Tool) {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("fake tools are shell scripts; Windows discovery is checked in scenario step W6")
-	}
 	dir := t.TempDir()
+	entries := make(map[string]media.Found)
 	for _, tool := range tools {
-		script := "#!/bin/sh\necho \"" + string(tool) + " version 9.9-fake\"\n"
-		if err := os.WriteFile(filepath.Join(dir, string(tool)), []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		path := filepath.Join(dir, media.ExecutableName(tool, e.finder.GOOS))
+		entries[path] = media.Found{Tool: tool, Path: path, Version: string(tool) + " version 9.9-fake"}
 	}
-	f := noTools
-	f.SearchPath = &dir
-	f.GOOS = runtime.GOOS
-	return f
+	e.finder.SearchPath = &dir
+	e.discover = func(f media.Finder, ctx context.Context, reqs []media.Requirement) (media.Toolset, []media.Requirement, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		found := media.Toolset{}
+		var missing []media.Requirement
+		for _, req := range reqs {
+			matched := false
+			for _, candidate := range f.Candidates(req.Tool) {
+				if item, ok := entries[candidate]; ok {
+					found[req.Tool] = item
+					f.Log.Info("tool found", "tool", string(req.Tool), "path", item.Path, "version", item.Version)
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				missing = append(missing, req)
+			}
+		}
+		return found, missing, nil
+	}
 }
 
 func TestMissingToolExitsThreeBeforeLockOrWrite(t *testing.T) {
@@ -120,13 +135,13 @@ func TestFoundToolsReachTheHandler(t *testing.T) {
 	arc, _ := fixture(t)
 	var out, errOut bytes.Buffer
 	e := testEnv(&out, &errOut, noProcessEnv)
-	e.finder = fakeTools(t, media.FFprobe)
+	fakeTools(t, &e, media.FFprobe)
 	var got media.Toolset
 	e.handlers.Scan = func(_ context.Context, o ScanOptions, _ *slog.Logger) int { got = o.Tools; return ExitOK }
 	if code := run(context.Background(), []string{"scan", "--archive", arc, "--metadata", "media"}, e); code != ExitOK {
 		t.Fatalf("exit code = %d (stderr %s)", code, errOut.String())
 	}
-	want := filepath.Join(*e.finder.SearchPath, "ffprobe")
+	want := filepath.Join(*e.finder.SearchPath, media.ExecutableName(media.FFprobe, runtime.GOOS))
 	if got.Path(media.FFprobe) != want || got[media.FFprobe].Version != "ffprobe version 9.9-fake" {
 		t.Fatalf("tools = %+v, want %s", got, want)
 	}
@@ -141,7 +156,7 @@ func TestToolDiscoveryInterrupted(t *testing.T) {
 	cancel()
 	var out, errOut bytes.Buffer
 	e := testEnv(&out, &errOut, noProcessEnv)
-	e.finder = fakeTools(t, media.FFprobe)
+	fakeTools(t, &e, media.FFprobe)
 	if code := run(ctx, []string{"scan", "--archive", arc, "--metadata", "media"}, e); code != ExitInterrupted {
 		t.Fatalf("exit code = %d, want %d (stderr %s)", code, ExitInterrupted, errOut.String())
 	}

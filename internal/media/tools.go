@@ -105,6 +105,10 @@ type Finder struct {
 	Timeout time.Duration
 	// Log receives the accepted version line and rejected candidates; nil discards.
 	Log *slog.Logger
+	// checkCandidate and probeVersion are test seams. Nil preserves the real filesystem and
+	// process checks; keeping them private prevents callers from bypassing validation.
+	checkCandidate func(string) (string, error)
+	probeVersion   func(context.Context, string) (string, error)
 }
 
 // Candidates returns the paths tried for tool, in order and without duplicates: the executable's
@@ -149,12 +153,20 @@ func (f Finder) Candidates(tool Tool) []string {
 // ends first.
 func (f Finder) Find(ctx context.Context, tool Tool) (Found, error) {
 	log := f.logger()
+	check := f.checkCandidate
+	if check == nil {
+		check = exec.LookPath
+	}
+	probe := f.probeVersion
+	if probe == nil {
+		probe = f.version
+	}
 	for _, candidate := range f.Candidates(tool) {
-		path, err := exec.LookPath(candidate)
+		path, err := check(candidate)
 		if err != nil {
 			continue // absent or not executable
 		}
-		version, err := f.version(ctx, path)
+		version, err := probe(ctx, path)
 		if ctx.Err() != nil {
 			return Found{}, ctx.Err()
 		}

@@ -88,6 +88,7 @@ type env struct {
 	fs             rootFS
 	handlers       Handlers
 	finder         media.Finder // tool discovery; its GOOS also selects the download links
+	discover       toolDiscover // test seam
 	goarch         string       // overrides runtime.GOARCH for the download links; tests only
 }
 
