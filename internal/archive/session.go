@@ -47,6 +47,10 @@ type Config struct {
 	Rand  io.Reader
 	Lock  state.LockOptions // Host, PID and Alive; ForceUnlock comes from the field above
 	Ticks func(d time.Duration) (<-chan time.Time, func())
+
+	// Recoverer, when set, is applied to an existing wal.jsonl after the lock is taken.
+	Recoverer state.Resolver
+	Crash     state.CrashHook
 }
 
 func (c *Config) defaults() {
@@ -83,6 +87,7 @@ type Session struct {
 
 	locks   []*state.Lock
 	runLog  *state.RunLog
+	wal     *state.WAL
 	started time.Time
 
 	mu            sync.Mutex
@@ -114,6 +119,9 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	defer func() {
 		if !ok {
 			s.releaseLocks()
+			if s.wal != nil {
+				_ = s.wal.Close()
+			}
 			if s.runLog != nil {
 				s.runLog.Close()
 			}
@@ -147,6 +155,9 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	}
 	s.Log = slog.New(state.Fanout(cfg.Console, s.runLog.Handler()))
 	s.logStart()
+	if err := s.recoverWAL(ctx); err != nil {
+		return nil, err
+	}
 
 	s.throttle = state.NewThrottle(cfg.CheckpointEvery, cfg.CheckpointInterval, cfg.Now)
 	s.phaseBase = s.Stats.Snapshot()

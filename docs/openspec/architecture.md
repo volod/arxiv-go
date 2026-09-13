@@ -13,8 +13,8 @@ arxiv-go/
 |   |-- scanner/                 walker.go (traversal), mimetype.go (detection and flags)
 |   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock.go, checkpoint.go, report.go, runlog.go; wal.go, recovery
-|   |-- archive/                 session.go (run lifecycle), progress.go; split.go, restore.go, preflight.go
+|   |-- state/                   rundir.go, lock.go, checkpoint.go, report.go, runlog.go, wal.go, recovery.go; crashtest/
+|   |-- archive/                 session.go, resume.go, finish.go, progress.go; split.go, restore.go, preflight.go
 |   |-- report/                  csv.go, markdown.go, summary
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status

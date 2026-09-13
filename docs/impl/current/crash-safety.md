@@ -1,10 +1,11 @@
 # Crash Safety
 
 Accepted work: [0005 Filesystem primitives](../records/0005-safety-implement-filesystem-primitives.md);
-[0006 Run lock and checkpoint](../records/0006-safety-implement-run-lock-and-checkpoint.md).
+[0006 Run lock and checkpoint](../records/0006-safety-implement-run-lock-and-checkpoint.md);
+[0007 Write-ahead log and recovery](../records/0007-safety-implement-write-ahead-log-and-recovery.md).
 Specification: [integrity](../../openspec/stage-1-core/integrity.md) and
-[contracts](../../openspec/stage-1-core/contracts.md#run-lock). Remaining work (write-ahead log and
-recovery, disk-space preflight) is in the [plan](../plan.md#crash-safety----crash-safety).
+[contracts](../../openspec/stage-1-core/contracts.md#wal-record). Remaining work (disk-space
+preflight) is in the [plan](../plan.md#crash-safety----crash-safety).
 
 ## Filesystem primitives (`internal/fsops`)
 
@@ -49,8 +50,9 @@ Measured on the development host (4 GiB file, NVMe ext4 and tmpfs): size-verifie
 ## Run layout (`internal/state`)
 
 `<archive>/.arxgo/lock`, `<archive>/.arxgo/current` (plain file holding the run id) and
-`<archive>/.arxgo/runs/<run-id>/` with `options.json`, `checkpoint.json`, `run.log.jsonl` and, when
-the run reaches a final state, `report.json`. `<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` in UTC.
+`<archive>/.arxgo/runs/<run-id>/` with `options.json`, `checkpoint.json`, `run.log.jsonl`,
+`wal.jsonl` when a mutating run writes transactions, and, when the run reaches a final state,
+`report.json`. `<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` in UTC.
 Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock).
 
 A later process resumes `current` when that run has no report and the operation plus defining
@@ -80,8 +82,9 @@ and `archive.Status` onto exit codes; it does not import `state` in production.
 
 - Checkpoints at start, every `--checkpoint-every` files or `--checkpoint-interval`, at phase
   boundaries, and at end (including interrupt and failure), through `fsops.AtomicWriteFile`. A
-  leftover `checkpoint.json.arxgo-part` is ignored. Contents include phase, scan cursor, offsets,
-  counters and elapsed time accumulated across resumed processes.
+  leftover `checkpoint.json.arxgo-part` is ignored. Contents include phase, scan cursor, offsets
+  (including `wal_offset` when a WAL is open), counters and elapsed time accumulated across resumed
+  processes.
 - `run.log.jsonl` is JSON Lines at info (debug when `--log-level debug`), UTC times, independent of
   the console level and format. A torn last line is terminated on resume. The console and the file
   share one `slog` logger via `state.Fanout`.
@@ -94,7 +97,26 @@ and `archive.Status` onto exit codes; it does not import `state` in production.
   resumed. Context cancel writes a final checkpoint and exits 130.
 
 `scan`, `split` and `restore` currently run this lifecycle and then exit 70 (operation body not in
-this build). WAL records are not written yet.
+this build). Split and restore will write WAL records in their own tasks; a resumed run already
+opens `wal.jsonl`, truncates a torn tail, and runs recovery when a resolver is supplied.
+
+## Write-ahead log and recovery (`internal/state`)
+
+JSON Lines `wal.jsonl` in the run directory. Each video move is one transaction (`txid` =
+`{run-id}-{6-digit}`). `copied` and `verified` are written without fsync; every other step is
+fsynced. Opening the file truncates a torn final line; a corrupt middle line or an unsupported
+version is `ErrStateCorrupt` (exit 5).
+
+Recovery walks open transactions in begin `seq` order through an operation-supplied `Resolver`
+(inspect, delete part, write or remove stub, remove source). The engine applies the
+[recovery table](../../openspec/stage-1-core/integrity.md#recovery): unplaced work is aborted and
+retried; at or after `placed` it rolls forward; a missing or wrong-size destination after `placed`
+stops for the operator. `stub_removed` is the restore counterpart of `stubbed`. A second recover
+pass is a no-op. Resume skips `rel_path`s in the committed-set hash index.
+
+`internal/state/crashtest` injects a crash after each WAL step and filesystem effect. Fake split
+and restore operations (copy and rename) recover to the same tree as an uninterrupted run.
+`archive.Start` recovers an existing WAL when `Config.Recoverer` is set.
 
 ## Limits
 
@@ -103,3 +125,6 @@ this build). WAL records are not written yet.
 - Remote-host lock refusal is tested with injected host names, not a live network share.
 - A `Start` that sees corrupt run state releases the lock (exit 5) so `--new-run` does not need
   `--force-unlock`; see the record's audit note.
+- `FSResolver` writes a marker stub (`rel_path: ...`); split and restore supply the real stub
+  contents and paths. Crash injection uses a hook (error or panic), not a killed process.
+- The 1e6 committed-set gate is an in-memory index, not a million-line WAL file.

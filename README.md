@@ -18,8 +18,8 @@ starting.
 Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
-> Status: stage 1 in progress. Operations take a run lock and write checkpoints, then exit 70
-> until scan, split and restore land.
+> Status: stage 1 in progress. Operations take a run lock, write checkpoints and can recover an
+> interrupted WAL; they then exit 70 until scan, split and restore land.
 
 ```bash
 arxgo --archive /data/archive

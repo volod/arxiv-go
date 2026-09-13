@@ -138,7 +138,9 @@ links.
 ```
 
 Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on `verified`,
-`stub` on `stubbed`, `reason` on `aborted`). Records are shown wrapped here; on disk each is one line.
+`stub` on `stubbed`/`stub_removed`, `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
+increases by one for each record in the file. Records are shown wrapped here; on disk each is one
+line. Recovery writes `aborted` with `reason` `unplaced` when work had not reached `placed`.
 
 ## Run lock
 

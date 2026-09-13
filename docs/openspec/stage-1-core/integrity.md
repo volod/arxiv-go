@@ -65,12 +65,14 @@ a warning. `--dry-run` always creates its own run directory, never resumes and n
 
 ## Write-ahead log
 
-- JSON Lines, one record per line, appended with `O_APPEND` and `fsync` after each record that
-  precedes an irreversible step (`begin`, `placed`, `stubbed`, `source_removed`, `commit`).
-- Record fields: `v` (format version), `txid`, `seq`, `step`, `ts`, and step payload. Formats are
-  in [contracts](contracts.md#wal-record).
-- A torn last line (crash mid-write) is detected by JSON decode failure on the final line only and
-  truncated during recovery; a decode failure on any other line exits 5 as corruption.
+- JSON Lines, one record per line, appended with `O_APPEND`. `begin`, `placed`, `stubbed`,
+  `stub_removed`, `source_removed`, `commit` and `aborted` are fsynced after the write. `copied` and
+  `verified` are not: losing them is equivalent to still being at `begin`, and recovery aborts.
+- Record fields: `v` (format version), `txid` (`{run-id}-{6-digit}`), `seq` (monotonic in the file),
+  `step`, `ts`, and step payload. Formats are in [contracts](contracts.md#wal-record).
+- Opening `wal.jsonl` truncates a torn last line (JSON decode failure on the final line only). A
+  decode failure on any other line, or a last line that decodes but is not `v` 1, exits 5 as
+  corruption.
 - Steps for split: `begin -> [copied -> verified] -> placed -> stubbed -> [source_removed] ->
   commit`. Restore uses the same steps with `stub_removed` replacing `stubbed`. Stage 2 adds
   `preview` records after `commit`; stage 3 adds `published`.
@@ -78,22 +80,27 @@ a warning. `--dry-run` always creates its own run directory, never resumes and n
 ## Recovery
 
 Recovery runs after taking the lock and before scanning, for the run named in `current` when its
-report is absent. For each transaction without `commit` or `aborted`, the last durable step decides:
+report is absent. For each transaction without `commit` or `aborted`, in begin `seq` order, the last
+durable step decides:
 
 | Last step | Filesystem check | Action |
 | --- | --- | --- |
-| `begin` | `dst.arxgo-part` may exist; `dst` absent | Delete part file; `aborted` |
-| `begin` (same-device rename) | `src` absent and `dst` present with begin size | Rename happened: write `placed`, roll forward |
+| `begin` | source present (`dst.arxgo-part` may exist; `dst` absent or ignored) | Delete part file; `aborted` |
+| `begin` (same-device rename) | `src` absent and `dst` present with begin size | Delete leftover part; write `placed`, roll forward |
+| `begin` | `src` absent and `dst` missing or wrong size | Corruption: log, exit 5, leave all files |
 | `copied`, `verified` | part file present | Delete part file; `aborted` (cheaper and safer than re-verifying) |
+| `copied`, `verified` | part absent and `dst` present with begin size | Place finished before the WAL record: write `placed`, roll forward |
+| `copied`, `verified` | part and `dst` absent, source present | `aborted` |
+| `copied`, `verified` | part and `dst` absent, source absent | Corruption: log, exit 5 |
 | `placed` | `dst` present and size matches | Roll forward: write stub, remove source (copy path), commit |
 | `placed` | `dst` missing or wrong size | Corruption: log, exit 5, leave all files |
-| `stubbed` | | Remove source if present and `dst` verifies; commit |
+| `stubbed`, `stub_removed` | | Remove source if present and `dst` verifies; commit |
 | `source_removed` | | Commit |
 
 Aborted transactions are retried by the resumed run because their sources are still candidates.
 After recovery, a run whose scan had completed continues from `candidates.jsonl`, skipping
 committed `rel_path`s (a hash set built from the WAL). With `--new-run` a fresh run id starts
-instead.
+instead. Recovery is idempotent: a second pass writes nothing when the first succeeded.
 
 ## Checkpoints
 

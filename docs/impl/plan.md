@@ -20,30 +20,6 @@ change; `make ci` must pass.
 
 ### Crash safety -- `crash-safety`
 
-#### implement-write-ahead-log-and-recovery
-
-Journal each file transaction and recover interrupted ones by rolling forward or back.
-
-- Serves: `crash-safety` -- [Recovery](../openspec/stage-1-core/integrity.md#recovery)
-- Agent status: CLEAR
-- Dependencies: [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
-- User-visible outcome: Killing `arxgo` at any moment and rerunning the same command leaves every
-  file in exactly one complete location or with its original intact.
-- Scope boundary: WAL writer (append, fsync policy per step), reader with torn-tail truncation and
-  mid-file corruption detection, committed-set index, generic recovery engine that applies the
-  specified per-step table through an operation-supplied resolver, crash-injection hook interface
-  for tests. Split/restore resolvers are implemented by their own tasks against fake operations
-  here.
-- Data and artifact paths: `internal/state/wal.go`, `internal/state/recovery.go`,
-  `internal/state/crashtest/` (test helper).
-- Execution path: JSON Lines records per [contracts](../openspec/stage-1-core/contracts.md#wal-record);
-  recovery iterates open transactions in `seq` order and writes `aborted` or forward steps.
-- Acceptance gates: Every row of the recovery table is exercised with a fake operation; torn final
-  line truncated; corrupt middle line returns the exit-5 error; recovery is idempotent (running it
-  twice changes nothing); committed-set lookup scales to 1e6 entries within the test budget.
-- Documentation target: `docs/impl/current/crash-safety.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-disk-space-preflight
 
 Refuse to start a mutating run that cannot finish for lack of space.
@@ -204,7 +180,8 @@ Move every video into the mirrored video archive as a write-ahead-logged transac
 
 - Serves: `video-split` -- [Split](../openspec/stage-1-core/split-restore.md#split)
 - Agent status: CLEAR
-- Dependencies: `implement-write-ahead-log-and-recovery`; `implement-disk-space-preflight`;
+- Dependencies: [Write-ahead log and recovery](records/0007-safety-implement-write-ahead-log-and-recovery.md);
+  `implement-disk-space-preflight`;
   `implement-scan-operation-and-csv-registry`.
 - User-visible outcome: `arxgo split` moves videos by rename on one device or copy+verify+delete
   across devices, honors `--dry-run`, never overwrites, and resumes after any crash.

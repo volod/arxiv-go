@@ -123,6 +123,9 @@ func (s *Session) Checkpoint() error {
 	if len(cp.ScanCursor) > 0 {
 		cp.ScanCursor = append([]string(nil), cp.ScanCursor...)
 	}
+	if s.wal != nil {
+		cp.WALOffset = s.wal.Offset()
+	}
 	if err := state.WriteCheckpoint(s.Run.File(state.CheckpointFile), cp); err != nil {
 		return fmt.Errorf("write checkpoint: %w", err)
 	}
@@ -193,6 +196,12 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 	}
 	if err := s.runLog.Close(); err != nil {
 		s.Log.Error("close run log", "error", err)
+	}
+	if s.wal != nil {
+		if err := s.wal.Close(); err != nil {
+			s.Log.Error("close wal", "error", err)
+		}
+		s.wal = nil
 	}
 	s.Log = slog.New(s.cfg.Console)
 	return res

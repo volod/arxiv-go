@@ -14,7 +14,7 @@ linked here in the same change.
 | Area | Owns | State |
 | --- | --- | --- |
 | [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options, run the lock/checkpoint session, then exit 70 |
-| [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report | In progress; session used by every operation; WAL and preflight remain |
+| [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery | In progress; session used by every operation; preflight remains |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan`, `split` and `restore`
 take the run lock, write `options.json`, `checkpoint.json`, `run.log.jsonl` and `report.json`, then

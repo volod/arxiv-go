@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0007`.
+Next unused sequence: `0008`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -15,3 +15,4 @@ Next unused sequence: `0007`.
 | [0004 Environment file and setup](0004-foundation-add-env-file-and-setup.md) | Optional `bin/.env` read next to the executable via `godotenv`, `.env.example`, `make setup`/`make env`, `clean` keeps `bin/.env` | Accepted; `make ci` passes on Linux; Windows pending |
 | [0005 Filesystem primitives](0005-safety-implement-filesystem-primitives.md) | `internal/fsops`: same-device and free-space queries, no-replace and replacing renames with cross-device classification, durable verified copy, atomic write, `Ops` interface; `golang.org/x/sys` | Accepted; `make ci` passes on Linux; Windows CI pending |
 | [0006 Run lock and checkpoint](0006-safety-implement-run-lock-and-checkpoint.md) | `.arxgo/` layout, exclusive run lock, atomic checkpoints, slog fan-out run log, progress, report, session resume | Accepted; `make ci` passes on Linux; Windows CI pending |
+| [0007 Write-ahead log and recovery](0007-safety-implement-write-ahead-log-and-recovery.md) | WAL JSON Lines writer/reader, torn-tail truncation, recovery engine, committed-set, crash-injection helper | Accepted; `make ci` passes on Linux; Windows CI pending |

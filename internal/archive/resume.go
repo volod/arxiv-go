@@ -1,10 +1,12 @@
 package archive
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 
 	"github.com/volod/arxiv-go/internal/state"
 )
@@ -86,4 +88,41 @@ func (s *Session) tryResume(defining json.RawMessage) (bool, error) {
 	s.Run, s.Resumed, s.cp, s.elapsedBase = rd, true, cp, cp.ElapsedS
 	s.Stats.Restore(cp.Counters)
 	return true, nil
+}
+
+func (s *Session) recoverWAL(ctx context.Context) error {
+	path := s.Run.File(state.WALFile)
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	w, err := s.openWALFile()
+	if err != nil {
+		return err
+	}
+	if s.cfg.Recoverer == nil {
+		return nil
+	}
+	_, err = state.Recover(ctx, w, s.cfg.Recoverer, s.Log)
+	return err
+}
+
+// OpenWAL opens (or creates) wal.jsonl for this run. Split and restore write transactions here.
+func (s *Session) OpenWAL() (*state.WAL, error) {
+	if s.wal != nil {
+		return s.wal, nil
+	}
+	return s.openWALFile()
+}
+
+func (s *Session) openWALFile() (*state.WAL, error) {
+	w, err := state.OpenWAL(s.Run.File(state.WALFile), s.Run.ID, state.WALOptions{
+		Now: s.cfg.Now, Crash: s.cfg.Crash,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.wal = w
+	return w, nil
 }
