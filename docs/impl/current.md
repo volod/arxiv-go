@@ -18,10 +18,11 @@ linked here in the same change.
 | [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
 | [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` | Shipped |
-| [Video restore](current/video-restore.md) | Restore videos with directory, conflict, stub and registry policies; crash recovery | Available; stage-1 checkpoint accepted, stage-1 proof remains |
+| [Video restore](current/video-restore.md) | Restore videos with directory, conflict, stub and registry policies; crash recovery; the stage-1 end-to-end proof | Available; stage-1 checkpoint and proof accepted (proof runs in CI); operator trial on an archive copy pending |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).
 `split` moves videos transactionally, writes Markdown stubs and regenerates `arxgo-videos.csv`
-and `arxgo-videos.md` in both roots. `restore` returns videos from the video archive. The
-next work is reported by `make plan-status`.
+and `arxgo-videos.md` in both roots. `restore` returns videos from the video archive. Stage 1 is proven end to end by
+`make test-integration` (kills, resume, restore, round trip through the built binary). The next
+work is reported by `make plan-status`.

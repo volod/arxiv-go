@@ -3,11 +3,14 @@
 Accepted work: [0020 Video restore](../records/0020-restore-implement-video-restore.md);
 [0021 Stage-1 integrity review](../records/0021-restore-review-stage-1-integrity.md);
 [0022 Recover an incomplete run before replacing it](../records/0022-restore-recover-incomplete-run-before-replacing-it.md);
-[0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md).
+[0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md);
+[0025 Stage-1 proof on a generated archive](../records/0025-restore-prove-stage-1-on-generated-archive.md).
 Specification: [restore](../../openspec/stage-1-core/split-restore.md#restore),
 [recovery](../../openspec/stage-1-core/integrity.md#recovery).
-The stage-1 checkpoint is accepted; the capability remains planned until the stage-1 proof is
-accepted.
+The stage-1 checkpoint and the stage-1 proof are accepted, so stage 2 may start. The capability
+stays planned until the operator trial on an archive copy
+(`approve-stage-1-on-operator-archive-copy` in the [plan](../plan.md#human-assisted-tasks)) is
+decided.
 
 `arxgo restore` takes locks on both roots and recovers an incomplete run: the current restore run
 when it resumes, or an interrupted split or restore that this run replaces (with that run's own
@@ -60,6 +63,35 @@ split, `--video-extensions` videos, registry paths outside the archive, cleanup 
 and unrelated directories, a replaced interrupted restore, and a second run. The stage-1 review's
 declared run on a generated 805 MiB archive (kill -9 during split and restore, reruns with other
 options and `--new-run`, same-device and tmpfs video archives) reproduced every path, size, mtime
-and SHA-256. Restoring 4000 videos took 38 s (97 s before stub hints were cached). Windows is
+and SHA-256. Restoring 4000 videos took 38 s (97 s before stub hints were cached).
+
+## Stage-1 proof
+
+`make test-integration` (a CI step on `ubuntu-latest`) runs `TestStage1GeneratedArchive` in
+`test/integration/` (build tag `integration`). It builds `arxgo` into a temporary directory (so no
+`bin/.env` is read), scrubs `ARXGO_*` from the child environment, and generates a 340-file archive
+of up to six directory levels: 30 ISO BMFF videos with seeded random payloads (some with `moov` at
+the end), signature-less `.mkv`, `.ts`, `.avi` and a `--video-extensions` `.bik`, text and binary
+files, Cyrillic, space and comma names, a foreign `<video>.md`, a directory at a stub path, an
+empty directory and sub-second mtimes. When ffmpeg is on `PATH` it adds encoded `.mov`, `.mkv` and
+`.ts` clips, an `.m4a` and a `.png`, and scan and split use `--metadata media`. It then checks,
+through the binary only:
+
+- exit 2 (usage), 3 (media metadata with an empty tool search path, link printed) and 4 (preflight)
+  leave the archive unchanged and no lock;
+- `scan` writes a file registry that matches the archive (rows, sizes, second mtimes, `is_video`);
+- `split --transfer copy --verify hash` is killed (`os.Process.Kill`) after a seeded number of new
+  WAL records, a rerun without `--force-unlock` exits 5 naming the lock, a second kill lands in the
+  resumed run, and the third process completes the same run (`resumed` report); videos, stubs
+  (including the `.arxgo.md` fallbacks) and byte-identical `arxgo-videos.csv` copies match the
+  contracts; a rerun exits 0;
+- `restore --transfer copy --verify hash` is killed at a seeded point, then `restore --new-run`
+  recovers it and restores everything; both registries are retired with every row `restored`, the
+  video archive holds nothing but arxgo outputs, and a rerun exits 0;
+- the manifest of every file (path, size, mtime in nanoseconds, SHA-256) and directory equals the
+  one taken before the first operation.
+
+The seed is logged; `ARXGO_TEST_SEED` replays it and `ARXGO_TEST_VIDEO_PARENT` (for example
+`/dev/shm`) puts the video archive on another device. A run takes about 3 s. Windows is
 cross-compiled only; runtime checks belong to the
 [Windows verification scenario](../../guide/windows-verification.md).

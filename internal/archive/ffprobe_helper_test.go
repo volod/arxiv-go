@@ -11,8 +11,11 @@ const ffprobeScanHelperEnv = "ARXGO_TEST_SCAN_FFPROBE_HELPER"
 func TestMain(m *testing.M) {
 	if os.Getenv(ffprobeScanHelperEnv) != "" {
 		name := "avi.json"
-		if filepath.Base(os.Args[len(os.Args)-1]) == "audio-only.avi" {
+		switch filepath.Base(os.Args[len(os.Args)-1]) {
+		case "audio-only.avi":
 			name = "ogg.json"
+		case "damaged.avi":
+			name = "lrc-misprobe.json" // real ffprobe 6.1.1 output for random bytes named .avi
 		}
 		data, err := os.ReadFile(filepath.Join("..", "..", "test", "testdata", "ffprobe", name))
 		if err != nil {

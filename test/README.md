@@ -13,8 +13,13 @@ Root-level `test/` holds external test applications and test data, following the
 Keep unit and white-box component tests beside their packages. A test requiring unexported hooks
 stays package-local. Generate runtime archive trees and media in `t.TempDir()`; do not commit
 binary media. Static text fixtures in `testdata/` are reviewable and do not contain secrets.
-`go test ./...` runs the current integration tests; `make test-integration` also runs the tagged
-end-to-end proofs as they are added. `make ci` includes the current integration tests.
+`go test ./...` runs the untagged integration tests and `make ci` includes them. `make
+test-integration` also runs the `integration`-tagged end-to-end proofs, currently the stage-1 proof
+`TestStage1GeneratedArchive` (`stage1_*_test.go`), which builds `arxgo` into a temporary directory and
+drives it as subprocesses; CI runs it after `make ci`. It logs its seed: `ARXGO_TEST_SEED=<n>`
+replays archive content and kill points, and `ARXGO_TEST_VIDEO_PARENT=<dir>` puts the video
+archive in that directory (for example on another device). Tagged tests stay portable (no shell,
+`os.Process.Kill`, `.exe` from `GOOS`); `make vet-windows` type-checks them for Windows.
 
 Live ffmpeg/ffprobe tests find the tools with `tooltest.LookPath`, which skips with the reason
 when a tool is missing. Set `ARXGO_TEST_REQUIRE_TOOLS=1` for a local run that must exercise them:

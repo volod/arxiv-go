@@ -19,3 +19,5 @@ jobs:
           cache-dependency-path: go.mod
       - name: make ci
         run: make ci
+      - name: Stage-1 proof (make test-integration)
+        run: make test-integration

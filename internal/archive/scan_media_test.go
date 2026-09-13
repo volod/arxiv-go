@@ -88,6 +88,7 @@ func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
 	avi := []byte{'R', 'I', 'F', 'F', 4, 0, 0, 0, 'A', 'V', 'I', ' ', 'L', 'I', 'S', 'T'}
 	writeScanFile(t, r.archive, "movie.avi", avi)
 	writeScanFile(t, r.archive, "audio-only.avi", avi)
+	writeScanFile(t, r.archive, "damaged.avi", avi)
 	broken := testmp4.File(testmp4.Options{Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1"}}})
 	binary.BigEndian.PutUint32(broken[20:24], uint32(len(broken)+100))
 	writeScanFile(t, r.archive, "broken.mp4", broken)
@@ -114,6 +115,14 @@ func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
 		if m.Media == nil || m.Media.Source != "ffprobe" || m.Media.Error != "" {
 			t.Fatalf("%s media = %+v", row[0], m.Media)
 		}
+		switch row[0] {
+		case "damaged.avi":
+			// A misprobed file with neither audio nor video streams keeps its extension-based flag.
+			if row[8] != "true" || m.Media.Container != "lrc" || m.Media.VideoStreams != 0 {
+				t.Fatalf("damaged row = %v media = %+v", row, m.Media)
+			}
+			continue
+		}
 		if row[0] == "audio-only.avi" {
 			if row[8] != "false" || m.Media.VideoStreams != 0 || !m.Media.HasAudio {
 				t.Fatalf("audio-only row = %v media = %+v", row, m.Media)
@@ -126,7 +135,7 @@ func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
 	if err := ReadCandidates(filepath.Join(state.StateDir(r.archive), "runs", res.RunID, state.CandidatesFile), func(c Candidate) error { candidates = append(candidates, c.RelPath); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(candidates, ",") != "broken.mp4,movie.avi" {
+	if strings.Join(candidates, ",") != "broken.mp4,damaged.avi,movie.avi" {
 		t.Fatalf("candidates = %v", candidates)
 	}
 }

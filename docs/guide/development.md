@@ -42,11 +42,11 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make ffmpeg` | `bash tools/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |
-| `make test-integration` | `go test -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs |
+| `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the stage-1 proof (`TestStage1GeneratedArchive`); a CI step after `make ci` |
 | `make fmt` | `gofmt -w` | Format |
 | `make fmt-check` | `gofmt -l` | Fail on unformatted files |
-| `make vet` | `go vet ./...` | Static checks |
-| `make vet-windows` | `GOOS=windows GOARCH=amd64 go vet ./...` | Type-checks Windows build-tagged code and tests on Linux |
+| `make vet` | `go vet ./...`, also with `-tags integration` for `./test/integration/...` | Static checks |
+| `make vet-windows` | `GOOS=windows GOARCH=amd64 go vet ./...`, also with `-tags integration` for `./test/integration/...` | Type-checks Windows build-tagged code and tests on Linux |
 | `make lint-spec-plan` | `go run ./tools/plancheck lint` | Registry, plan and records agree |
 | `make lint-doc-links` | `go run ./tools/plancheck links` | Relative Markdown links and anchors resolve; `testdata` skipped |
 | `make plan-status` | `go run ./tools/plancheck status` | Open task counts and next eligible task |

@@ -173,7 +173,10 @@ func (r *scanRun) write(it *scanItem) error {
 	if it.media != nil {
 		if it.media.Error != "" {
 			r.s.Log.Warn("media metadata unavailable", "rel_path", e.Rel, "error", it.media.Error)
-		} else if it.media.VideoStreams == 0 {
+		} else if it.media.VideoStreams == 0 && it.media.AudioStreams > 0 {
+			// Only an audio-only result refines the flag. A parse with neither stream (for example
+			// ffprobe guessing a damaged .avi as LRC lyrics) says nothing about the file being a
+			// video, so the MIME and extension decision stands.
 			ft.IsVideo = false
 		}
 	}

@@ -4,7 +4,8 @@ Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-dis
 [0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
 [0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md),
 [0016 ffprobe metadata](../records/0016-metadata-implement-ffprobe-metadata.md);
-QuickTime handler fix in [0023](../records/0023-restore-repair-split-restore-round-trip-defects.md).
+QuickTime handler fix in [0023](../records/0023-restore-repair-split-restore-round-trip-defects.md);
+audio-only refinement narrowed in [0025](../records/0025-restore-prove-stage-1-on-generated-archive.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
 shipped. `--metadata media` requires a working `ffprobe` at startup, even for a scan containing
 only ISO BMFF files; successful ISO BMFF parsing itself does not invoke it.
@@ -21,8 +22,9 @@ QuickTime `.mov` parsed with no streams and `--metadata media` left it in the ar
 individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. It reads fragment
 duration from `mehd` or summed fragments, including `trex` defaults and fragments before `moov`.
 
-A successful parse with no video track clears `is_video` before statistics and the candidate list
-are written, including for audio-only `.mp4`. A malformed or truncated file falls back to ffprobe.
+A successful parse with an audio track and no video track clears `is_video` before statistics and
+the candidate list are written, including for audio-only `.mp4`. A parse with neither keeps the
+MIME and extension decision ([0025](../records/0025-restore-prove-stage-1-on-generated-archive.md)). A malformed or truncated file falls back to ffprobe.
 If both parsers fail, its row gets a `metadata.media.error`; scanning continues and retains the
 original MIME-based video flag.
 
@@ -38,7 +40,10 @@ Typed JSON decoding ignores unknown fields. Normalization fills container, durat
 or stream), bit rate, first video codec and display dimensions, frame rate, rotation from side data
 or tags, audio codec and presence, stream counts, creation time and container tags. Tag values are
 limited to 256 bytes. An attached cover picture does not count as a video stream. A successful
-audio-only parse clears `is_video` before statistics and candidates are written.
+audio-only parse clears `is_video` before statistics and candidates are written. A result with no
+audio or video stream keeps the flag: ffprobe 6.1.1 reads some random bytes named `.avi` as LRC
+lyrics with one subtitle stream, and before the stage-1 proof such a file silently stayed in the
+archive during `split --metadata media`.
 
 ## Tool discovery (`internal/media`)
 

@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0025`.
+Next unused sequence: `0026`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -33,3 +33,4 @@ Next unused sequence: `0025`.
 | [0022 Recover an incomplete run before replacing it](0022-restore-recover-incomplete-run-before-replacing-it.md) | A new run first recovers the interrupted `current` run with its own options, or exits 5 when it does not lock that run's roots | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0023 Split/restore round-trip repairs](0023-restore-repair-split-restore-round-trip-defects.md) | Registered restore candidates, registry path validation, run-ordered registry replay, targeted cleanup, stub path classification, conflict abort order, cached stub hints, QuickTime handler | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0024 Simplify build artifact names](0024-foundation-simplify-build-artifact-names.md) | Shared Linux build output `bin/arxgo` for `make build` and `make build-all`; Windows output `bin/arxgo.exe` | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0025 Stage-1 proof on a generated archive](0025-restore-prove-stage-1-on-generated-archive.md) | End-to-end `integration` test through the built binary: generated archive, seeded kills of split and restore, resume, restore, contract checks, round-trip manifests; CI step; audio-only `is_video` refinement repair | Accepted; `make ci` and `make test-integration` pass on Linux; Windows vetted only |

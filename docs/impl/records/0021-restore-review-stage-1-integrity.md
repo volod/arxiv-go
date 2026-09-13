@@ -266,3 +266,14 @@ their owners' task text. Current pages updated: [index](../current.md),
 [video restore](../current/video-restore.md). Capability `video-restore` stays `planned` until
 `prove-stage-1-on-generated-archive` is accepted. Plan counts after: 17 open tasks (14 agent, 3
 human); next eligible `prove-stage-1-on-generated-archive`.
+
+## Addendum: stage-1 proof
+
+[0025](0025-restore-prove-stage-1-on-generated-archive.md) runs the declared run of this review as
+the portable `TestStage1GeneratedArchive` in `make test-integration` and CI. It found one defect
+the review missed: in `--metadata media` mode a parse with no video stream cleared `is_video` even
+without an audio stream, so a damaged video that ffprobe misread (as LRC lyrics) silently stayed
+in the archive. Repaired and regression-tested in 0025; the spec row now states the audio-only
+rule. The row "The same file is a candidate in scan, split and restore" gains that evidence.
+`AUD-implement-write-ahead-log-and-recovery-2` is closed by the seeded kills. Verdict unchanged:
+`proceed-with-nonblocking-notes`; stage 2 may start.

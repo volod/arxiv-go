@@ -25,33 +25,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Video restore -- `video-restore`
-
-#### prove-stage-1-on-generated-archive
-
-Run the complete stage-1 workflow end to end on a generated archive on Linux.
-
-- Serves: `video-restore` -- [Evaluation and acceptance](../openspec/spec.md#evaluation-and-acceptance)
-- Agent status: CLEAR
-- Dependencies: [Stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md).
-- User-visible outcome: A single integration test proves scan, split, kill, resume, restore and the
-  round-trip gate through the built `arxgo` binary.
-- Scope boundary: Build the binary in a test temporary directory (so a developer's `bin/.env` is
-  never read) and run it with a scrubbed `ARXGO_*` environment, generate a multi-level archive (hundreds of files,
-  generated MP4 headers and optional ffmpeg clips), run operations as subprocesses, kill the split
-  process mid-run, resume, restore, compare tree manifests. Not run against operator data. The
-  test stays portable (no shell, `os.Process.Kill`, `.exe` suffix from `GOOS`) so step W7 of the
-  Windows scenario can run it unchanged; running it on Windows is not part of this task.
-- Data and artifact paths: `test/integration/stage1_test.go` (build tag `integration`),
-  `make test-integration`, CI job on `ubuntu-latest`.
-- Execution path: `go test -tags integration ./test/integration/...`; manifest of path/size/
-  mtime/SHA-256 before split and after restore.
-- Acceptance gates: Manifests equal; registries and stubs validate against contracts; process kill
-  at three random points (seeded, seed logged) converges; exit codes match the contract; CI passes
-  on `ubuntu-latest`; `GOOS=windows go vet -tags integration ./test/integration/...` passes.
-- Documentation target: `docs/impl/current.md`
-- Review checkpoint: [Stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md) addendum.
-
 ### Media previews -- `media-previews`
 
 #### implement-ffmpeg-runner
@@ -60,7 +33,7 @@ Run ffmpeg safely with progress, timeouts and error capture.
 
 - Serves: `media-previews` -- [ffmpeg invocation](../openspec/stage-2-previews/previews.md#ffmpeg-invocation)
 - Agent status: CLEAR
-- Dependencies: `prove-stage-1-on-generated-archive`.
+- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
 - User-visible outcome: Preview generation reports progress and fails cleanly with a readable reason
   instead of hanging or leaving partial files.
 - Scope boundary: `media.Runner` for ffmpeg/ffprobe, `-progress pipe:1` parsing, stderr ring buffer,
@@ -79,7 +52,7 @@ Compute preview positions, series, resolution clamp and names without running ff
 
 - Serves: `media-previews` -- [Position modes](../openspec/stage-2-previews/previews.md#position-modes)
 - Agent status: CLEAR
-- Dependencies: `prove-stage-1-on-generated-archive`.
+- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
 - User-visible outcome: Operators get predictable preview files for every mode and resolution.
 - Scope boundary: Pure planner from `MediaInfo` and options to a list of preview jobs (time ranges,
   output size, encoder choice, file names, collision suffix), series cap, space estimate. Enables
@@ -327,7 +300,7 @@ Decide whether stage 1 is fit for use on real archives after a trial on a copy o
 
 - Serves: `video-restore` -- [Success criteria](../openspec/spec.md#success-criteria)
 - Human status: HUMAN-GATED
-- Dependencies: `prove-stage-1-on-generated-archive`.
+- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
 - Requested input or decision: Run scan, split, interrupt, resume and restore on a disposable copy
   of a representative archive; review registry, stubs, logs and timings; accept, or file defects.
   Where available, put one root on a CIFS/NFS share and start a second `arxgo` from another host

@@ -49,7 +49,7 @@ unreadable entries. Opening never blocks on a FIFO that replaced the file after 
 | `file_mime` | `mimetype.DetectReader` result without parameters, e.g. `video/mp4`, `text/plain` |
 | `file_type` | Canonical extension from detection without the dot (`mp4`, `pdf`, `txt`); when detection returns `application/octet-stream`, the lower-cased extension of the file name (the part after its last dot; a name whose only dot is leading, such as `.profile`, has none); empty when neither exists |
 | `is_binary` | `false` when the detected MIME or any ancestor in the `mimetype` hierarchy is `text/plain`, or the MIME is in the text allow-list (`application/json`, `application/xml`, `image/svg+xml`, `text/*`); `true` otherwise. Empty files are `false` |
-| `is_video` | MIME has prefix `video/`, or the MIME is ambiguous (`application/octet-stream`) and the extension is in the built-in video list or `--video-extensions`. ISO BMFF files are then refined: when `--metadata media` finds no video track, `is_video=false` (for example an audio-only `.mp4`) |
+| `is_video` | MIME has prefix `video/`, or the MIME is ambiguous (`application/octet-stream`) and the extension is in the built-in video list or `--video-extensions`. Then refined in `--metadata media` mode: when the ISO BMFF parser or ffprobe succeeds and finds audio but no video stream, `is_video=false` (for example an audio-only `.mp4`). A result with neither audio nor video streams (a damaged file that ffprobe misreads, for example as LRC lyrics) keeps the flag |
 | `is_picture` | MIME has prefix `image/` |
 | `is_media` | `is_video` or `is_picture` or MIME has prefix `audio/` |
 | `is_large` | `file_size >= --large-threshold` |
