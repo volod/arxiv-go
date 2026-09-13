@@ -25,6 +25,7 @@ type ScanConfig struct {
 	Root            string   // tree to scan
 	Registry        string   // final registry path; the part file is Registry + ".arxgo-part"
 	Metadata        string   // file or media; media fields are added by the metadata tasks
+	FFprobePath     string   // validated ffprobe path for media mode; not persisted in options
 	LargeThreshold  int64    // --large-threshold
 	VideoExtensions []string // --video-extensions
 	Exclude         []string // --exclude globs

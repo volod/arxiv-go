@@ -75,8 +75,8 @@ var headPool = sync.Pool{New: func() any { return new([DetectLimit]byte) }}
 
 // Detect classifies the regular file at path from its first DetectLimit bytes. size is the file
 // size recorded for the registry row and decides IsLarge. An error means the file could not be
-// opened or read (or is no longer a regular file); the scan counts it as unreadable. The ISO BMFF
-// no-video-track refinement of IsVideo is applied later by the media metadata step.
+// opened or read (or is no longer a regular file); the scan counts it as unreadable. The
+// no-video-stream refinement of IsVideo is applied later by the media metadata step.
 func Detect(path string, size int64, opts DetectOptions) (FileType, error) {
 	buf := headPool.Get().(*[DetectLimit]byte)
 	defer headPool.Put(buf)

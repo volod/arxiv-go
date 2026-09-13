@@ -2,12 +2,11 @@
 
 Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-discovery.md),
 [0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
-[0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md).
+[0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md),
+[0016 ffprobe metadata](../records/0016-metadata-implement-ffprobe-metadata.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
-planned: ffprobe parsing for other containers remains in the
-[plan](../plan.md#media-metadata----media-metadata). `--metadata media` still requires a working
-`ffprobe` at startup, even for a scan containing only ISO BMFF files; ISO BMFF file parsing itself
-does not invoke it.
+shipped. `--metadata media` requires a working `ffprobe` at startup, even for a scan containing
+only ISO BMFF files; successful ISO BMFF parsing itself does not invoke it.
 
 ## ISO BMFF metadata (`internal/media`)
 
@@ -20,9 +19,23 @@ individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. It r
 duration from `mehd` or summed fragments, including `trex` defaults and fragments before `moov`.
 
 A successful parse with no video track clears `is_video` before statistics and the candidate list
-are written, including for audio-only `.mp4`. A malformed or truncated file gets a
-`metadata.media.error`; scanning continues and retains the original MIME-based video flag. The
-ffprobe fallback for parse failures belongs to the remaining ffprobe task.
+are written, including for audio-only `.mp4`. A malformed or truncated file falls back to ffprobe.
+If both parsers fail, its row gets a `metadata.media.error`; scanning continues and retains the
+original MIME-based video flag.
+
+## ffprobe metadata (`internal/media`)
+
+For other detected audio/video files, and ISO BMFF parse failures, `scan --metadata media` runs the
+validated ffprobe executable with `-show_format -show_streams` JSON output. Each invocation has a
+60-second timeout, a 16 MiB stdout cap, a 1-second process wait delay and debug-level stderr
+capture. A failed command, timeout, malformed JSON or oversized output becomes a non-fatal media
+error; the path is excluded from registry error text.
+
+Typed JSON decoding ignores unknown fields. Normalization fills container, duration (from format
+or stream), bit rate, first video codec and display dimensions, frame rate, rotation from side data
+or tags, audio codec and presence, stream counts, creation time and container tags. Tag values are
+limited to 256 bytes. An attached cover picture does not count as a video stream. A successful
+audio-only parse clears `is_video` before statistics and candidates are written.
 
 ## Tool discovery (`internal/media`)
 
@@ -83,3 +96,10 @@ Generated ISO BMFF fixtures cover video plus audio, audio-only `.mp4` and M4A, r
 `moov`, fragmented duration, tags, corrupt boxes and a sparse 1 GiB `mdat` for the read bound. A
 live MP4 fixture uses ffmpeg when installed and skips with a reason otherwise. Scan integration
 checks the JSON, non-fatal errors, audio-only classification and candidate list.
+
+Captured ffprobe JSON fixtures cover Matroska, WebM, AVI, MPEG-TS and audio-only Ogg; derived
+fixtures cover rotated side data and missing duration. The test binary acts as ffprobe to check
+timeout, output limit, command failure, ISO fallback and scan integration without a fake tool
+installation. A live lavfi AVI probe runs when ffmpeg and ffprobe are installed and skips otherwise.
+The Linux CLI scan of generated clips and `make ci` pass. Windows is cross-compiled and vetted;
+runtime behavior remains in the [Windows verification scenario](../../guide/windows-verification.md).

@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0016`.
+Next unused sequence: `0017`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -24,3 +24,4 @@ Next unused sequence: `0016`.
 | [0013 Tool discovery](0013-metadata-implement-tool-discovery.md) | `internal/media` ffprobe/ffmpeg discovery (executable directory, then absolute `PATH` entries), `-version` validation with timeout, requirements from options, platform download guidance; CLI exit 3 before the session | Accepted; `make ci` passes on Linux; Windows pending |
 | [0014 Remove shell scripts from discovery tests](0014-metadata-remove-shell-scripts-from-discovery-tests.md) | Portable in-memory discovery fakes and test-binary probe coverage | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0015 ISO BMFF metadata](0015-metadata-implement-iso-bmff-metadata.md) | Pure-Go MP4/MOV/M4A metadata, registry integration and audio-only video refinement | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0016 ffprobe metadata](0016-metadata-implement-ffprobe-metadata.md) | Typed ffprobe JSON normalization, bounded execution and scan fallback | Accepted; `make ci` passes on Linux; Windows cross-compiled |

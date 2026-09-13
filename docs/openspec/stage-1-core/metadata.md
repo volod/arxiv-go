@@ -14,7 +14,7 @@ online, and collecting it must not require installing anything for the common MP
 | `--metadata` | Sources | External tool |
 | --- | --- | --- |
 | `file` (default) | `os.Lstat`: size, mtime, permission bits | none |
-| `media` | `file` fields + container/stream fields below | `ffprobe` for non-ISO-BMFF media only |
+| `media` | `file` fields + container/stream fields below | `ffprobe` for non-ISO-BMFF media and ISO parse failures |
 
 ## Normalized media fields
 
@@ -53,7 +53,8 @@ Both parsers produce the same Go struct and JSON object (`metadata.media`, see
 
 ## ffprobe parser
 
-- Applies to media files the ISO BMFF parser does not handle, when `--metadata media` is set.
+- Applies to detected audio/video files the ISO BMFF parser does not handle, and ISO parse failures,
+  when `--metadata media` is set. Pictures do not run through ffprobe.
 - Command (argument vector, no shell):
   `ffprobe -v error -hide_banner -print_format json -show_format -show_streams -- <path>`.
 - Runs with a per-file timeout (default 60 s) through `exec.CommandContext`; stdout is limited to

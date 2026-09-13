@@ -99,8 +99,8 @@ func (r *scanRun) inspect(ctx context.Context, it *scanItem) {
 	switch it.e.Kind {
 	case scanner.KindFile:
 		it.ft, it.err = scanner.Detect(it.e.Path, it.e.Info.Size(), r.detect)
-		if it.err == nil && r.cfg.Metadata == "media" && media.IsISOBMFF(it.ft.MIME) {
-			it.media = media.ReadISO(ctx, it.e.Path, it.ft.MIME)
+		if it.err == nil && r.cfg.Metadata == "media" && it.ft.IsMedia && !it.ft.IsPicture {
+			it.media = media.ReadMetadata(ctx, it.e.Path, it.ft.MIME, media.FFprobeReader{Path: r.cfg.FFprobePath, Log: r.s.Log})
 		}
 	case scanner.KindSymlink:
 		it.link, it.err = os.Readlink(it.e.Path)

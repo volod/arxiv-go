@@ -11,8 +11,32 @@ import (
 )
 
 const probeHelperEnv = "ARXGO_TEST_PROBE_HELPER"
+const ffprobeHelperEnv = "ARXGO_TEST_FFPROBE_HELPER"
 
 func TestMain(m *testing.M) {
+	if mode := os.Getenv(ffprobeHelperEnv); mode != "" {
+		if len(os.Args) != 10 || os.Args[1] != "-v" || os.Args[2] != "error" || os.Args[3] != "-hide_banner" || os.Args[4] != "-print_format" || os.Args[5] != "json" || os.Args[6] != "-show_format" || os.Args[7] != "-show_streams" || os.Args[8] != "--" {
+			os.Exit(18)
+		}
+		switch mode {
+		case "valid":
+			data, err := os.ReadFile("testdata/ffprobe/avi.json")
+			if err != nil {
+				os.Exit(16)
+			}
+			_, _ = os.Stdout.Write(data)
+		case "oversize":
+			_, _ = os.Stdout.Write([]byte(strings.Repeat("A", ffprobeOutputLimit+1)))
+		case "sleep":
+			time.Sleep(5 * time.Second)
+		case "nonzero":
+			fmt.Fprintln(os.Stderr, "invalid media")
+			os.Exit(7)
+		default:
+			os.Exit(17)
+		}
+		os.Exit(0)
+	}
 	if mode := os.Getenv(probeHelperEnv); mode != "" {
 		// Finder invokes this test binary with -version. Dispatch before testing parses flags.
 		if len(os.Args) != 2 || os.Args[1] != "-version" {

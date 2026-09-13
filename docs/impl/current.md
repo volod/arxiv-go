@@ -15,7 +15,7 @@ linked here in the same change.
 | --- | --- | --- |
 | [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options and run the lock/checkpoint session; `split` and `restore` then exit 70 |
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery, disk-space preflight | Shipped; session used by every operation; preflight awaits split/restore candidates |
-| [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata in scan registries, audio-only MP4 refinement, and ffprobe/ffmpeg discovery with exit 3 guidance | ISO BMFF parser and discovery shipped; ffprobe parsing planned |
+| [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
 | [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file

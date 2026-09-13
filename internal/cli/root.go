@@ -61,7 +61,7 @@ var defaultHandlers = Handlers{
 		d.Common = definingCommon(o.Common)
 		cfg := sessionConfig(OpScan, o.Common, o, d)
 		cfg.Registry, cfg.Preflight.Metadata = o.Registry, o.Metadata
-		return runSession(ctx, cfg, log, archive.ScanBody(scanConfig(o.Archive, o.ScanSettings, true)))
+		return runSession(ctx, cfg, log, archive.ScanBody(scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), true)))
 	},
 	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
 		d := o

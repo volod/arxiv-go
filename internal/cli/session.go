@@ -32,9 +32,9 @@ func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 }
 
 // scanConfig maps the scan settings onto the registry scan of root.
-func scanConfig(root string, sc ScanSettings, preflight bool) archive.ScanConfig {
+func scanConfig(root string, sc ScanSettings, probePath string, preflight bool) archive.ScanConfig {
 	return archive.ScanConfig{
-		Root: root, Registry: sc.Registry, Metadata: sc.Metadata, LargeThreshold: int64(sc.LargeThreshold),
+		Root: root, Registry: sc.Registry, Metadata: sc.Metadata, FFprobePath: probePath, LargeThreshold: int64(sc.LargeThreshold),
 		VideoExtensions: sc.VideoExtensions, Exclude: sc.Exclude, Preflight: preflight,
 	}
 }

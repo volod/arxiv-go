@@ -25,29 +25,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Media metadata -- `media-metadata`
-
-#### implement-ffprobe-metadata
-
-Read metadata for other containers through ffprobe JSON output.
-
-- Serves: `media-metadata` -- [ffprobe parser](../openspec/stage-1-core/metadata.md#ffprobe-parser)
-- Agent status: CLEAR
-- Dependencies: [Tool discovery](records/0013-metadata-implement-tool-discovery.md);
-  [ISO BMFF metadata](records/0015-metadata-implement-iso-bmff-metadata.md).
-- User-visible outcome: Matroska, WebM, AVI, MPEG-TS and other media get the same metadata fields
-  as MP4 when ffprobe is available; ISO BMFF parse failures fall back to ffprobe.
-- Scope boundary: `exec.CommandContext` invocation, timeout, output limit, typed JSON decode,
-  normalization to `MediaInfo`, fallback routing. No ffmpeg.
-- Data and artifact paths: `internal/media/ffprobe.go`, `internal/media/testdata/ffprobe/*.json`.
-- Execution path: Captured ffprobe JSON text fixtures for normalization; live test gated on tool
-  presence with a generated `lavfi` clip.
-- Acceptance gates: Normalization of captured JSON for mkv, webm, avi, ts, audio-only, rotated
-  side data, missing duration; timeout kills the process; oversized output rejected; live test runs
-  only locally when ffmpeg is on PATH.
-- Documentation target: `docs/impl/current/media-metadata.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 ### Video split -- `video-split`
 
 #### implement-video-split-transactions
@@ -84,7 +61,8 @@ Leave a Markdown stub at each former video location and write the video registry
 
 - Serves: `video-split` -- [Data contracts](../openspec/stage-1-core/contracts.md#markdown-stub)
 - Agent status: CLEAR
-- Dependencies: `implement-video-split-transactions`; `implement-ffprobe-metadata`.
+- Dependencies: `implement-video-split-transactions`;
+  [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
 - User-visible outcome: Every moved video has `<name>.md` with front matter, relative and absolute
   links, optional base-URL link and metadata; both roots contain `arxgo-videos.csv` and
   `arxgo-videos.md`.
@@ -133,7 +111,7 @@ Review stage-1 cross-module invariants before the stage proof and before stage 2
 - Task kind: checkpoint
 - Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md);
   [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md); `implement-video-restore`;
-  `implement-ffprobe-metadata`.
+  [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
 - User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
   contracts, lock and preflight agree across scan, split and restore.
 - Scope boundary: Read all stage-1 records, code and tests; trace a video through scan, split,

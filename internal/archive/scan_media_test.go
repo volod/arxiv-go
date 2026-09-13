@@ -77,3 +77,56 @@ func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
 		t.Fatalf("candidates = %v", candidates)
 	}
 }
+
+func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
+	t.Setenv(ffprobeScanHelperEnv, "1")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := newRoots(t)
+	avi := []byte{'R', 'I', 'F', 'F', 4, 0, 0, 0, 'A', 'V', 'I', ' ', 'L', 'I', 'S', 'T'}
+	writeScanFile(t, r.archive, "movie.avi", avi)
+	writeScanFile(t, r.archive, "audio-only.avi", avi)
+	broken := testmp4.File(testmp4.Options{Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1"}}})
+	binary.BigEndian.PutUint32(broken[20:24], uint32(len(broken)+100))
+	writeScanFile(t, r.archive, "broken.mp4", broken)
+	sc := testScanConfig(r)
+	sc.Metadata, sc.FFprobePath = "media", exe
+	res, _ := runScan(t, context.Background(), scanSessionConfig(r, newClock(), 5), sc)
+	if res.Status != StatusCompleted {
+		t.Fatalf("scan: %v: %v", res.Status, res.Err)
+	}
+	f, err := os.Open(filepath.Join(r.archive, "arxgo-registry.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows[1:] {
+		var m report.Metadata
+		if err := json.Unmarshal([]byte(row[10]), &m); err != nil {
+			t.Fatal(err)
+		}
+		if m.Media == nil || m.Media.Source != "ffprobe" || m.Media.Error != "" {
+			t.Fatalf("%s media = %+v", row[0], m.Media)
+		}
+		if row[0] == "audio-only.avi" {
+			if row[8] != "false" || m.Media.VideoStreams != 0 || !m.Media.HasAudio {
+				t.Fatalf("audio-only row = %v media = %+v", row, m.Media)
+			}
+		} else if row[8] != "true" || m.Media.VideoCodec != "mpeg4" {
+			t.Fatalf("video row = %v media = %+v", row, m.Media)
+		}
+	}
+	var candidates []string
+	if err := ReadCandidates(filepath.Join(state.StateDir(r.archive), "runs", res.RunID, state.CandidatesFile), func(c Candidate) error { candidates = append(candidates, c.RelPath); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(candidates, ",") != "broken.mp4,movie.avi" {
+		t.Fatalf("candidates = %v", candidates)
+	}
+}

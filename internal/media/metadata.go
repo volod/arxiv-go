@@ -38,6 +38,18 @@ func IsISOBMFF(mime string) bool {
 	return false
 }
 
+// ReadMetadata routes detected media to the ISO parser first, then ffprobe for other formats or
+// an ISO failure. If ffprobe is unavailable, an ISO failure is kept as the non-fatal result.
+func ReadMetadata(ctx context.Context, path, mime string, probe FFprobeReader) *MediaInfo {
+	if IsISOBMFF(mime) {
+		info := ReadISO(ctx, path, mime)
+		if info.Error == "" || probe.Path == "" {
+			return info
+		}
+	}
+	return probe.Read(ctx, path, mime)
+}
+
 // ReadISO returns a non-fatal media result. A parse failure is recorded in Error; the caller
 // still writes the registry row and leaves its original video classification intact.
 func ReadISO(ctx context.Context, path, mime string) *MediaInfo {

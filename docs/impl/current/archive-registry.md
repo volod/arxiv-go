@@ -5,8 +5,8 @@ Accepted work: [0010 Directory walker](../records/0010-registry-implement-direct
 [0012 Scan operation and CSV registry](../records/0012-registry-implement-scan-operation-and-csv-registry.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
-for `--metadata file`; `media`-mode fields come with the
-[media metadata](../plan.md#media-metadata----media-metadata) tasks.
+for both `--metadata file` and `--metadata media`; media fields are described in
+[media metadata](media-metadata.md).
 
 ## Scan operation (`internal/archive`)
 
@@ -30,7 +30,7 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   or read get no row; each is logged once, counted in `skipped` by reason and listed in the
   report's `issues`. `file`-mode metadata is `{"v":1,"mtime":...,"mode":"0644"}`. `--metadata
   media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
-  and currently writes the same file metadata.
+  and adds `metadata.media` for detected audio/video files.
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
