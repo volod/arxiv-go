@@ -27,31 +27,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media previews -- `media-previews`
 
-#### implement-frame-images
-
-Generate PNG frames at the planned positions.
-
-- Serves: `media-previews` -- [Position modes](../openspec/stage-2-previews/previews.md#position-modes)
-- Agent status: CLEAR
-- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); [Preview planning](records/0027-preview-implement-preview-planning.md).
-- User-visible outcome: `--image start|middle|end|series` produces `-imgNN.png` frames at the
-  clamped resolution.
-- Scope boundary: Frame extraction arguments, compression mapping, PNG validation with
-  `image/png` decode.
-- Data and artifact paths: `internal/media/frames.go`.
-- Execution path: Generated sources as for samples.
-- Acceptance gates: Frame count and names, decoded dimensions, rotated source orientation, frame
-  near end of a short video.
-- Documentation target: `docs/impl/current/media-previews.md`
-- Review checkpoint: `review-stage-2-previews`.
-
 #### integrate-previews-into-split-and-restore
 
 Generate previews after each committed move and clean them up on restore.
 
 - Serves: `media-previews` -- [Transactions and failures](../openspec/stage-2-previews/previews.md#transactions-and-failures)
 - Agent status: CLEAR
-- Dependencies: [Video samples](records/0028-preview-implement-video-samples.md); `implement-frame-images`.
+- Dependencies: [Video samples](records/0028-preview-implement-video-samples.md); [Frame images](records/0029-preview-implement-frame-images.md).
 - User-visible outcome: `arxgo split --sample ... --image ...` leaves previews next to stubs, stubs
   embed them, registries list them, failed previews do not affect moves, and `restore --previews
   delete` removes them.

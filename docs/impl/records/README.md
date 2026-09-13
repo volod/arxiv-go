@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0029`.
+Next unused sequence: `0030`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -37,3 +37,4 @@ Next unused sequence: `0029`.
 | [0026 FFmpeg runner](0026-preview-implement-ffmpeg-runner.md) | Safe ffmpeg process execution, progress, timeout, error capture, part-file finalization and encoder probe | Accepted; `make ci` and local `lavfi` run pass on Linux; Windows cross-compiled |
 | [0027 Preview planning](0027-preview-implement-preview-planning.md) | Pure preview positions, clamps, naming, estimates, CLI settings | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0028 Video samples](0028-preview-implement-video-samples.md) | Sample encoding, series chunking, encoder and muxer fallback, ffprobe validation | Accepted; `make ci` and local media tests pass on Linux; Windows cross-compiled |
+| [0029 Frame images](0029-preview-implement-frame-images.md) | PNG frame extraction, compression mapping and decoded-image validation | Accepted; `make ci` and local media tests pass on Linux; Windows cross-compiled |

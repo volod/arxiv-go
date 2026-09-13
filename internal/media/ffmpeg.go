@@ -19,6 +19,8 @@ import (
 const DefaultPreviewTimeout = 60 * time.Second
 const ffmpegStderrLimit = 64 << 10
 
+var errEmptyPreview = errors.New("ffmpeg produced an empty or non-regular preview")
+
 // Runner runs the validated ffmpeg and ffprobe paths. A Runner may be reused by
 // preview workers; the encoder probe is cached after its first successful call.
 type Runner struct {
@@ -118,7 +120,7 @@ func (r *Runner) Run(ctx context.Context, req PreviewCommand) (err error) {
 	}
 	info, statErr := f.Stat()
 	if statErr == nil && (!info.Mode().IsRegular() || info.Size() == 0) {
-		statErr = errors.New("ffmpeg produced an empty or non-regular preview")
+		statErr = errEmptyPreview
 	}
 	if statErr == nil {
 		statErr = f.Sync()

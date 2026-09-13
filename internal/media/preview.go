@@ -133,7 +133,8 @@ func PlanPreviews(info MediaInfo, source string, opts PreviewOptions, occupied f
 				return PreviewPlan{}, err
 			}
 			plan.Jobs = append(plan.Jobs, PreviewJob{Kind: "image", Output: out, TimeS: at,
-				Size: ClampPreviewSize(info, opts.ImageResolution), ImageQuality: opts.ImageQuality})
+				Size: ClampPreviewSize(info, opts.ImageResolution), ImageQuality: opts.ImageQuality,
+				DurationKnown: known})
 		}
 		plan.EstimateBytes += int64(len(times)) * imageEstimate(opts.ImageResolution)
 	}

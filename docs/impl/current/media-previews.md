@@ -2,7 +2,8 @@
 
 Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-runner.md),
 [0027 preview planning](../records/0027-preview-implement-preview-planning.md),
-[0028 video samples](../records/0028-preview-implement-video-samples.md).
+[0028 video samples](../records/0028-preview-implement-video-samples.md),
+[0029 frame images](../records/0029-preview-implement-frame-images.md).
 Specification: [previews](../../openspec/stage-2-previews/previews.md). The runner is available
 to later preview tasks. Split preview flags now parse and validate, but an active sample or image
 mode exits 70 before opening a run until generation is integrated.
@@ -66,6 +67,17 @@ specified software encoders; GPU encoding is outside the current container polic
 Both metadata readers report display-oriented dimensions, so the clamp now uses those
 dimensions directly. FFmpeg applies display rotation when it decodes a rotated source.
 
+## Frame image executor (`internal/media`)
+
+`Runner.GenerateFrame` accepts a planned image job and a video source path. It seeks to the
+planned position, selects the first video stream, scales to the planned display-oriented size and
+encodes one PNG. Image quality maps to PNG compression levels 9, 6 and 3 for low, medium and high.
+The runner decodes the part with `image/png` and checks its dimensions before publishing it. An
+invalid or empty PNG leaves no final output. For an unknown-duration start job, if the 1-second
+seek yields no frame, it retries once at the first frame. The owning split transaction must log
+the preview before passing an archive output. PNG extraction uses FFmpeg's software path; no CUDA
+encoder is needed.
+
 ## Verification
 
 Planner table tests cover all position modes, short and unknown duration, caps, landscape and
@@ -81,3 +93,7 @@ audio and container across MP4, MOV, MKV, WebM, M4V, 3GP and AVI. They also cove
 series with and without audio, short videos, landscape and portrait clamping, rotation, encoder
 fallback, unknown-extension fallback and ffprobe rejection before publication.
 An unknown-duration start job on a short source is also covered.
+Frame tests generate clips at run time and check all position modes, frame counts and names,
+decoded dimensions, landscape and portrait clamps, display rotation, a late seek in a short video,
+unknown-duration start fallback, compression arguments, invalid PNG rejection and occupied-file
+preservation.
