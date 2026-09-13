@@ -27,26 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Archive registry -- `archive-registry`
 
-#### implement-file-type-detection
-
-Classify each file's MIME type and binary, media, picture, video and large flags.
-
-- Serves: `archive-registry` -- [Type detection](../openspec/stage-1-core/registry.md#type-detection)
-- Agent status: CLEAR
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
-- User-visible outcome: Registry flags reflect file content rather than extensions, with the
-  specified extension fallback for ambiguous signatures.
-- Scope boundary: `Detect(path, size, opts) FileType` using `github.com/gabriel-vasile/mimetype`,
-  text hierarchy for `is_binary`, built-in and extra video extension lists, large threshold. The
-  ISO BMFF no-video-track refinement is owned by `implement-iso-bmff-metadata`.
-- Data and artifact paths: `internal/scanner/mimetype.go`; `go.mod`, `go.sum`.
-- Execution path: `mimetype.DetectReader` over a bounded read; parent traversal for text.
-- Acceptance gates: Generated fixtures: plain text, UTF-8 with BOM, JSON, SVG, PDF header, PNG,
-  JPEG, WAV, minimal MP4/M4A/MOV `ftyp` headers, Matroska/WebM EBML header, random bytes with a
-  video extension, text with `.mp4` extension, empty file, exact large threshold.
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-scan-operation-and-csv-registry
 
 Wire the walker, detection and checkpoints into the resumable `scan` operation and CSV registry.
@@ -54,7 +34,7 @@ Wire the walker, detection and checkpoints into the resumable `scan` operation a
 - Serves: `archive-registry` -- [Registry writing](../openspec/stage-1-core/registry.md#registry-writing)
 - Agent status: CLEAR
 - Dependencies: [Directory walker](records/0010-registry-implement-directory-walker.md);
-  `implement-file-type-detection`;
+  [File type detection](records/0011-registry-implement-file-type-detection.md);
   [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
 - User-visible outcome: `arxgo scan --archive PATH` writes `arxgo-registry.csv` with the specified
   columns and statistics, resumes after interruption, and exits 6 when entries were skipped.

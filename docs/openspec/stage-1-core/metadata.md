@@ -41,7 +41,7 @@ Both parsers produce the same Go struct and JSON object (`metadata.media`, see
 ## ISO BMFF parser
 
 - Applies to files whose detected MIME is `video/mp4`, `video/quicktime`, `video/3gpp`,
-  `video/3gpp2`, `video/x-m4v` or `audio/mp4`.
+  `video/3gpp2`, `video/x-m4v`, `audio/mp4` or `audio/x-m4a`.
 - Uses `github.com/abema/go-mp4` `ReadBoxStructure`/`Probe` over an `io.ReadSeeker`; it reads only
   box headers and `moov` payloads, never media data, so cost is independent of file size.
 - Handles `moov` at the end of the file, fragmented MP4 (`moof`, duration from `mehd` or summed

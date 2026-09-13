@@ -66,3 +66,4 @@ each one as deferred to this scenario; the step column shows where it is checked
 | `AUD-implement-write-ahead-log-and-recovery-1` | WAL open/truncate and atomic stub writes | W4 |
 | `AUD-implement-disk-space-preflight-2` | `GetDiskFreeSpaceEx` and UNC zero-total free space | W3 |
 | `AUD-implement-directory-walker-1` | Symlink privilege, junctions as special entries, case-sensitive `SkipPaths` | W5 |
+| `AUD-implement-file-type-detection-4` | Detection open on files locked by another process or denied by ACL returns an error counted unreadable | W5 |

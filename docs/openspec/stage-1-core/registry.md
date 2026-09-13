@@ -39,13 +39,15 @@ input list for `split`.
 
 ## Type detection
 
-Detection reads at most the first 3072 bytes (the `mimetype` default read limit) of each regular
-file; empty files are `inode/x-empty`.
+Detection reads at most the first 4096 bytes (the `mimetype` default read limit) of each regular
+file; a file that yields no bytes is `inode/x-empty`. A file that cannot be opened or read, or is
+no longer a regular file when opened, is logged and counted as skipped (`unreadable`) like other
+unreadable entries. Opening never blocks on a FIFO that replaced the file after the walk.
 
 | Field | Rule |
 | --- | --- |
 | `file_mime` | `mimetype.DetectReader` result without parameters, e.g. `video/mp4`, `text/plain` |
-| `file_type` | Canonical extension from detection without the dot (`mp4`, `pdf`); when detection returns `application/octet-stream`, the lower-cased file extension; empty when neither exists |
+| `file_type` | Canonical extension from detection without the dot (`mp4`, `pdf`, `txt`); when detection returns `application/octet-stream`, the lower-cased extension of the file name (the part after its last dot; a name whose only dot is leading, such as `.profile`, has none); empty when neither exists |
 | `is_binary` | `false` when the detected MIME or any ancestor in the `mimetype` hierarchy is `text/plain`, or the MIME is in the text allow-list (`application/json`, `application/xml`, `image/svg+xml`, `text/*`); `true` otherwise. Empty files are `false` |
 | `is_video` | MIME has prefix `video/`, or the MIME is ambiguous (`application/octet-stream`) and the extension is in the built-in video list or `--video-extensions`. ISO BMFF files are then refined: when `--metadata media` finds no video track, `is_video=false` (for example an audio-only `.mp4`) |
 | `is_picture` | MIME has prefix `image/` |
@@ -55,8 +57,13 @@ file; empty files are `inode/x-empty`.
 Built-in video extension list (used only for ambiguous signatures): `mp4 m4v mov qt 3gp 3g2 mkv
 webm avi wmv asf flv f4v mpg mpeg m2v ts m2ts mts vob ogv mxf dv rm rmvb`.
 
-`M4A` and other audio-brand ISO BMFF files are detected by `mimetype` as `audio/mp4` and are media
-but not video. Pictures and audio are registered but never moved.
+M4A files (brand `M4A `) are detected by `mimetype` as `audio/x-m4a`, and other audio-brand ISO
+BMFF files (`M4B `, `M4P `, `F4A `, ...) as `audio/mp4`; both are media but not video. An audio-only
+file with a generic brand (`isom`, `mp42`) is `video/mp4` until the ISO BMFF refinement. Matroska
+and WebM files are `video/matroska` and `video/webm` whether or not they contain a video track.
+MPEG transport streams (`ts`, `m2ts`, `mts`), MXF and DV have no signature `mimetype` recognizes in
+the first bytes, so they are video through the extension list. Pictures and audio are registered
+but never moved.
 
 ## Registry writing
 
