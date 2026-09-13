@@ -12,7 +12,7 @@ arxiv-go/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
 |   |-- scanner/                 walker.go (traversal), mimetype.go (detection and flags)
 |   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
-|   |-- fsops/                   device/space syscalls, durable copy/rename, path helpers
+|   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
 |   |-- state/                   lock.go, checkpoint.go, wal.go, recovery
 |   |-- archive/                 split.go, restore.go, preflight.go, progress.go
 |   |-- report/                  csv.go, markdown.go, summary

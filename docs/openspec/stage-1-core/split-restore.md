@@ -25,7 +25,8 @@ there and where it went.
    - `--transfer auto` on the same device: `os.Rename`; if it fails with a cross-device error,
      fall back to the copy path and log it once;
    - copy path: stream to `<dst>.arxgo-part`, fsync, verify (`size` or `hash`), rename to `<dst>`,
-     fsync the parent directory, preserve modification time (and permission bits on Linux);
+     fsync the parent directory, preserve modification time (and permission bits on Linux when
+     the destination filesystem supports them);
    - write the Markdown stub `<archive>/<rel_path>.md` ([format](contracts.md#markdown-stub));
    - copy path only: remove the source after the stub is durable;
    - commit.

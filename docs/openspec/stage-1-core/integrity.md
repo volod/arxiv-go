@@ -76,7 +76,8 @@ instead.
 
 - Written every `--checkpoint-every` processed files or `--checkpoint-interval`, whichever comes
   first, at phase boundaries, and on interrupt.
-- Written atomically: `checkpoint.json.tmp`, fsync, rename, fsync directory.
+- Written atomically with `fsops.AtomicWriteFile`: `checkpoint.json.arxgo-part`, fsync, rename,
+  fsync directory. A leftover part file is ignored and replaced.
 - Contents: run id, phase, scan cursor (walk order key of the last fully processed entry), registry
   part-file byte offset, candidate index, counters (files, bytes, videos done/skipped/failed),
   WAL byte offset, and elapsed time.

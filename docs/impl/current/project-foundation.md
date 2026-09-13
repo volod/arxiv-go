@@ -6,13 +6,15 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 
 ## Identity
 
-- Module `github.com/volod/arxiv-go`, Go 1.27. Only dependency: `github.com/joho/godotenv` v1.5.1.
+- Module `github.com/volod/arxiv-go`, Go 1.27. Dependencies: `github.com/joho/godotenv` v1.5.1 and
+  `golang.org/x/sys` v0.48.0 ([crash safety](crash-safety.md)).
 - Binary `arxgo` built from `cmd/arxgo/main.go`, which only calls `internal/cli.Run`.
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   still exit 70 (not implemented) after validation. The version string is stamped with
   `-ldflags -X`.
-- Package directories `internal/{scanner,archive,state,media,report,fsops}` contain only `doc.go`
-  files naming the files their plan tasks will add.
+- Package directories `internal/{scanner,archive,state,media,report}` contain only `doc.go` files
+  naming the files their plan tasks will add; `internal/fsops` is described in
+  [crash safety](crash-safety.md).
 
 ## CLI
 

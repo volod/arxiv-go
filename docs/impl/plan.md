@@ -20,31 +20,6 @@ change; `make ci` must pass.
 
 ### Crash safety -- `crash-safety`
 
-#### implement-filesystem-primitives
-
-Provide the platform-aware file operations every mutating task relies on.
-
-- Serves: `crash-safety` -- [Integrity](../openspec/stage-1-core/integrity.md)
-- Agent status: CLEAR
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
-- User-visible outcome: Moves and copies are durable and verified on Linux and Windows, and the
-  utility can tell whether two paths share a device and how much space is free.
-- Scope boundary: `SameDevice`, `FreeSpace`, `AtomicWriteFile`, `DurableCopy` (part file, fsync,
-  size or SHA-256 verification, mtime/mode preservation, rename, directory fsync), `Rename` with
-  cross-device error classification, `IsCrossDevice(err)`. Injectable interfaces for tests. No WAL.
-- Data and artifact paths: `internal/fsops/` with `device_unix.go`, `device_windows.go`,
-  `space_unix.go`, `space_windows.go`, `transfer.go`, `atomic.go`; `golang.org/x/sys`.
-- Execution path: `unix.Statfs`/`Stat_t.Dev` and `windows.GetDiskFreeSpaceEx`/
-  `GetVolumePathName`+`GetVolumeInformation`; streaming copy with `io.CopyBuffer` and optional
-  `sha256` tee; cross-device detection from `*os.LinkError` (`EXDEV`, `ERROR_NOT_SAME_DEVICE`).
-- Acceptance gates: Copy preserves bytes, mtime and (Linux) mode; verification mismatch leaves no
-  destination; part files are removed on error; atomic write never exposes partial content; same-
-  device true for siblings and false across `/dev/shm` and the workspace when both exist (skip with
-  reason otherwise); `FreeSpace` returns non-zero for the temp dir; Windows build compiles and its
-  tests pass in CI.
-- Documentation target: `docs/impl/current/crash-safety.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-run-lock-and-checkpoint
 
 Give every run an owned state directory, a lock that prevents concurrent mutation, periodic atomic
@@ -52,7 +27,7 @@ checkpoints and structured run logs with progress.
 
 - Serves: `crash-safety` -- [Integrity](../openspec/stage-1-core/integrity.md#run-lock)
 - Agent status: CLEAR
-- Dependencies: `implement-filesystem-primitives`.
+- Dependencies: [Filesystem primitives](records/0005-safety-implement-filesystem-primitives.md).
 - User-visible outcome: A second `arxgo` on the same roots exits 5 naming the owner; a stale local
   lock needs `--force-unlock`; each run leaves `options.json`, `checkpoint.json`, `run.log.jsonl`
   and `report.json`; progress lines appear at the configured interval.
@@ -100,7 +75,7 @@ Refuse to start a mutating run that cannot finish for lack of space.
 
 - Serves: `crash-safety` -- [Preflight](../openspec/stage-1-core/integrity.md#preflight)
 - Agent status: CLEAR
-- Dependencies: `implement-filesystem-primitives`.
+- Dependencies: [Filesystem primitives](records/0005-safety-implement-filesystem-primitives.md).
 - User-visible outcome: `split`, `restore` and `--dry-run` print required, available and shortfall
   per device, and exit 4 before any mutation when space is insufficient.
 - Scope boundary: Requirement model per operation/transfer/device placement, `--min-free`, shared-
