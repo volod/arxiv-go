@@ -1,7 +1,8 @@
 # Media Previews
 
 Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-runner.md),
-[0027 preview planning](../records/0027-preview-implement-preview-planning.md).
+[0027 preview planning](../records/0027-preview-implement-preview-planning.md),
+[0028 video samples](../records/0028-preview-implement-video-samples.md).
 Specification: [previews](../../openspec/stage-2-previews/previews.md). The runner is available
 to later preview tasks. Split preview flags now parse and validate, but an active sample or image
 mode exits 70 before opening a run until generation is integrated.
@@ -43,6 +44,28 @@ a Job Object configured to terminate its process tree on close or timeout. Windo
 cross-compiled and vetted on Linux; its runtime check is deferred to
 [W7a](../../guide/windows-verification.md#scenario).
 
+## Video sample executor (`internal/media`)
+
+`Runner.GenerateSample` accepts a planned sample job and a video source path, then returns the
+published output path. The owning split transaction must log the preview before passing an archive
+output. Single clips use input seeking; series clips concatenate planned ranges. Series longer
+than 50 ranges are encoded in groups of at most 50 in a private temporary directory, then joined
+with the concat demuxer. Chunk files are removed after the call. The runner probes the part file
+before publication and requires video, planned dimensions, source container, expected audio and
+duration within a tight tolerance; invalid results leave no published sample.
+For an unknown-duration `start` job, a shorter nonempty output is valid because the source may end
+before the requested length.
+
+MP4, M4V, MOV, 3GP, MKV, WebM and AVI use the container-specific software encoders in the
+specification. Missing `libx264` falls back to `mpeg4`, and missing AVI `libmp3lame` falls back
+to `aac`. Quality maps to x264 CRF, VP9 CRF, `mpeg4` quantizer and audio bitrate. If an unknown
+source extension has no FFmpeg muxer, the executor retries as MP4 and returns that path. It does
+not retry an occupied output or other failure. This CUDA host ran the live tests with the
+specified software encoders; GPU encoding is outside the current container policy.
+
+Both metadata readers report display-oriented dimensions, so the clamp now uses those
+dimensions directly. FFmpeg applies display rotation when it decodes a rotated source.
+
 ## Verification
 
 Planner table tests cover all position modes, short and unknown duration, caps, landscape and
@@ -53,3 +76,8 @@ child process that outlives its parent, stderr-tail capture, failed and empty ou
 pre-existing file conflicts, encoder parsing and cache retry. A local `lavfi` run with ffmpeg
 6.1.1 produced a nonempty AVI, a final progress report and an encoder list. The test skips with
 a reason when ffmpeg is unavailable; `ARXGO_TEST_REQUIRE_TOOLS=1` makes it mandatory locally.
+Live sample tests generate `testsrc2` and `sine` sources and verify modes, duration, dimensions,
+audio and container across MP4, MOV, MKV, WebM, M4V, 3GP and AVI. They also cover a 52-range
+series with and without audio, short videos, landscape and portrait clamping, rotation, encoder
+fallback, unknown-extension fallback and ffprobe rejection before publication.
+An unknown-duration start job on a short source is also covered.

@@ -40,6 +40,7 @@ type PreviewCommand struct {
 	Output        string
 	TotalDuration time.Duration
 	OnProgress    func(Progress)
+	Validate      func(context.Context, string) error // inspect the part before publication
 }
 
 // PreviewPartPath preserves the output extension for ffmpeg's muxer selection.
@@ -128,6 +129,11 @@ func (r *Runner) Run(ctx context.Context, req PreviewCommand) (err error) {
 	}
 	if closeErr != nil {
 		return fmt.Errorf("close preview part: %w", closeErr)
+	}
+	if req.Validate != nil {
+		if err := req.Validate(runCtx, part); err != nil {
+			return fmt.Errorf("validate preview: %w", err)
+		}
 	}
 	if err := fsops.Rename(part, req.Output); err != nil {
 		return fmt.Errorf("publish preview: %w", err)

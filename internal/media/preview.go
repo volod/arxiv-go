@@ -34,10 +34,13 @@ type PreviewSize struct{ Width, Height int }
 // PreviewJob describes one output. A series sample has several ranges but one output.
 type PreviewJob struct {
 	Kind, Output                string
+	Container                   string
 	Ranges                      []PreviewRange
 	TimeS                       float64 // image seek position
 	Size                        PreviewSize
 	VideoEncoder, AudioEncoder  string
+	HasAudio                    bool
+	DurationKnown               bool
 	SampleQuality, ImageQuality string
 }
 
@@ -108,8 +111,9 @@ func PlanPreviews(info MediaInfo, source string, opts PreviewOptions, occupied f
 			}
 			video, audio := PreviewEncoders(info.Container, ext)
 			plan.Jobs = append(plan.Jobs, PreviewJob{Kind: "sample", Output: out, Ranges: ranges,
-				Size: ClampPreviewSize(info, opts.SampleResolution), VideoEncoder: video, AudioEncoder: audio,
-				SampleQuality: opts.SampleQuality})
+				Size: ClampPreviewSize(info, opts.SampleResolution), Container: info.Container,
+				VideoEncoder: video, AudioEncoder: audio,
+				HasAudio: info.HasAudio, DurationKnown: known, SampleQuality: opts.SampleQuality})
 			var seconds float64
 			for _, r := range ranges {
 				seconds += r.DurationS

@@ -27,25 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media previews -- `media-previews`
 
-#### implement-video-samples
-
-Generate sample clips in the source container format.
-
-- Serves: `media-previews` -- [Encoding by container](../openspec/stage-2-previews/previews.md#encoding-by-container)
-- Agent status: CLEAR
-- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); [Preview planning](records/0027-preview-implement-preview-planning.md).
-- User-visible outcome: `--sample start|middle|end|series` produces playable `-smplNN` clips at the
-  requested duration and clamped resolution.
-- Scope boundary: ffmpeg argument construction for single and chunked series clips, encoder
-  fallback, quality mapping, output validation with ffprobe.
-- Data and artifact paths: `internal/media/samples.go`.
-- Execution path: Tests generate `testsrc2`+`sine` sources in mp4/mov/mkv/webm; skip with reason
-  without ffmpeg.
-- Acceptance gates: Duration within tolerance, dimensions per clamp, container matches source,
-  series with more than 50 fragments concatenates correctly, missing encoder falls back.
-- Documentation target: `docs/impl/current/media-previews.md`
-- Review checkpoint: `review-stage-2-previews`.
-
 #### implement-frame-images
 
 Generate PNG frames at the planned positions.
@@ -70,7 +51,7 @@ Generate previews after each committed move and clean them up on restore.
 
 - Serves: `media-previews` -- [Transactions and failures](../openspec/stage-2-previews/previews.md#transactions-and-failures)
 - Agent status: CLEAR
-- Dependencies: `implement-video-samples`; `implement-frame-images`.
+- Dependencies: [Video samples](records/0028-preview-implement-video-samples.md); `implement-frame-images`.
 - User-visible outcome: `arxgo split --sample ... --image ...` leaves previews next to stubs, stubs
   embed them, registries list them, failed previews do not affect moves, and `restore --previews
   delete` removes them.

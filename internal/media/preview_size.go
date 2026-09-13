@@ -5,11 +5,9 @@ import "math"
 // ClampPreviewSize fits the display-oriented source in the requested box, without
 // upscaling, then rounds both dimensions down to even encoder-compatible values.
 func ClampPreviewSize(info MediaInfo, resolution string) PreviewSize {
+	// Both metadata readers already report display-oriented dimensions. FFmpeg
+	// applies the rotation while decoding, so a second swap would stretch clips.
 	w, h := info.Width, info.Height
-	rotation := ((info.Rotation % 360) + 360) % 360
-	if rotation == 90 || rotation == 270 {
-		w, h = h, w
-	}
 	if w <= 0 || h <= 0 {
 		return PreviewSize{}
 	}

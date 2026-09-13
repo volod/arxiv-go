@@ -73,7 +73,7 @@ func TestPreviewClamp(t *testing.T) {
 		{720, 1280, 0, "sd", PreviewSize{360, 640}},
 		{2250, 4000, 0, "hd", PreviewSize{1080, 1920}},
 		{4500, 8000, 0, "4k", PreviewSize{2160, 3840}},
-		{1280, 720, 90, "sd", PreviewSize{360, 640}},
+		{720, 1280, 90, "sd", PreviewSize{360, 640}},
 		{641, 359, 0, "sd", PreviewSize{640, 358}},
 		{319, 239, 0, "sd", PreviewSize{318, 238}},
 	}

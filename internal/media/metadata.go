@@ -85,7 +85,11 @@ func isoContainer(path, mime string) string {
 		return "mov"
 	case mime == "video/3gpp":
 		return "3gp"
+	case strings.HasSuffix(strings.ToLower(path), ".3gp"):
+		return "3gp"
 	case mime == "video/3gpp2":
+		return "3g2"
+	case strings.HasSuffix(strings.ToLower(path), ".3g2"):
 		return "3g2"
 	case mime == "audio/x-m4a" || strings.HasSuffix(strings.ToLower(path), ".m4a"):
 		return "m4a"
