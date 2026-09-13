@@ -1,9 +1,9 @@
-# arxiv-go
+# [arxiv-go](https://github.com/volod/arxiv-go]
 
 Organize videos in a large archive of files in order to separate video and text data for convenient
 storage.
 
-`arxgo` is a single static executable for Linux and Windows that:
+`arxgo(.exe)` is a single static executable for Linux and Windows that:
 
 1. **scan** (default) -- walks an archive and writes a CSV registry of every file, marking binary,
    media, picture, video and large files;
@@ -13,8 +13,10 @@ storage.
 3. **restore** -- moves the videos back, optionally recreating deleted directories.
 
 Runs are crash-safe (write-ahead log and checkpoints), resumable and check free disk space before
-starting. Stage 2 adds video samples and PNG frames through `ffmpeg`; stage 3 adds Google Drive
-and SharePoint publishing.
+starting.
+
+Stage 2 adds video samples and PNG frames through `ffmpeg`;
+Stage 3 adds Google Drive and SharePoint publishing.
 
 > Status: repository scaffold. Operations are specified and planned but not implemented yet.
 
