@@ -30,3 +30,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# arxiv-go build outputs
+/bin/
+/dist/
+# arxgo run state created when running against test trees inside the repo
+.arxgo/
