@@ -27,41 +27,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Video split -- `video-split`
 
-#### implement-video-split-transactions
-
-Move every video into the mirrored video archive as a write-ahead-logged transaction.
-
-- Serves: `video-split` -- [Split](../openspec/stage-1-core/split-restore.md#split)
-- Agent status: CLEAR
-- Dependencies: [Write-ahead log and recovery](records/0007-safety-implement-write-ahead-log-and-recovery.md);
-  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md);
-  [Scan operation and CSV registry](records/0012-registry-implement-scan-operation-and-csv-registry.md).
-- User-visible outcome: `arxgo split` moves videos by rename on one device or copy+verify+delete
-  across devices, honors `--dry-run`, never overwrites, and resumes after any crash.
-- Scope boundary: Split phases 1-5, split recovery resolver, destination-exists and source-changed
-  rules, cross-device fallback, directory creation, exit 6 accounting. Stubs and registries are
-  written through a minimal interface completed by `implement-stubs-and-video-registry`; this task
-  writes a placeholder stub that satisfies the WAL `stubbed` step.
-- Data and artifact paths: `internal/archive/split.go`, `internal/archive/split_recovery.go`.
-- Execution path: Candidate iterator from the scan run, per-candidate transaction using `fsops` and
-  `state`, crash-injection tests through `test/fixtures/crashtest`, cross-device simulated by an injected
-  device function. Ensure that if the source archive path ARXGO_ARCHIVE and the target video archive
-  path ARXGO_VIDEO_ARCHIVE reside on the same physical device, we use strict move semantics rather
-  than copy-and-delete. In this case, we will not overload storage by copying gigabytes of data.
-- Acceptance gates: Byte-identical videos at mirrored paths; non-video media untouched; crash
-  injection after every step on both transfer paths converges; adopted identical destination;
-  conflicting destination skipped with exit 6; source modified mid-copy aborted and retried;
-  `--dry-run` mutates nothing; second run is a no-op.
-- Documentation target: `docs/impl/current/video-split.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-stubs-and-video-registry
 
 Leave a Markdown stub at each former video location and write the video registry and summary.
 
 - Serves: `video-split` -- [Data contracts](../openspec/stage-1-core/contracts.md#markdown-stub)
 - Agent status: CLEAR
-- Dependencies: `implement-video-split-transactions`;
+- Dependencies: [Video split transactions](records/0018-split-implement-video-split-transactions.md);
   [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
 - User-visible outcome: Every moved video has `<name>.md` with front matter, relative and absolute
   links, optional base-URL link and metadata; both roots contain `arxgo-videos.csv` and

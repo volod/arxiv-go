@@ -100,6 +100,29 @@ type CopyResult struct {
 // yields an error matching fs.ErrExist. A canceled ctx returns before any
 // destination file is created.
 func DurableCopy(ctx context.Context, src, dst string, opts CopyOptions) (res CopyResult, err error) {
+	res, err = StageCopy(ctx, src, dst, opts)
+	if err != nil {
+		return res, err
+	}
+	part := PartPath(dst)
+	if opts.Overwrite {
+		err = Replace(part, dst)
+	} else {
+		err = Rename(part, dst)
+	}
+	var le *os.LinkError
+	if err != nil && errors.As(err, &le) {
+		// The rename failed; dst is untouched.
+		_ = os.Remove(part)
+		return CopyResult{}, err
+	}
+	// A non-LinkError means dst is in place but the directory flush failed.
+	return res, err
+}
+
+// StageCopy writes and verifies dst.arxgo-part without placing dst. The caller must record its
+// write-ahead steps, then use Rename or Replace to place the part. An error removes the part.
+func StageCopy(ctx context.Context, src, dst string, opts CopyOptions) (res CopyResult, err error) {
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}
@@ -187,18 +210,7 @@ func DurableCopy(ctx context.Context, src, dst string, opts CopyOptions) (res Co
 	if h != nil {
 		res.SHA256 = hex.EncodeToString(h.Sum(nil))
 	}
-	if opts.Overwrite {
-		err = Replace(part, dst)
-	} else {
-		err = Rename(part, dst)
-	}
-	var le *os.LinkError
-	if err != nil && errors.As(err, &le) {
-		// The rename failed; dst is untouched.
-		return CopyResult{}, err
-	}
-	// A non-LinkError means dst is in place but the directory flush failed.
-	return res, err
+	return res, nil
 }
 
 // finishPart verifies the part file against the source, applies the source

@@ -19,8 +19,9 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
 
 - Flow inside the run session: resume check, preflight, phase `scan`, rename, phase `summary`.
   Preflight estimates the registry from the file it replaces (256 B per row, less what a resumed
-  part file holds). `Scan(ctx, session, ScanConfig)` is also the scan phase that split and restore
-  will call (`Preflight=false`, their own `SkipPaths`).
+  part file holds). `Scan(ctx, session, ScanConfig)` is also the scan phase of
+  [split](video-split.md) (`Preflight=false`, video archive in `SkipPaths`); restore will call it
+  the same way.
 - Pipeline: `scanner.Walk` in the calling goroutine queues every entry on a bounded order channel
   (`Window`, default 256) and hands files and symlinks to 16 detection workers (`scanner.Detect`,
   `os.Readlink`). A writer goroutine takes entries in order, waits for each one's detection and

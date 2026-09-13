@@ -14,8 +14,9 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - Binary `arxgo` built from `cmd/arxgo/main.go`, which only calls `internal/cli.Run`.
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
-  [registry scan](archive-registry.md#scan-operation-internalarchive), while `split` and `restore`
-  exit 70 (not implemented). The version string is stamped with `-ldflags -X`.
+  [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
+  [video transactions](video-split.md), while `restore` exits 70. The version string is stamped
+  with `-ldflags -X`.
 - `internal/media` contains only a `doc.go` naming the files its plan tasks will add;
   `internal/scanner` and `internal/report` are described in [archive registry](archive-registry.md); `internal/fsops`, `internal/state` and `internal/archive` are described
   in [crash safety](crash-safety.md).

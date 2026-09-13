@@ -45,7 +45,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"validation lists every error", []string{"split", "--checkpoint-every", "0"}, ExitUsage, "", "arxgo: --video-archive is required"},
 		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
 		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},
-		{"split", append([]string{"split"}, roots...), ExitNotImplemented, "", "op=split"},
+		{"split", append([]string{"split"}, roots...), ExitOK, "", "op=split"},
 		{"restore", append([]string{"restore"}, roots...), ExitNotImplemented, "", "op=restore"},
 	}
 	for _, tc := range cases {

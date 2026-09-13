@@ -140,7 +140,11 @@ func recoverPlaced(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observatio
 	if tx.Begin.Op == "restore" {
 		step = StepStubRemoved
 	}
-	if _, err := w.Append(tx.Begin.TxID, step, Record{Stub: stubPath(tx.Begin)}); err != nil {
+	path := stubPath(tx.Begin)
+	if namer, ok := res.(interface{ StubPath(Tx) string }); ok {
+		path = namer.StubPath(tx)
+	}
+	if _, err := w.Append(tx.Begin.TxID, step, Record{Stub: path}); err != nil {
 		return Recovery{}, err
 	}
 	tx.Last.Step = step

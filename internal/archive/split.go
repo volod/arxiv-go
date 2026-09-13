@@ -1,0 +1,241 @@
+package archive
+
+import (
+	"context"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/state"
+)
+
+// SplitConfig contains the split flags needed by the archive executor.
+type SplitConfig struct {
+	Scan     ScanConfig
+	Transfer string
+	Verify   fsops.VerifyMode
+	Stubs    SplitStubWriter // nil uses the placeholder; recovery must receive the same writer
+	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
+	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
+}
+
+// SplitBody scans, preflights, and executes the candidate list in walk order. The caller must
+// install NewSplitResolver in Config.Recoverer before Start so recovery precedes the scan.
+func SplitBody(c SplitConfig) func(context.Context, *Session) error {
+	return func(ctx context.Context, s *Session) error { return Split(ctx, s, c) }
+}
+
+func Split(ctx context.Context, s *Session, c SplitConfig) error {
+	if _, err := Scan(ctx, s, c.Scan); err != nil {
+		return err
+	}
+	w, err := s.OpenWAL()
+	if err != nil {
+		return err
+	}
+	// The WAL is authoritative after a crash; a committed transaction may precede the last
+	// checkpoint and its in-memory counter update.
+	if done := int64(w.Committed().Len()); done > s.Stats.VideosDone.Load() {
+		s.Stats.VideosDone.Store(done)
+	}
+	list := s.Run.File(state.CandidatesFile)
+	remaining, err := countSplitCandidates(list, w)
+	if err != nil {
+		return err
+	}
+	if _, err := s.Preflight(ctx, remaining); err != nil {
+		return err
+	}
+	if s.cfg.DryRun {
+		s.Log.Info("dry run: split plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
+		return nil
+	}
+	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
+		return err
+	}
+	resolver := NewSplitResolver(s.cfg.FS, c.Verify, s.cfg.Crash)
+	if c.Stubs != nil {
+		resolver.Stubs = c.Stubs
+	}
+	var index int64
+	seen := make(map[string]string)
+	return ReadCandidates(list, func(v Candidate) error {
+		index++
+		if runtime.GOOS == "windows" {
+			key := strings.ToLower(v.RelPath)
+			if first, ok := seen[key]; ok && first != v.RelPath {
+				skipSplit(s, v, "destination case-folds to "+first)
+				return nil
+			}
+			seen[key] = v.RelPath
+		}
+		if w.Committed().Has(v.RelPath) {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := splitCandidate(ctx, s, w, resolver, v, &c, list); err != nil {
+			return err
+		}
+		s.Update(func(cp *state.Checkpoint) { cp.CandidateIndex = index })
+		return s.Advance(1)
+	})
+}
+
+func countSplitCandidates(list string, w *state.WAL) (Candidates, error) {
+	var remaining Candidates
+	err := ReadCandidates(list, func(v Candidate) error {
+		if !w.Committed().Has(v.RelPath) {
+			remaining.Count++
+			remaining.Bytes = addSat(remaining.Bytes, v.Size)
+			remaining.Largest = max(remaining.Largest, v.Size)
+		}
+		return nil
+	})
+	return remaining, err
+}
+
+func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolver, v Candidate, c *SplitConfig, list string) error {
+	src := filepath.Join(s.cfg.Archive, filepath.FromSlash(v.RelPath))
+	dst := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(v.RelPath))
+	mode := state.TransferCopy
+	if c.Transfer != transferCopy {
+		// Classify from the archive roots so a same-device layout always renames
+		// rather than copying every video. A later EXDEV still falls back to copy.
+		same, err := s.cfg.FS.SameDevice(s.cfg.Archive, s.cfg.VideoArchive)
+		if err != nil {
+			return err
+		}
+		if same {
+			mode = state.TransferRename
+		}
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		fi, err := os.Lstat(src)
+		if err != nil || !fi.Mode().IsRegular() {
+			skipSplit(s, v, "source missing or no longer a regular file")
+			return nil
+		}
+		adopted, conflict, err := destinationStatus(src, dst, fi.Size(), c.Verify)
+		if err != nil {
+			return err
+		}
+		if adopted {
+			// An adopted destination leaves a source to remove even when the roots share a device.
+			mode = state.TransferCopy
+		}
+		if conflict {
+			skipSplit(s, v, "destination exists with different content")
+			return nil
+		}
+		begin := state.Begin{Op: opSplit, RelPath: v.RelPath, Src: src, Dst: dst,
+			Size: fi.Size(), Mtime: fi.ModTime(), Transfer: mode}
+		rec, err := w.Begin(begin)
+		if err != nil {
+			return err
+		}
+		s.Log.Debug("split begin", "rel_path", v.RelPath, "transfer", mode, "size", fi.Size())
+		tx := state.Tx{Begin: rec, Last: rec}
+		if err := ensureMirrorDirs(s, dst); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !adopted {
+			err = placeSplit(ctx, s, w, rec, mode, *c)
+			if errors.Is(err, fs.ErrExist) {
+				if e := os.Remove(fsops.PartPath(dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
+					return e
+				}
+				if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "destination conflict"}); e != nil {
+					return e
+				}
+				skipSplit(s, v, "destination appeared during transfer")
+				return nil
+			}
+			if fsops.IsCrossDevice(err) && mode == state.TransferRename {
+				if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "cross-device rename"}); e != nil {
+					return e
+				}
+				s.Log.Warn("rename crossed devices; falling back to copy", "rel_path", v.RelPath)
+				mode = state.TransferCopy
+				c.Transfer = transferCopy
+				left, e := countSplitCandidates(list, w)
+				if e != nil {
+					return e
+				}
+				if e := preflightSplitFallback(ctx, s, left); e != nil {
+					return e
+				}
+				attempt--
+				continue
+			}
+			if errors.Is(err, fsops.ErrSourceChanged) {
+				if e := os.Remove(fsops.PartPath(dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
+					return e
+				}
+				if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "source changed"}); e != nil {
+					return e
+				}
+				if attempt == 0 {
+					s.Log.Warn("source changed during transfer; retrying", "rel_path", v.RelPath)
+					continue
+				}
+				skipSplit(s, v, "source changed twice during transfer")
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+		} else {
+			s.Log.Info("adopted existing destination", "rel_path", v.RelPath)
+		}
+		if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
+			return err
+		}
+		if err := r.WriteStub(tx); err != nil {
+			return err
+		}
+		stub := r.StubPath(tx)
+		if stub != src+".md" {
+			s.Log.Warn("stub collision; wrote fallback", "rel_path", v.RelPath, "stub", stub)
+		}
+		if _, err := w.Append(rec.TxID, state.StepStubbed, state.Record{Stub: stub}); err != nil {
+			return err
+		}
+		if mode == state.TransferCopy {
+			if err := r.RemoveSource(tx); err != nil {
+				return err
+			}
+			if _, err := w.Append(rec.TxID, state.StepSourceRemoved, state.Record{}); err != nil {
+				return err
+			}
+		}
+		if _, err := w.Append(rec.TxID, state.StepCommit, state.Record{}); err != nil {
+			return err
+		}
+		s.Stats.VideosDone.Add(1)
+		s.Stats.VideoBytes.Add(fi.Size())
+		s.Stats.VideoArchiveWritten.Add(fi.Size())
+		s.Stats.ArchiveFreed.Add(fi.Size())
+		if fi.Size() >= c.Scan.LargeThreshold {
+			s.Log.Info("video moved", "rel_path", v.RelPath, "bytes", fi.Size(), "transfer", mode)
+		} else {
+			s.Log.Debug("video moved", "rel_path", v.RelPath, "bytes", fi.Size(), "transfer", mode)
+		}
+		return nil
+	}
+	return nil
+}
+
+func skipSplit(s *Session, v Candidate, reason string) {
+	s.Issue(state.IssueSkipped, v.RelPath, reason)
+	s.Stats.VideosSkipped.Add(1)
+	s.Stats.VideoBytes.Add(v.Size)
+}

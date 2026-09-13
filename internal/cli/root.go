@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/volod/arxiv-go/internal/archive"
+	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/media"
 )
 
@@ -69,7 +70,16 @@ var defaultHandlers = Handlers{
 		cfg := sessionConfig(OpSplit, o.Common, o, d)
 		cfg.CreateVideoArchive = o.CreateVideoArchive
 		cfg.Preflight.Transfer = o.Transfer
-		return runSession(ctx, cfg, log, notImplemented)
+		verify := fsops.VerifySize
+		if o.Verify == VerifyHash {
+			verify = fsops.VerifyHash
+		}
+		cfg.Recoverer = archive.NewSplitResolver(nil, verify, nil)
+		scan := scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), false)
+		scan.SkipPaths = []string{o.VideoArchive}
+		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
+			Scan: scan, Transfer: o.Transfer, Verify: verify,
+		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
 		d := o

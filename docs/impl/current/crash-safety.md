@@ -98,8 +98,8 @@ and `archive.Status` onto exit codes; it does not import `state` in production.
   resumed. Context cancel writes a final checkpoint and exits 130.
 
 `scan` runs its [registry scan](archive-registry.md#scan-operation-internalarchive) inside this
-lifecycle; `split` and `restore` still exit 70 (operation body not in this build). Split and restore will write WAL records in their own tasks; a resumed run already
-opens `wal.jsonl`, truncates a torn tail, and runs recovery when a resolver is supplied.
+lifecycle; `split` runs [video transactions](video-split.md), while `restore` still exits 70.
+A resumed run opens `wal.jsonl`, truncates a torn tail, and runs recovery when a resolver is supplied.
 
 ## Write-ahead log and recovery (`internal/state`)
 
@@ -161,12 +161,13 @@ level=INFO msg="preflight passed" op=split devices=2
 - Windows behavior is implemented, cross-compiled and vetted only; test gates are Linux only and
   host checks are in the deferred [Windows verification scenario](../../guide/windows-verification.md).
 - Preflight is called by `scan` (before traversal, estimated from the registry it replaces, with a
-  `--min-free` re-check at each scan checkpoint); `split` and `restore` still exit 70 and will call
-  `Session.Preflight` after their scan.
+  `--min-free` re-check at each scan checkpoint) and `split` (after its scan); `restore` still
+  exits 70 and will call `Session.Preflight` after its scan.
 - `DurableCopy` needs the destination directory to exist and does not remove the source.
 - Remote-host lock refusal is tested with injected host names, not a live network share.
 - A `Start` that sees corrupt run state releases the lock (exit 5) so `--new-run` does not need
   `--force-unlock`; see the record's audit note.
-- `FSResolver` writes a marker stub (`rel_path: ...`); split and restore supply the real stub
-  contents and paths. Crash injection uses a hook (error or panic), not a killed process.
+- `FSResolver` writes a marker stub (`rel_path: ...`); split supplies a minimal front-matter
+  placeholder until the remaining stub task adds the complete renderer. Crash injection uses a
+  hook (error or panic), not a killed process.
 - The 1e6 committed-set gate is an in-memory index, not a million-line WAL file.
