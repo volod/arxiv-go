@@ -11,10 +11,31 @@
   path with `PATH="$PWD/bin:$PATH"`. The target needs network access, `curl`, `tar`, `gzip` and
   `unzip`, and is not part of `make ci`.
 
+## First-time setup
+
+```bash
+make setup
+```
+
+`make setup` builds `bin/arxgo`, downloads the pinned `ffmpeg`/`ffprobe` into `bin/` (network
+access required), creates `bin/.env` from `.env.example` if it does not exist yet (mode 0600,
+never overwritten), and prints how to configure and run. Rerunning it is safe. It needs Go on
+`PATH` and exits with install guidance if Go is missing.
+
+`bin/.env` is the optional [environment file](../openspec/stage-1-core/cli.md#environment-file)
+that `arxgo` reads next to its executable. It holds `ARXGO_*` settings and, from stage 3,
+credentials. Flags and process environment variables override it. Declared runs (`RUN NEEDED`
+tasks) keep their settings and credentials there instead of in shell history. Unit tests never
+read it: the test binary lives in a temporary build directory, and tests inject their own file.
+After pulling changes, compare `bin/.env` with `.env.example` for new variables.
+`TestEnvExampleListsEveryFlag` fails when a flag is added without a matching `.env.example` line.
+
 ## Make targets
 
 | Target | Runs | Purpose |
 | --- | --- | --- |
+| `make setup` | `build`, `ffmpeg`, `env`, then prints usage | Ready-to-run `bin/` in one command (network) |
+| `make env` | `cp .env.example bin/.env` unless it exists | Optional settings file next to the binary; never overwrites |
 | `make build` | `go build -trimpath -o bin/arxgo ./cmd/arxgo` | Host binary with version stamp |
 | `make build-all` | `GOOS/GOARCH` loop, `CGO_ENABLED=0` | `bin/arxgo-<os>-<arch>[.exe]` for linux/windows amd64 |
 | `make ffmpeg` | `bash tools/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
@@ -29,7 +50,7 @@
 | `make plan-status` | `go run ./tools/plancheck status` | Open task counts and next eligible task |
 | `make coverage` | `go test -coverprofile` | Diagnostic coverage report only |
 | `make ci` | fmt-check, vet, test, build-all, lint-spec-plan, lint-doc-links | Required before accepting a task |
-| `make clean` | removes `bin/`, `dist/`, coverage files | |
+| `make clean` | removes `bin/` contents except `bin/.env`, `dist/`, coverage files | Keeps local settings and credentials |
 
 ## Conventions
 

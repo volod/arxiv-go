@@ -1,4 +1,4 @@
-# [arxiv-go](https://github.com/volod/arxiv-go]
+# [arxiv-go](https://github.com/volod/arxiv-go)
 
 Organize videos in a large archive of files in order to separate video and text data for convenient
 storage.
@@ -32,6 +32,15 @@ arxgo restore --archive /data/archive --video-archive /mnt/nas/video --create-di
 - [Implementation plan](docs/impl/plan.md) and [current state](docs/impl/current.md)
 - [Development guide](docs/guide/development.md)
 - [Agent and contributor rules](AGENTS.md)
+
+## Setup
+
+```bash
+make setup        # build bin/arxgo, download ffmpeg/ffprobe, create bin/.env, print usage
+```
+
+Settings may come from flags, `ARXGO_*` environment variables, or the optional `bin/.env` file next
+to the executable (template: [.env.example](.env.example)), in that order of precedence.
 
 ## Build
 

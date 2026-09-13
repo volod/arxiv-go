@@ -8,12 +8,53 @@ PKG       := github.com/volod/arxiv-go
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS   := -s -w -X $(PKG)/internal/cli.version=$(VERSION)
 PLATFORMS := linux/amd64 windows/amd64
-HOST_EXE  := $(if $(filter windows,$(shell $(GO) env GOOS)),.exe,)
+# Recursive (=) so `go env` runs only for targets that use it, such as `make build`.
+HOST_EXE   = $(if $(filter windows,$(shell $(GO) env GOOS 2>/dev/null)),.exe,)
 
 ##@ General
 .PHONY: help
 help: ## List available targets
 	@awk 'BEGIN {FS = ":.*## "} /^##@/ {printf "\n%s\n", substr($$0, 5)} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+.PHONY: setup env check-go
+setup: check-go ## One-time setup: build arxgo, download ffmpeg/ffprobe, create bin/.env, print usage
+	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory ffmpeg
+	@$(MAKE) --no-print-directory env
+	@exe=$(BIN_DIR)/arxgo$(HOST_EXE); \
+	printf '%s\n' \
+	  '' \
+	  'arxgo is ready in $(BIN_DIR)/:' \
+	  "  $$exe, ffmpeg and ffprobe for this host, and $(BIN_DIR)/.env (optional settings)" \
+	  '' \
+	  'Configure (optional; flags and environment variables override the file):' \
+	  '  1. Edit $(BIN_DIR)/.env and uncomment the settings you need, for example' \
+	  '       ARXGO_ARCHIVE=/data/archive' \
+	  '       ARXGO_VIDEO_ARCHIVE=/mnt/nas/video' \
+	  '     Windows paths: use single quotes or no quotes, e.g. ARXGO_ARCHIVE='"'"'D:\archive'"'"'' \
+	  '  2. Keep the file private: it may hold credentials and is git-ignored.' \
+	  '' \
+	  'Run:' \
+	  "  $$exe help                     # operations and flags" \
+	  "  $$exe version" \
+	  "  $$exe --archive /data/archive  # scan (reads ARXGO_* from $(BIN_DIR)/.env when set)" \
+	  "  $$exe split --archive /data/archive --video-archive /mnt/nas/video --dry-run" \
+	  '' \
+	  'Re-run `make setup` at any time; it never overwrites $(BIN_DIR)/.env.'
+
+check-go:
+	@command -v $(GO) >/dev/null 2>&1 || { \
+	  echo "error: '$(GO)' not found. Install Go 1.27+ (https://go.dev/dl/) and add its bin directory to PATH," >&2; \
+	  echo "       for example: export PATH=/usr/local/go/bin:\$$PATH" >&2; exit 1; }
+
+env: ## Create bin/.env from .env.example unless it already exists (never overwrites)
+	@mkdir -p $(BIN_DIR)
+	@if [ -e $(BIN_DIR)/.env ]; then \
+	  echo "keep existing $(BIN_DIR)/.env (compare with .env.example for new settings)"; \
+	else \
+	  cp .env.example $(BIN_DIR)/.env && chmod 600 $(BIN_DIR)/.env && \
+	  echo "created $(BIN_DIR)/.env from .env.example"; \
+	fi
 
 ##@ Build
 .PHONY: build build-all ffmpeg clean
@@ -30,8 +71,9 @@ build-all: ## Cross-compile static arxgo for Linux and Windows amd64
 ffmpeg: ## Download pinned static ffmpeg/ffprobe (linux/windows amd64) into bin/; needs network
 	$(SHELL) tools/fetch-ffmpeg.sh $(BIN_DIR) $(PLATFORMS)
 
-clean: ## Remove build and coverage outputs
-	rm -rf $(BIN_DIR) dist coverage.out coverage.html
+clean: ## Remove build and coverage outputs; keeps bin/.env
+	rm -rf dist coverage.out coverage.html
+	@if [ -d $(BIN_DIR) ]; then find $(BIN_DIR) -mindepth 1 -maxdepth 1 ! -name .env -exec rm -rf {} +; fi
 
 ##@ Quality
 .PHONY: test test-race test-integration fmt fmt-check vet coverage ci

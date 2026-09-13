@@ -108,12 +108,14 @@ Runtime dependencies must be pure Go and statically linkable. Approved candidate
 | [`github.com/gabriel-vasile/mimetype`](https://github.com/gabriel-vasile/mimetype) | Signature-based MIME detection with text/binary hierarchy | 1 |
 | [`github.com/abema/go-mp4`](https://github.com/abema/go-mp4) | ISO BMFF (MP4, M4A, M4V, MOV, 3GP) box parsing | 1 |
 | [`golang.org/x/sys`](https://pkg.go.dev/golang.org/x/sys) | Free-space and device identity syscalls | 1 |
+| [`github.com/joho/godotenv`](https://github.com/joho/godotenv) | Parse the optional `.env` file next to the executable ([environment file](stage-1-core/cli.md#environment-file)) | 1 |
 | `golang.org/x/oauth2` | OAuth 2.0 token flows for cloud targets | 3 |
 
 [`github.com/h2non/filetype`](https://github.com/h2non/filetype) was considered; `mimetype` is
 preferred because it exposes a MIME parent hierarchy that answers `is_binary` without a second
 table. Adding any other dependency requires a spec amendment. CLI parsing uses the standard `flag`
-package; logging uses `log/slog`.
+package, and `.env` parsing uses `godotenv` (read-only; it never changes the process environment).
+Logging uses `log/slog`.
 
 ### External tools
 
@@ -149,7 +151,7 @@ acceptance evidence exist. Registry order is the implementation line followed by
 
 | # | Capability | Stage | Status | How it is evaluated | Implementation |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `project-foundation` | 1 | planned | Cross-compiles for Linux/Windows, CLI contract tests, CI matrix, plan/doc lint pass | [Current](../impl/current/project-foundation.md); [Open work](../impl/plan.md#project-foundation----project-foundation) |
+| 1 | `project-foundation` | 1 | shipped | Cross-compiles for Linux/Windows, CLI contract tests, CI matrix, plan/doc lint pass | [Current](../impl/current/project-foundation.md) |
 | 2 | `crash-safety` | 1 | planned | Crash injection at every transaction step recovers to a consistent state; preflight refuses insufficient space | [Open work](../impl/plan.md#crash-safety----crash-safety) |
 | 3 | `archive-registry` | 1 | planned | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Open work](../impl/plan.md#archive-registry----archive-registry) |
 | 4 | `media-metadata` | 1 | planned | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Open work](../impl/plan.md#media-metadata----media-metadata) |

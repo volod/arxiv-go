@@ -46,7 +46,8 @@ flowchart TD
 
 Rules:
 
-- `cli` is the only package that reads flags or environment; it passes a validated, typed
+- `cli` is the only package that reads flags, the environment or the optional `.env` file; it
+  passes a validated, typed
   `Options` value down. Domain packages never call `os.Exit` or print to stdout.
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
 - `media` is the only package that runs external processes.

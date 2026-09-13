@@ -5,7 +5,7 @@ evaluation belong in [the specification](../openspec/spec.md). Task shape, statu
 lifecycle rules belong in the [planning workflow](../guide/planning-workflow.md). Available behavior
 and accepted results belong in [current-state documentation](current.md).
 
-Stages: tasks for `project-foundation` through `video-restore` deliver
+Stages: tasks for `crash-safety` through `video-restore` complete
 [stage 1](../openspec/stage-1-core/README.md); `media-previews` delivers
 [stage 2](../openspec/stage-2-previews/README.md); `cloud-publishing` delivers
 [stage 3](../openspec/stage-3-cloud/README.md). A stage starts only after the previous stage's
@@ -18,33 +18,6 @@ change; `make ci` must pass.
 
 ## Agent Implementation Tasks
 
-### Project foundation -- `project-foundation`
-
-#### implement-cli-contract
-
-Replace the scaffold dispatcher with the full, validated operation and flag contract so every later
-task receives typed options instead of parsing flags.
-
-- Serves: `project-foundation` -- [CLI contract](../openspec/stage-1-core/cli.md)
-- Agent status: CLEAR
-- Dependencies: [Repository and agent harness](records/0001-foundation-bootstrap-repository-and-agent-harness.md).
-- User-visible outcome: `arxgo help [op]`, `arxgo version` and every stage-1 flag parse and validate
-  with the specified defaults, environment overrides, size/duration parsing and exit codes; stage-2
-  and stage-3 flags are reserved and rejected with exit 2.
-- Scope boundary: Parsing, validation, `Options` types, exit-code mapping, `slog` console logger
-  construction and signal-to-context wiring. Operations still return exit 70. No filesystem writes;
-  root existence/nesting checks are read-only.
-- Data and artifact paths: `internal/cli/`, `cmd/arxgo/main.go`.
-- Execution path: One `flag.FlagSet` per operation built from a shared table; `Options` struct per
-  operation; `ParseSize`, enum and URL validators; root nesting check with symlink resolution and
-  Windows case folding; `signal.NotifyContext` in `Run`.
-- Acceptance gates: Table tests for every flag default, env override precedence, invalid enum/size/
-  duration/URL, missing required roots, equal and nested roots (including case-variant on Windows
-  CI), reserved stage-2/3 flags, and exit codes 0/2/70. `make ci` passes on Linux; CI passes on
-  Windows.
-- Documentation target: `docs/impl/current/project-foundation.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 ### Crash safety -- `crash-safety`
 
 #### implement-filesystem-primitives
@@ -53,7 +26,7 @@ Provide the platform-aware file operations every mutating task relies on.
 
 - Serves: `crash-safety` -- [Integrity](../openspec/stage-1-core/integrity.md)
 - Agent status: CLEAR
-- Dependencies: `implement-cli-contract`.
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
 - User-visible outcome: Moves and copies are durable and verified on Linux and Windows, and the
   utility can tell whether two paths share a device and how much space is free.
 - Scope boundary: `SameDevice`, `FreeSpace`, `AtomicWriteFile`, `DurableCopy` (part file, fsync,
@@ -150,7 +123,7 @@ Traverse an archive deterministically with exclusions, special-entry handling an
 
 - Serves: `archive-registry` -- [Traversal](../openspec/stage-1-core/registry.md#traversal)
 - Agent status: CLEAR
-- Dependencies: `implement-cli-contract`.
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
 - User-visible outcome: Scans visit every regular file once in a stable order, skip arxgo's own
   files and excluded globs, report unreadable entries without aborting, and can restart after a
   cursor.
@@ -172,7 +145,7 @@ Classify each file's MIME type and binary, media, picture, video and large flags
 
 - Serves: `archive-registry` -- [Type detection](../openspec/stage-1-core/registry.md#type-detection)
 - Agent status: CLEAR
-- Dependencies: `implement-cli-contract`.
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
 - User-visible outcome: Registry flags reflect file content rather than extensions, with the
   specified extension fallback for ambiguous signatures.
 - Scope boundary: `Detect(path, size, opts) FileType` using `github.com/gabriel-vasile/mimetype`,
@@ -216,7 +189,7 @@ Find `ffprobe`/`ffmpeg` next to the executable or on `PATH`, and fail fast with 
 
 - Serves: `media-metadata` -- [Tool discovery](../openspec/stage-1-core/metadata.md#tool-discovery)
 - Agent status: CLEAR
-- Dependencies: `implement-cli-contract`.
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
 - User-visible outcome: Requesting `--metadata media` without ffprobe logs the unavailable options
   and the platform download link and exits 3 before any lock or write.
 - Scope boundary: Lookup order, `-version` validation with timeout, requirement computation from
@@ -353,7 +326,7 @@ Review stage-1 cross-module invariants before the stage proof and before stage 2
 - Serves: `video-restore` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: `implement-cli-contract`; `implement-disk-space-preflight`;
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md); `implement-disk-space-preflight`;
   `implement-video-restore`; `implement-ffprobe-metadata`.
 - User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
   contracts, lock and preflight agree across scan, split and restore.
@@ -378,7 +351,8 @@ Run the complete stage-1 workflow end to end on a generated archive on Linux and
 - Dependencies: `review-stage-1-integrity`.
 - User-visible outcome: A single integration test proves scan, split, kill, resume, restore and the
   round-trip gate through the built `arxgo` binary.
-- Scope boundary: Build the binary in the test, generate a multi-level archive (hundreds of files,
+- Scope boundary: Build the binary in a test temporary directory (so a developer's `bin/.env` is
+  never read) and run it with a scrubbed `ARXGO_*` environment, generate a multi-level archive (hundreds of files,
   generated MP4 headers and optional ffmpeg clips), run operations as subprocesses, kill the split
   process mid-run, resume, restore, compare tree manifests. Not run against operator data.
 - Data and artifact paths: `test/integration/stage1_test.go` (build tag `integration`),
@@ -500,13 +474,15 @@ Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
   installation.
 - Scope boundary: `make dist` packaging on top of the approved pins in `packaging/ffmpeg.lock` and
   the verified download in `tools/fetch-ffmpeg.sh` (`make ffmpeg`), `SHA256SUMS`, GPLv3 licence
-  text and source offer per bundle, CI release job on tags. Binaries never committed.
+  text and source offer per bundle, CI release job on tags. Each bundle ships `.env.example` next
+  to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed.
 - Data and artifact paths: `packaging/`, `Makefile`, `.github/workflows/release.yml`, `dist/`
   (ignored).
 - Execution path: Declared run: `make dist` for linux/amd64 and windows/amd64 with network access,
   then smoke-test each bundle (`arxgo split --image start` on a generated video) on its OS.
 - Acceptance gates: Checksums verified before packaging; bundle smoke tests pass on both OSes;
-  licence files match the approved variant; checksum mismatch fails the build.
+  licence files match the approved variant; checksum mismatch fails the build; no bundle contains
+  a `.env` file, even when `bin/.env` exists on the build host.
 - Documentation target: `docs/guide/development.md`
 - Review checkpoint: `review-stage-2-previews`.
 
@@ -614,8 +590,10 @@ Publish a generated video archive to real test accounts for both providers.
   `provide-google-drive-test-account`; `provide-sharepoint-test-tenant`.
 - User-visible outcome: Publishing is proven against the real services, including an interrupted
   upload resumed to completion.
-- Scope boundary: Declared live run with operator-provided credentials from environment variables;
-  evidence (logs with secrets redacted, remote listing) kept outside the repository.
+- Scope boundary: Declared live run with operator-provided credentials from environment variables
+  or the [environment file](../openspec/stage-1-core/cli.md#environment-file) `bin/.env`, whose
+  credential keys are added to `.env.example` by the target tasks; evidence (logs with secrets
+  redacted, remote listing) kept outside the repository.
 - Data and artifact paths: `test/integration/cloud_test.go` (build tag `cloudlive`), run evidence
   under the operator's chosen directory.
 - Execution path: `go test -tags cloudlive ./test/integration/...` with credentials present.
@@ -667,7 +645,8 @@ Provide a Google Drive test location and credentials for the live proof.
 - Human status: BLOCKED BY HUMAN
 - Dependencies: none.
 - Requested input or decision: A test Google account or Shared Drive, a service account or OAuth
-  client, and the environment variable names under which the credentials will be supplied.
+  client, and the environment variable names under which the credentials will be supplied
+  (placed in the operator's `bin/.env` or process environment, never in the repository).
 - Unblocks: `prove-cloud-targets-on-test-accounts`.
 
 #### provide-sharepoint-test-tenant
@@ -678,5 +657,6 @@ Provide a SharePoint site, document library and Entra ID app registration for th
 - Human status: BLOCKED BY HUMAN
 - Dependencies: none.
 - Requested input or decision: Tenant id, site and drive ids, app registration with
-  `Sites.Selected` or `Files.ReadWrite.All` consent, and the credential delivery method.
+  `Sites.Selected` or `Files.ReadWrite.All` consent, and the credential delivery method (for
+  example the operator's `bin/.env`).
 - Unblocks: `prove-cloud-targets-on-test-accounts`.

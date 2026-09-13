@@ -13,7 +13,8 @@ linked here in the same change.
 
 | Area | Owns | State |
 | --- | --- | --- |
-| [Project foundation](current/project-foundation.md) | Module, `arxgo` scaffold, Make targets, CI, planning tooling | Scaffold only; operations exit 70 |
+| [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options, then exit 70 |
 
-No operation (`scan`, `split`, `restore`) is implemented yet. The next work is reported by
+`arxgo help [op]`, `arxgo version` and full flag validation work. No operation (`scan`, `split`,
+`restore`) is implemented yet. The next work is reported by
 `make plan-status`.

@@ -19,6 +19,49 @@ The operation is the first non-flag argument; when absent, the operation is `sca
 standard library `flag` syntax (`--name value` or `--name=value`). Every flag may also be given as
 an environment variable `ARXGO_<NAME>` with dashes replaced by underscores; command-line values win.
 
+Precedence, highest first: command line, process environment, [environment file](#environment-file),
+built-in default.
+
+Parsing details:
+
+- The operation must come first. Any positional argument after the flags is a usage error (exit 2).
+  `publish` exits 2 with `option not available in this build`.
+- `arxgo help <operation>` and `arxgo <operation> --help` print that operation's flags with
+  defaults and environment names to stdout, and exit 0.
+- An environment variable applies only to flags of the selected operation, and an empty value is
+  ignored. For the repeatable `--exclude`, the variable holds several globs separated by the
+  platform path list separator (`:` on Linux, `;` on Windows). If the flag appears on the
+  command line, the variable is ignored.
+- A flag of another operation (for example `--stubs` on `scan`) is an unknown flag (exit 2).
+  Stage-2 and stage-3 flags of the selected operation, and `--follow-symlinks=true`, exit 2 with
+  `option not available in this build` whether they come from the command line or the environment.
+- `scan` accepts `--video-archive` (including `ARXGO_VIDEO_ARCHIVE`) and ignores it.
+- All validation errors are printed together, one per line, followed by a pointer to
+  `arxgo help <operation>`.
+
+## Environment file
+
+`arxgo` reads an optional file named `.env` in the directory of the running executable (symlinks
+resolved), for example `bin/.env` next to `bin/arxgo`. It uses the same `ARXGO_<NAME>` variables
+and may also hold credentials for later-stage targets, so settings and secrets can be kept without
+repeating flags.
+
+- The file is optional. When it is missing, `arxgo` behaves exactly as without it. Mandatory
+  values can always come from flags or the process environment.
+- Syntax is the common dotenv format parsed by `godotenv`: `KEY=value`, `#` comments, single or
+  double quotes, optional `export ` prefix, and `${VAR}` expansion. The file only supplies values
+  for lookups. It never changes the process environment, so child processes such as `ffprobe`
+  do not inherit it.
+- A process environment variable with a non-empty value wins over the file. An empty or absent
+  process value falls through to the file.
+- Relative paths in the file are resolved against the current working directory, as on the
+  command line.
+- An unreadable or malformed file exits 2, naming the file. Errors about a value from the file
+  name the variable and the file.
+- The file is read before any other validation and is never written. The repository ships
+  `.env.example` with every variable commented out; `make setup` copies it to `bin/.env` when that
+  file does not exist yet.
+
 ## Common flags
 
 | Flag | Default | Meaning |
@@ -36,7 +79,11 @@ an environment variable `ARXGO_<NAME>` with dashes replaced by underscores; comm
 | `--force-unlock` | `false` | Take over a lock whose owner process is not alive (see [lock](integrity.md#run-lock)) |
 
 Sizes accept `B`, `KB`, `MB`, `GB`, `TB` (powers of 1000) and `KiB`, `MiB`, `GiB`, `TiB` (powers of
-1024); a bare number is bytes.
+1024); a bare number is bytes. Units are case-insensitive and may be separated from the number by
+spaces. A decimal fraction (`1.5GiB`) is allowed with a multi-byte unit and rounds down to whole
+bytes. Negative, fractional-byte and larger-than-int64 sizes are rejected. Durations use Go syntax
+(`90s`, `5m`, `1h30m`); `--progress-interval`, `--checkpoint-interval`, `--large-threshold` and
+`--checkpoint-every` must be positive.
 
 ## Scan flags
 
@@ -95,7 +142,13 @@ Validation happens before the lock is taken and before any filesystem write.
   on Windows, case-folding).
 - Enumerated values, durations and sizes parse; `--sample-*`/`--image-*` flags other than `none`
   require `split`.
-- `--base-url` is an absolute `http`/`https` URL.
+- `--base-url` is an absolute `http`/`https` URL with a host and without credentials, query or
+  fragment, because stubs append `/<rel_path>`. Trailing slashes are removed.
+- `--video-extensions` items are letters, digits, `_` or `-`, with an optional leading dot. They
+  are normalized to lower case with a leading dot, and duplicates are dropped.
+- `--exclude` globs are relative, use `/` on every platform, and contain no empty or `..` segments.
+- An explicit `--registry` is made absolute. It must not be a directory, and its parent directory
+  must exist.
 - Tool-backed options are checked through [tool discovery](metadata.md#tool-discovery).
 
 ## Exit codes

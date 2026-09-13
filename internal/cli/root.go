@@ -1,13 +1,18 @@
-// Package cli owns command-line parsing, flag validation and exit codes.
+// Package cli owns command-line parsing, flag validation, logger construction, signal handling
+// and exit codes. It passes validated, typed Options to the domain packages.
 //
-// The full operation contract is specified in docs/openspec/stage-1-core/cli.md
-// and implemented by the plan task implement-cli-contract. This scaffold only
-// fixes the command identity, the operation names and the exit-code table.
+// The contract is specified in docs/openspec/stage-1-core/cli.md.
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 // Exit codes are part of the operator contract; see the CLI specification.
@@ -20,6 +25,7 @@ const (
 	ExitLocked           = 5
 	ExitPartial          = 6
 	ExitNotImplemented   = 70
+	ExitInterrupted      = 130
 )
 
 // Operation names accepted as the first argument. Scan is the default.
@@ -27,6 +33,8 @@ const (
 	OpScan    = "scan"
 	OpSplit   = "split"
 	OpRestore = "restore"
+	// OpPublish is reserved for stage 3.
+	OpPublish = "publish"
 )
 
 // version is overridden at build time with -ldflags "-X .../internal/cli.version=...".
@@ -35,36 +43,190 @@ var version = "dev"
 // Version returns the build version string.
 func Version() string { return version }
 
-const usage = `arxgo - separate video files from a file archive and restore them
+// Handlers execute validated operations and return an exit code. Handlers must return promptly
+// after ctx is canceled; the dispatcher then reports ExitInterrupted.
+type Handlers struct {
+	Scan    func(ctx context.Context, opts ScanOptions, log *slog.Logger) int
+	Split   func(ctx context.Context, opts SplitOptions, log *slog.Logger) int
+	Restore func(ctx context.Context, opts RestoreOptions, log *slog.Logger) int
+}
 
-Usage:
-  arxgo [scan] --archive PATH [flags]          build the CSV file registry (default)
-  arxgo split  --archive PATH --video-archive PATH [flags]
-  arxgo restore --archive PATH --video-archive PATH [flags]
-  arxgo version
-  arxgo help
-
-See docs/openspec/stage-1-core/cli.md for the full flag contract.
-`
-
-// Run executes one command and returns the process exit code.
-func Run(args []string, stdout, stderr io.Writer) int {
-	op := OpScan
-	if len(args) > 0 && len(args[0]) > 0 && args[0][0] != '-' {
-		op = args[0]
-	}
-	switch op {
-	case "help", "-h", "--help":
-		fmt.Fprint(stdout, usage)
-		return ExitOK
-	case "version":
-		fmt.Fprintf(stdout, "arxgo %s\n", version)
-		return ExitOK
-	case OpScan, OpSplit, OpRestore:
-		fmt.Fprintf(stderr, "arxgo: operation %q is not implemented yet\n", op)
+func notImplemented(op string) func(context.Context, *slog.Logger) int {
+	return func(_ context.Context, log *slog.Logger) int {
+		log.Error("operation not implemented in this build", "op", op)
 		return ExitNotImplemented
-	default:
-		fmt.Fprintf(stderr, "arxgo: unknown operation %q\n\n%s", op, usage)
-		return ExitUsage
 	}
+}
+
+// defaultHandlers is the operation table of this build.
+var defaultHandlers = Handlers{
+	Scan: func(ctx context.Context, _ ScanOptions, log *slog.Logger) int {
+		return notImplemented(OpScan)(ctx, log)
+	},
+	Split: func(ctx context.Context, _ SplitOptions, log *slog.Logger) int {
+		return notImplemented(OpSplit)(ctx, log)
+	},
+	Restore: func(ctx context.Context, _ RestoreOptions, log *slog.Logger) int {
+		return notImplemented(OpRestore)(ctx, log)
+	},
+}
+
+// env is the process environment seen by the dispatcher; tests replace it.
+type env struct {
+	stdout, stderr io.Writer
+	lookupEnv      func(string) (string, bool)
+	envFile        string // optional dotenv file; "" disables it
+	fs             rootFS
+	handlers       Handlers
+}
+
+// Run executes one command with the process environment and returns the process exit code.
+// SIGINT and SIGTERM cancel the operation context; a second signal terminates immediately.
+func Run(args []string, stdout, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		stop() // restore default handling so a second signal ends the process
+	}()
+	return run(ctx, args, env{
+		stdout:    stdout,
+		stderr:    stderr,
+		lookupEnv: os.LookupEnv,
+		envFile:   defaultEnvFile(),
+		fs:        osRootFS(),
+		handlers:  defaultHandlers,
+	})
+}
+
+func isOperation(s string) bool {
+	return s == OpScan || s == OpSplit || s == OpRestore
+}
+
+func run(ctx context.Context, args []string, e env) int {
+	op := OpScan
+	if len(args) > 0 && (args[0] == "" || args[0][0] != '-') {
+		op, args = args[0], args[1:]
+	}
+	switch {
+	case op == "help":
+		return runHelp(args, e)
+	case op == "version":
+		if len(args) > 0 {
+			return usageError(e, "", fmt.Errorf("version takes no arguments, got %q", args[0]))
+		}
+		fmt.Fprintf(e.stdout, "arxgo %s\n", version)
+		return ExitOK
+	case op == OpPublish:
+		return usageError(e, "", fmt.Errorf("operation %q: option not available in this build", op))
+	case !isOperation(op):
+		return usageError(e, "", fmt.Errorf("unknown operation %q", op))
+	}
+
+	fileValues, err := readEnvFile(e.envFile)
+	if err != nil && !wantsHelp(args) {
+		return usageError(e, op, err)
+	}
+	s, err := parseFlags(op, args, layeredLookup(e.lookupEnv, fileValues, e.envFile))
+	if errors.Is(err, errHelp) {
+		writeOpHelp(e.stdout, op)
+		return ExitOK
+	}
+	if err != nil {
+		return usageError(e, op, err)
+	}
+
+	var code int
+	switch op {
+	case OpScan:
+		o, err := buildScanOptions(s, e.fs)
+		if err != nil {
+			return usageError(e, op, err)
+		}
+		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
+		logOptions(log, op, o, e.envFile, fileValues)
+		code = e.handlers.Scan(ctx, o, log)
+	case OpSplit:
+		o, err := buildSplitOptions(s, e.fs)
+		if err != nil {
+			return usageError(e, op, err)
+		}
+		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
+		logOptions(log, op, o, e.envFile, fileValues)
+		code = e.handlers.Split(ctx, o, log)
+	case OpRestore:
+		o, err := buildRestoreOptions(s, e.fs)
+		if err != nil {
+			return usageError(e, op, err)
+		}
+		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
+		logOptions(log, op, o, e.envFile, fileValues)
+		code = e.handlers.Restore(ctx, o, log)
+	}
+	if ctx.Err() != nil && code != ExitOK {
+		return ExitInterrupted
+	}
+	return code
+}
+
+// logOptions logs the validated options and whether the environment file supplied values. Values
+// from the file are never logged because the file may hold credentials; only unknown ARXGO_*
+// names are reported.
+func logOptions(log *slog.Logger, op string, opts any, envFile string, fileValues map[string]string) {
+	if fileValues != nil {
+		log.Debug("environment file loaded", "path", envFile, "variables", len(fileValues))
+		for _, key := range unknownArxgoKeys(fileValues) {
+			log.Warn("unknown variable in environment file", "path", envFile, "variable", key)
+		}
+	}
+	log.Debug("options", "op", op, "options", fmt.Sprintf("%+v", opts))
+}
+
+// wantsHelp reports whether args ask for operation help, which must work with a broken .env file.
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		switch a {
+		case "-h", "--h", "-help", "--help":
+			return true
+		case "--":
+			return false
+		}
+	}
+	return false
+}
+
+func runHelp(args []string, e env) int {
+	switch {
+	case len(args) == 0:
+		fmt.Fprint(e.stdout, generalUsage)
+		return ExitOK
+	case len(args) > 1:
+		return usageError(e, "", fmt.Errorf("help takes at most one operation, got %d arguments", len(args)))
+	case isOperation(args[0]):
+		writeOpHelp(e.stdout, args[0])
+		return ExitOK
+	case args[0] == OpPublish:
+		return usageError(e, "", fmt.Errorf("operation %q: option not available in this build", args[0]))
+	default:
+		return usageError(e, "", fmt.Errorf("unknown operation %q", args[0]))
+	}
+}
+
+// usageError prints a validation or usage failure and returns ExitUsage. Each joined error is
+// printed on its own line.
+func usageError(e env, op string, err error) int {
+	var joined interface{ Unwrap() []error }
+	errs := []error{err}
+	if errors.As(err, &joined) {
+		errs = joined.Unwrap()
+	}
+	for _, one := range errs {
+		fmt.Fprintf(e.stderr, "arxgo: %v\n", one)
+	}
+	if op != "" {
+		fmt.Fprintf(e.stderr, "Run 'arxgo help %s' for usage.\n", op)
+	} else {
+		fmt.Fprintf(e.stderr, "Run 'arxgo help' for usage.\n")
+	}
+	return ExitUsage
 }
