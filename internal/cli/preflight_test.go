@@ -10,6 +10,7 @@ import (
 
 	"github.com/volod/arxiv-go/internal/archive"
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/media"
 )
 
 // lowSpaceFS reports every path on one device with the given caller-available bytes.
@@ -47,7 +48,9 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 			lock := sessionHooks
 			sessionHooks = func(cfg *archive.Config) { lock(cfg); got = *cfg }
 			var out, errOut bytes.Buffer
-			if code := run(context.Background(), tc.args, testEnv(&out, &errOut, noProcessEnv)); code != tc.code {
+			e := testEnv(&out, &errOut, noProcessEnv)
+			e.finder = fakeTools(t, media.FFprobe)
+			if code := run(context.Background(), tc.args, e); code != tc.code {
 				t.Fatalf("exit code = %d: %s", code, errOut.String())
 			}
 			if got.Preflight != tc.want || got.Registry != tc.reg {

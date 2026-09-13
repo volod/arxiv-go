@@ -27,25 +27,31 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media metadata -- `media-metadata`
 
-#### implement-tool-discovery
+#### add-portable-fake-tools
 
-Find `ffprobe`/`ffmpeg` next to the executable or on `PATH`, and fail fast with download guidance.
+Discovery tests rely on POSIX shell scripts, so the Windows verification step W6 has no fake
+`.exe` tools to run and the same tests cannot check discovery on Windows.
 
-- Serves: `media-metadata` -- [Tool discovery](../openspec/stage-1-core/metadata.md#tool-discovery)
+- Serves: `media-metadata` -- [Acceptance](../openspec/stage-1-core/metadata.md#acceptance)
 - Agent status: CLEAR
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
-- User-visible outcome: Requesting `--metadata media` without ffprobe logs the unavailable options
-  and the platform download link and exits 3 before any lock or write.
-- Scope boundary: Lookup order, `-version` validation with timeout, requirement computation from
-  options, platform link table, injectable search path. Stage-2 requirements are declared but only
-  enforced when those flags become available.
-- Data and artifact paths: `internal/media/tools.go`, `internal/cli/`.
-- Execution path: `os.Executable` + `filepath.EvalSymlinks`, then `exec.LookPath`; fake `.sh` tool
-  scripts generated in tests. Windows `.exe` names are implemented; the `.bat` fake-tool check is
-  step W6 of the Windows scenario.
-- Acceptance gates: On Linux: next-to-executable beats PATH; PATH-only found; missing -> exit 3
-  with the `GOOS/GOARCH` link (table-tested for `linux/amd64` and `windows/amd64`); non-zero
-  `-version` treated as missing; `--metadata file` needs no tool.
+- Dependencies: [Tool discovery](records/0013-metadata-implement-tool-discovery.md).
+- User-visible outcome: Tool discovery (next-to-executable precedence, failing and hanging
+  `-version`, exit 3 guidance) is tested by the same code on every platform, so step W6 on a
+  Windows host is a plain `go test` run.
+- Scope boundary: A test-only helper that installs the running test binary as a fake tool under
+  its platform name with a sidecar behavior file (version line, exit code, empty output, sleep),
+  dispatched from `TestMain`; migrate the `internal/media` and `internal/cli` discovery tests off
+  shell scripts; keep one test that asserts a `.exe`-named candidate is found when `GOOS` is
+  `windows` in the finder. No change to discovery behavior. Stage-2 runner tests may adopt the
+  helper later; converting them is not in scope.
+- Data and artifact paths: `internal/media/testtool/`, `internal/media/tools_test.go`,
+  `internal/cli/tools_test.go`, `docs/guide/windows-verification.md`.
+- Execution path: `os.Executable` of the test binary copied into `t.TempDir()`; behavior read from
+  `<copy>.fake.json`; `TestMain` in each package calls the helper before `m.Run`.
+- Acceptance gates: On Linux: all existing discovery gates pass with the helper and without
+  `/bin/sh`; the timeout case finishes within its bound; a scratch mutation of each behavior
+  (exit code, empty output, sleep) fails a named test; `GOOS=windows go vet ./internal/media/...
+  ./internal/cli/...` passes; no test in these packages skips on Windows for lack of a shell.
 - Documentation target: `docs/impl/current/media-metadata.md`
 - Review checkpoint: `review-stage-1-integrity`.
 
@@ -78,7 +84,8 @@ Read metadata for other containers through ffprobe JSON output.
 
 - Serves: `media-metadata` -- [ffprobe parser](../openspec/stage-1-core/metadata.md#ffprobe-parser)
 - Agent status: CLEAR
-- Dependencies: `implement-tool-discovery`; `implement-iso-bmff-metadata`.
+- Dependencies: [Tool discovery](records/0013-metadata-implement-tool-discovery.md);
+  `implement-iso-bmff-metadata`.
 - User-visible outcome: Matroska, WebM, AVI, MPEG-TS and other media get the same metadata fields
   as MP4 when ffprobe is available; ISO BMFF parse failures fall back to ffprobe.
 - Scope boundary: `exec.CommandContext` invocation, timeout, output limit, typed JSON decode,

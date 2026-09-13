@@ -35,6 +35,9 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - Stage-2/3 flags (`--sample*`, `--image*`, `--preview-max-items`, `--publish*`, `--gdrive-*`,
   `--share`, restore `--previews`), `--follow-symlinks=true` and the `publish` operation exit 2
   with `option not available in this build`. This applies to the command line and the environment.
+- After validation, options that need an external tool (`--metadata media`) run
+  [tool discovery](media-metadata.md#cli-integration-internalcli) before the session; a missing
+  tool exits 3 with download links.
 - Optional environment file: `.env` next to the executable (symlinks resolved; `bin/.env` after
   `make setup`), parsed with `godotenv` without touching the process environment. Precedence:
   command line, process environment (non-empty), file, default. Invalid variable names or syntax

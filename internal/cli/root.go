@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/volod/arxiv-go/internal/archive"
+	"github.com/volod/arxiv-go/internal/media"
 )
 
 // Exit codes are part of the operator contract; see the CLI specification.
@@ -86,6 +87,8 @@ type env struct {
 	envFile        string // optional dotenv file; "" disables it
 	fs             rootFS
 	handlers       Handlers
+	finder         media.Finder // tool discovery; its GOOS also selects the download links
+	goarch         string       // overrides runtime.GOARCH for the download links; tests only
 }
 
 // Run executes one command with the process environment and returns the process exit code.
@@ -144,7 +147,10 @@ func run(ctx context.Context, args []string, e env) int {
 		return usageError(e, op, err)
 	}
 
-	var code int
+	var (
+		code int
+		ok   bool
+	)
 	switch op {
 	case OpScan:
 		o, err := buildScanOptions(s, e.fs)
@@ -153,7 +159,9 @@ func run(ctx context.Context, args []string, e env) int {
 		}
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
-		code = e.handlers.Scan(ctx, o, log)
+		if o.Tools, code, ok = requireTools(ctx, e, log, scanNeeds(o.ScanSettings)); ok {
+			code = e.handlers.Scan(ctx, o, log)
+		}
 	case OpSplit:
 		o, err := buildSplitOptions(s, e.fs)
 		if err != nil {
@@ -161,7 +169,9 @@ func run(ctx context.Context, args []string, e env) int {
 		}
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
-		code = e.handlers.Split(ctx, o, log)
+		if o.Tools, code, ok = requireTools(ctx, e, log, scanNeeds(o.ScanSettings)); ok {
+			code = e.handlers.Split(ctx, o, log)
+		}
 	case OpRestore:
 		o, err := buildRestoreOptions(s, e.fs)
 		if err != nil {

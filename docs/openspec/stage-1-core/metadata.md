@@ -66,16 +66,27 @@ Both parsers produce the same Go struct and JSON object (`metadata.media`, see
 Shared with stage 2 (`ffmpeg`).
 
 1. Candidate directories, in order: the directory of `os.Executable()` (symlinks resolved), then
-   each `PATH` entry via `exec.LookPath`.
+   each `PATH` entry. Empty and relative `PATH` entries are ignored, so the current directory never
+   supplies a tool; a directory listed twice is tried once. Each candidate
+   `<dir>/<executable name>` must be an executable regular file (`exec.LookPath`).
 2. Executable name: `ffprobe`/`ffmpeg` on Linux, `ffprobe.exe`/`ffmpeg.exe` on Windows.
-3. A candidate is accepted when `<tool> -version` exits 0 within 10 s; the first line is logged
-   (`ffprobe version 7.1 ...`).
+3. A candidate is accepted when `<tool> -version` exits 0 within 10 s and prints a non-empty first
+   line; the path and first line are logged at `info` (`ffprobe version 7.1 ...`). A candidate
+   that exits non-zero, times out (the process is killed) or prints nothing is logged at `warn` and
+   the next candidate is tried; when none is accepted the tool is missing. Output beyond 64 KiB is
+   discarded.
 4. Requirements are computed from the validated options:
    - `--metadata media` -> `ffprobe` (checked at startup even if the archive turns out to contain
      only MP4 files, so a run never fails halfway);
-   - stage 2 `--sample` or `--image` other than `none` -> `ffmpeg` and `ffprobe`.
-5. When a required tool is missing, `arxgo` logs one `error` line per tool listing the options that
-   are unavailable, prints the download guidance below, and exits 3 before taking the run lock.
+   - stage 2 `--sample` or `--image` other than `none` -> `ffmpeg` and `ffprobe` (enforced once
+     those flags are available);
+   - `--metadata file` and `restore` need no tool, and discovery does not run.
+5. Discovery runs after option validation (so usage errors still exit 2) and before the run lock,
+   the video archive root creation or any other write, also for `--dry-run`. When a required tool
+   is missing, `arxgo` logs one `error` line per tool (`required tool not found tool=ffprobe
+   unavailable="--metadata media"`), prints the download guidance below to stderr, and exits 3.
+   An interrupt during discovery exits 130. The validated tool paths are passed to the operation
+   and are not part of `options.json`, so a resumed run may find the tool elsewhere.
 
 Download guidance by platform:
 
@@ -85,8 +96,17 @@ Download guidance by platform:
 | `windows/amd64` | `https://www.gyan.dev/ffmpeg/builds/` and `https://github.com/BtbN/FFmpeg-Builds/releases` |
 | other | `https://ffmpeg.org/download.html` |
 
-The message also states the expected location: "place ffprobe(.exe) next to arxgo(.exe) or add it
-to PATH". The tool search path is injectable for tests.
+The guidance names the platform, lists its links and states the expected location:
+
+```text
+Download ffmpeg for linux/amd64 (it includes ffprobe):
+  https://johnvansickle.com/ffmpeg/
+  https://ffmpeg.org/download.html#build-linux
+Then place ffprobe next to arxgo or add it to PATH.
+```
+
+On Windows the names are `ffprobe.exe` and `arxgo.exe`. The executable location, search path,
+platform and timeout are injectable for tests.
 
 ## Acceptance
 
@@ -97,4 +117,11 @@ to PATH". The tool search path is injectable for tests.
   (text fixtures, no media). A live ffprobe test runs only locally when the tool is found and is
   skipped with a logged reason otherwise, including on GitHub CI.
 - Discovery tests cover: tool next to executable wins over PATH; tool only on PATH; missing tool
-  exits 3 with the correct platform link; `-version` failure treated as missing.
+  exits 3 with the correct platform link before any write; `-version` failure or timeout treated
+  as missing; `--metadata file` runs no discovery.
+- Fake tools used by discovery tests are real executables, not shell scripts: the test binary is
+  copied into the test directory under the tool's platform name (`ffprobe`, `ffprobe.exe`) and,
+  when started, acts out a behavior read from a sidecar file next to the copy (print a version
+  line, exit with a code, print nothing, sleep past the timeout). The same tests therefore run
+  unchanged on Linux and Windows, need no shell or compiler, and the helper is reusable by the
+  stage-2 ffmpeg runner tests.

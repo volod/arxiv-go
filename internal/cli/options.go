@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/volod/arxiv-go/internal/media"
 	"github.com/volod/arxiv-go/internal/scanner"
 )
 
@@ -44,6 +45,9 @@ type Common struct {
 	MinFree            Size
 	NewRun             bool
 	ForceUnlock        bool
+	// Tools are the external tools validated for this run; set after validation, never stored
+	// in options.json because a tool path is not part of a run's definition.
+	Tools media.Toolset `json:"-"`
 }
 
 // ScanSettings holds validated scan flags, used by scan and by split for its scan phase.

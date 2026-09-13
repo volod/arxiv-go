@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0013`.
+Next unused sequence: `0014`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -21,3 +21,4 @@ Next unused sequence: `0013`.
 | [0010 Directory walker](0010-registry-implement-directory-walker.md) | `internal/scanner`: deterministic `WalkDir` traversal, walk order key, resume cursor with pruning, reserved paths and anchored `--exclude` globs, symlink/special/unreadable handling, `Stats`; Windows backslash globs rejected in `cli` | Accepted; `make ci` passes on Linux; Windows CI pending |
 | [0011 File type detection](0011-registry-implement-file-type-detection.md) | `internal/scanner`: `Detect`/`Classify` with `github.com/gabriel-vasile/mimetype` over a 4096-byte head, text hierarchy for `is_binary`, video extension fallback, large threshold, non-blocking open; spec amended for measured `mimetype` results | Accepted; `make ci` passes on Linux; Windows CI pending |
 | [0012 Scan operation and CSV registry](0012-registry-implement-scan-operation-and-csv-registry.md) | `scan` operation: walker -> detection pool -> ordered CSV writer, part file and candidate list with checkpointed offsets and statistics, resume, preflight and `--min-free` guard, report `scan` summary, exit 6; `--video-extensions` moved to scan flags | Accepted; `make ci` passes on Linux; Windows CI pending |
+| [0013 Tool discovery](0013-metadata-implement-tool-discovery.md) | `internal/media` ffprobe/ffmpeg discovery (executable directory, then absolute `PATH` entries), `-version` validation with timeout, requirements from options, platform download guidance; CLI exit 3 before the session | Accepted; `make ci` passes on Linux; Windows pending |

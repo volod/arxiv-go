@@ -13,7 +13,7 @@ import (
 )
 
 func testEnv(stdout, stderr *bytes.Buffer, lookup func(string) (string, bool)) env {
-	return env{stdout: stdout, stderr: stderr, lookupEnv: lookup, fs: osRootFS(), handlers: defaultHandlers}
+	return env{stdout: stdout, stderr: stderr, lookupEnv: lookup, fs: osRootFS(), handlers: defaultHandlers, finder: noTools}
 }
 
 func TestRunExitCodes(t *testing.T) {

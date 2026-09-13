@@ -11,7 +11,7 @@ arxiv-go/
 |-- internal/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
 |   |-- scanner/                 walker.go, order.go, entry.go (traversal); mimetype.go (detection and flags)
-|   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
+|   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
 |   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go; crashtest/
 |   |-- archive/                 session.go, session_state.go, resume.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, restore.go
@@ -35,6 +35,7 @@ flowchart TD
     main[cmd/arxgo] --> cli
     cli --> archive
     cli --> scanner
+    cli --> media
     archive --> scanner
     archive --> media
     archive --> state
@@ -52,7 +53,8 @@ Rules:
   passes a validated, typed
   `Options` value down. Domain packages never call `os.Exit` or print to stdout.
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
-- `media` is the only package that runs external processes.
+- `media` is the only package that runs external processes. `cli` calls `media` only for tool
+  discovery, which must finish before the run session starts.
 - `fsops` is the only package with build-tagged platform files; it also holds the process liveness
   check used by the run lock.
 - `cli` maps validated options onto `archive.Config` and exit codes onto `archive.Status`; it does
@@ -80,7 +82,7 @@ flowchart LR
 
 | Phase | Reads | Writes | Resumable by |
 | --- | --- | --- | --- |
-| 1. Validate | flags, roots | nothing | rerun |
+| 1. Validate | flags, roots, required tools | nothing | rerun |
 | 2. Lock and recover | `.arxgo/lock`, last run WAL | recovered WAL, checkpoint | lock ownership rules |
 | 3. Scan | archive tree | `arxgo-registry.csv`, candidate list in run dir | checkpoint cursor |
 | 4. Preflight | candidate list, statfs | preflight report in run log | rerun (read-only) |

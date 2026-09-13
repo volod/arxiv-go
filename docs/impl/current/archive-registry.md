@@ -29,7 +29,8 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   Directories, special entries (walker `special`), `Lstat` failures and files that cannot be opened
   or read get no row; each is logged once, counted in `skipped` by reason and listed in the
   report's `issues`. `file`-mode metadata is `{"v":1,"mtime":...,"mode":"0644"}`. `--metadata
-  media` is accepted and currently writes the same file metadata.
+  media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
+  and currently writes the same file metadata.
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion

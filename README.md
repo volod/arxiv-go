@@ -18,7 +18,8 @@ starting.
 Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
-> Status: stage 1 in progress. `scan` writes the resumable file registry; `split` and `restore` take
+> Status: stage 1 in progress. `scan` writes the resumable file registry (`--metadata media` checks
+> for `ffprobe` and exits 3 with download links without it); `split` and `restore` take
 > the run lock and write checkpoints, then exit 70 until they land.
 
 ```bash
