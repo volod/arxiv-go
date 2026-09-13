@@ -47,7 +47,7 @@ in the plan only when the operator brings Windows into scope.
 | W3 Filesystem primitives | Rename and copy within one volume and to the second volume; target held open by another process; path longer than 260 characters; UNC and mapped-drive roots | No-replace rename, `ERROR_NOT_SAME_DEVICE` falls back to copy, sharing-violation retry, long paths work, devices grouped correctly, free space from `GetDiskFreeSpaceEx` |
 | W4 Run lock and WAL | Two concurrent `arxgo scan` runs; kill one with Task Manager; resume; lock held from another host name on a share | Second run exits 5; stale lock taken over after process exit; WAL recovery converges; remote lock refused |
 | W5 Walker | Tree with a directory symlink, file symlink, junction, a directory denied to the user by ACL, hidden and system files, names differing only in case | Symlinks recorded not followed; junction skipped as special; denied directory counted unreadable; order equals `WalkDir` order |
-| W6 Tool discovery | `go test ./internal/media ./internal/cli` (portable fake `.exe` tools); a real `ffprobe.exe` next to `arxgo.exe` and on `PATH` | Next-to-executable wins; failing tool treated as missing; exit 3 prints the `windows/amd64` link |
+| W6 Tool discovery | `go test ./internal/media ./internal/cli` (pure-Go seams and test-binary helper process, no fake tools); a real `ffprobe.exe` next to `arxgo.exe` and on `PATH` | Next-to-executable wins; failing tool treated as missing; exit 3 prints the `windows/amd64` link |
 | W7 Stage-1 proof | `go test -tags integration ./test/integration/...` on NTFS, then with the video archive on the second volume | Manifests equal after split, kill, resume and restore; exit codes as specified |
 | W8 Release bundle | Unpack `arxgo-<version>-windows-amd64.zip`; `arxgo.exe split --image start` on a generated video | Previews produced with the bundled `ffmpeg.exe`; no `.env` in the bundle |
 | W9 Cloud (stage 3) | Token cache and session state after a publish | Files readable only by the current user (ACL) |
@@ -68,4 +68,4 @@ each one as deferred to this scenario; the step column shows where it is checked
 | `AUD-implement-directory-walker-1` | Symlink privilege, junctions as special entries, case-sensitive `SkipPaths` | W5 |
 | `AUD-implement-scan-operation-and-csv-registry-5` | Registry replace while the CSV is open in another program; `mode` values of Windows files | W5 |
 | `AUD-implement-file-type-detection-4` | Detection open on files locked by another process or denied by ACL returns an error counted unreadable | W5 |
-| `AUD-implement-tool-discovery-1` | `LookPath` on `.exe` candidates, `-version` via `CreateProcess`, timeout kill; only `.exe` names are candidates, so W6 fakes must be `.exe` files | W6 |
+| `AUD-implement-tool-discovery-1` | `LookPath` on `.exe` candidates, `-version` via `CreateProcess`, timeout kill; only `.exe` names are candidates, so runtime checks use the helper-process tests and a real `ffprobe.exe` | W6 |

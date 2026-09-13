@@ -106,7 +106,7 @@ Then place ffprobe next to arxgo or add it to PATH.
 ```
 
 On Windows the names are `ffprobe.exe` and `arxgo.exe`. The executable location, search path,
-platform and timeout are injectable for tests.
+platform, timeout, candidate check (`exec.LookPath`) and `-version` probe are injectable for tests.
 
 ## Acceptance
 
@@ -119,9 +119,19 @@ platform and timeout are injectable for tests.
 - Discovery tests cover: tool next to executable wins over PATH; tool only on PATH; missing tool
   exits 3 with the correct platform link before any write; `-version` failure or timeout treated
   as missing; `--metadata file` runs no discovery.
-- Fake tools used by discovery tests are real executables, not shell scripts: the test binary is
-  copied into the test directory under the tool's platform name (`ffprobe`, `ffprobe.exe`) and,
-  when started, acts out a behavior read from a sidecar file next to the copy (print a version
-  line, exit with a code, print nothing, sleep past the timeout). The same tests therefore run
-  unchanged on Linux and Windows, need no shell or compiler, and the helper is reusable by the
-  stage-2 ffmpeg runner tests.
+- Discovery tests are pure Go. They run no shell script, build no helper program and install no
+  fake `ffprobe`/`ffmpeg` executable, so no test creates or needs a platform-specific fake tool.
+  Two layers cover discovery:
+  - Discovery logic (candidate order, next-to-executable precedence, symlink resolution, fallback
+    after a rejected candidate, requirements, exit 3 guidance, interrupt) is tested with an
+    in-memory candidate check and `-version` probe keyed by candidate path. The probe returns a
+    version line or an error, or blocks until its context ends. No process starts.
+  - The real probe (`exec.CommandContext`, non-zero exit, empty or blank first line, 64 KiB cap,
+    timeout kill with `WaitDelay`, a child that keeps stdout open) runs the test binary itself
+    as the child. The test starts `os.Executable()` with `-version` and an environment variable
+    that names the behavior. `TestMain` acts out that behavior before test flags are parsed. The
+    real candidate check is tested on generated entries: a directory is rejected everywhere, and
+    a file without the executable bit is rejected on Linux.
+  - The same tests run unchanged on Linux and Windows. Only the executable-bit case is
+    platform-specific. `.exe` naming stays a pure `Candidates` test with `GOOS` set to `windows`.
+    Stage-2 runner tests reuse the helper-process pattern.
