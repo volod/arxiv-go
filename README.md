@@ -20,7 +20,8 @@ Stage 3 adds Google Drive and SharePoint publishing.
 
 > Status: stage 1 in progress. `scan` writes the resumable file registry (`--metadata media` checks
 > for `ffprobe` and exits 3 with download links without it); `split` moves videos transactionally,
-> writes Markdown stubs and video registries; `restore` returns videos from the video archive.
+> writes Markdown stubs and video registries; `restore` returns videos from the video archive. The
+> stage-1 integrity checkpoint is accepted; the end-to-end stage-1 proof remains.
 
 ```bash
 arxgo --archive /data/archive

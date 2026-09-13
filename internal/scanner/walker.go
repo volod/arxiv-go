@@ -220,11 +220,8 @@ func (w *walker) path(p, rel string) string {
 
 // excluded reports reserved paths, SkipPaths and --exclude matches.
 func (w *walker) excluded(rel string, key Key) bool {
-	if len(key) == 1 {
-		switch key[0] {
-		case StateDirName, RegistryName, VideoRegistryName, VideoSummaryName:
-			return true
-		}
+	if len(key) == 1 && reservedName(key[0]) {
+		return true
 	}
 	if strings.HasSuffix(rel, PartSuffix) || w.skip[rel] {
 		return true

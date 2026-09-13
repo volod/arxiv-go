@@ -7,22 +7,23 @@ import (
 
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
-	"github.com/volod/arxiv-go/internal/state"
 )
 
-func writeRestoreOutputs(s *Session, c RestoreConfig, w *state.WAL) error {
+// writeRestoreOutputs marks restored rows in both registry copies by replaying every run's
+// transactions, so restores of an earlier interrupted or --registry-update=false run count too.
+// Restore never creates a registry.
+func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow) error {
 	if err := s.Phase(phaseReport, Totals{}); err != nil {
-		return err
-	}
-	existing, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
-	if err != nil {
 		return err
 	}
 	if existing == nil {
 		s.Log.Info("no video registry to update")
 		return nil
 	}
-	rows := report.MarkRestored(existing, w.Committed().Paths(), s.Run.ID)
+	rows, err := replayVideoRows(existing, s.cfg.Archive, nil)
+	if err != nil {
+		return err
+	}
 	var b strings.Builder
 	if err := report.WriteVideoCSV(&b, rows); err != nil {
 		return err

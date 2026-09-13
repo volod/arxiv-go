@@ -38,7 +38,7 @@ func StartFailed(ctx context.Context, log *slog.Logger, err error) Status {
 		}
 		log.Error(err.Error(), attrs...)
 		return StatusLocked
-	case errors.Is(err, state.ErrStateCorrupt), errors.Is(err, state.ErrLockLost):
+	case errors.Is(err, state.ErrStateCorrupt), errors.Is(err, state.ErrLockLost), errors.Is(err, ErrUnrecoveredRun):
 		log.Error("run state needs operator action", "error", err)
 		return StatusNeedsOperator
 	case ctx.Err() != nil:

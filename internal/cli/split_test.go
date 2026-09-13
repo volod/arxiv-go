@@ -3,10 +3,13 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/volod/arxiv-go/internal/archive"
 	"github.com/volod/arxiv-go/test/fixtures/testmp4"
 )
 
@@ -70,5 +73,53 @@ func TestRestoreCommandRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(src + ".md"); !os.IsNotExist(err) {
 		t.Fatalf("stub remains: %v", err)
+	}
+}
+
+func TestNewRunRecoversInterruptedSplitFromItsOptions(t *testing.T) {
+	archiveRoot, video := fixture(t)
+	body := testmp4.File(testmp4.Options{Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1"}}, MdatBytes: 512})
+	src, dst := filepath.Join(archiveRoot, "clip.mp4"), filepath.Join(video, "clip.mp4")
+	if err := os.WriteFile(src, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withLockIdentity(t, 500)
+	identity := sessionHooks
+	sessionHooks = func(cfg *archive.Config) {
+		identity(cfg)
+		cfg.Crash = func(point string) error {
+			if point == "wal:placed" {
+				return errors.New("injected crash")
+			}
+			return nil
+		}
+	}
+	var out, errOut bytes.Buffer
+	e := testEnv(&out, &errOut, noProcessEnv)
+	args := []string{"split", "--archive", archiveRoot, "--video-archive", video, "--metadata", "file",
+		"--min-free", "0", "--base-url", "https://cdn.example.com/v"}
+	if code := run(context.Background(), args, e); code != ExitFailure {
+		t.Fatalf("crashed split exit %d: %s", code, errOut.String())
+	}
+	if _, err := os.Stat(src + ".md"); !os.IsNotExist(err) {
+		t.Fatalf("stub before recovery: %v", err)
+	}
+	sessionHooks = identity
+	errOut.Reset()
+	// Other defining options and --new-run: the interrupted run is recovered with its own options.
+	next := []string{"split", "--archive", archiveRoot, "--video-archive", video, "--metadata", "file",
+		"--min-free", "0", "--verify", "hash", "--new-run"}
+	if code := run(context.Background(), next, e); code != ExitOK {
+		t.Fatalf("new run exit %d: %s", code, errOut.String())
+	}
+	stub, err := os.ReadFile(src + ".md")
+	if err != nil || !bytes.Contains(stub, []byte("https://cdn.example.com/v/clip.mp4")) {
+		t.Fatalf("recovered stub lacks the interrupted run's base URL: %s, %v", stub, err)
+	}
+	if got, err := os.ReadFile(dst); err != nil || !bytes.Equal(got, body) {
+		t.Fatalf("video at mirror: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "recovering the interrupted run") {
+		t.Fatalf("recovery not logged: %s", errOut.String())
 	}
 }

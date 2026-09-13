@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -73,43 +74,60 @@ func ensureRestoreDirs(s *Session, dst string, create bool) (missing bool, err e
 	return false, nil
 }
 
-func pruneEmptyVideoDirs(root string) error {
-	if root == "" {
-		return nil
-	}
-	var dirs []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			return nil
-		}
-		if path != root && d.Name() == state.DirName {
-			return fs.SkipDir
-		}
-		dirs = append(dirs, path)
-		return nil
-	})
+// pruneRestoredDirs removes the video-archive directories that held restored videos and are now
+// empty, deepest first, and their ancestors that become empty, never the video archive root.
+// Restores committed by any run count, so a run that replaced an interrupted restore also cleans
+// up after it. The cleanup is best effort: a directory that cannot be read or removed is logged and
+// kept, so an unrelated unreadable directory never fails the run.
+func pruneRestoredDirs(s *Session) error {
+	runs, err := runsInStartOrder(s.cfg.Archive)
 	if err != nil {
 		return err
 	}
-	sort.Slice(dirs, func(i, j int) bool {
-		return strings.Count(dirs[i], string(os.PathSeparator)) > strings.Count(dirs[j], string(os.PathSeparator))
-	})
-	for _, dir := range dirs {
-		if filepath.Clean(dir) == filepath.Clean(root) {
-			continue
-		}
-		ents, err := os.ReadDir(dir)
+	dirs := map[string]struct{}{}
+	for _, rd := range runs {
+		recs, err := state.ReadWALRecords(rd.File(state.WALFile))
 		if err != nil {
-			return err
-		}
-		if len(ents) > 0 {
+			s.Log.Warn("video archive cleanup: run log unreadable", "run_id", rd.ID, "error", err)
 			continue
 		}
-		if err := os.Remove(dir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
+		src := map[string]string{}
+		for _, rec := range recs {
+			switch {
+			case rec.Step == state.StepBegin && rec.Op == opRestore:
+				src[rec.TxID] = rec.Src
+			case rec.Step == state.StepCommit && src[rec.TxID] != "":
+				rel, err := filepath.Rel(s.cfg.VideoArchive, filepath.Dir(src[rec.TxID]))
+				if err != nil || rel == "." || !filepath.IsLocal(rel) {
+					continue // a video at the root, or one restored from another video archive
+				}
+				for d := filepath.ToSlash(rel); d != "."; d = path.Dir(d) {
+					dirs[d] = struct{}{}
+				}
+			}
+		}
+	}
+	ordered := make([]string, 0, len(dirs))
+	for d := range dirs {
+		ordered = append(ordered, d)
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		if di, dj := strings.Count(ordered[i], "/"), strings.Count(ordered[j], "/"); di != dj {
+			return di > dj
+		}
+		return ordered[i] < ordered[j]
+	})
+	for _, rel := range ordered {
+		dir := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(rel))
+		ents, err := os.ReadDir(dir)
+		if errors.Is(err, fs.ErrNotExist) || (err == nil && len(ents) > 0) {
+			continue
+		}
+		if err == nil {
+			err = os.Remove(dir)
+		}
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			s.Log.Warn("video archive directory not removed", "dir", rel, "error", err)
 		}
 	}
 	return nil

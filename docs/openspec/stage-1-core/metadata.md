@@ -46,6 +46,8 @@ Both parsers produce the same Go struct and JSON object (`metadata.media`, see
   box headers and `moov` payloads, never media data, so cost is independent of file size.
 - Handles `moov` at the end of the file, fragmented MP4 (`moof`, duration from `mehd` or summed
   fragments), and `udta`/`meta` `ilst` tags.
+- A track's kind comes from the `hdlr` box directly inside its `mdia` (`vide`, `soun`, ...); the
+  data handler that QuickTime movies also carry inside `minf` (`dhlr`) is ignored.
 - Codec names map from sample entry four-character codes (`avc1`/`avc3` -> `h264`, `hvc1`/`hev1`
   -> `hevc`, `av01` -> `av1`, `mp4a` -> `aac`, ...); unknown codes are reported verbatim.
 - A parse error produces `error` and does not fail the scan. When `ffprobe` is available the file
@@ -112,7 +114,7 @@ platform, timeout, candidate check (`exec.LookPath`) and `-version` probe are in
 ## Acceptance
 
 - Test helpers build minimal ISO BMFF files in memory (ftyp + moov with one video and one audio
-  track, audio-only, fragmented, `moov` at end, corrupt box size) and the parser returns the
+  track, audio-only, QuickTime handler boxes, fragmented, `moov` at end, corrupt box size) and the parser returns the
   expected fields or a non-fatal `error`.
 - ffprobe normalization is tested against committed JSON documents captured from ffprobe output
   (text fixtures, no media). A live ffprobe test runs only locally when the tool is found and is

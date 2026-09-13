@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -39,6 +40,17 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	if c.Scan.LargeThreshold <= 0 {
 		c.Scan.LargeThreshold = 1 << 30
 	}
+	videos, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
+	if err != nil {
+		return err
+	}
+	byVideo := videoRowsByVideoPath(s, videos)
+	// A video that split moved stays a candidate even when detection alone would not call it a
+	// video, for example one selected by --video-extensions, which restore does not take.
+	c.Scan.Include = func(rel string) bool {
+		row, ok := byVideo[rel]
+		return ok && (row.Status == report.StatusMoved || row.Status == report.StatusRestored)
+	}
 	if _, err := Scan(ctx, s, c.Scan); err != nil {
 		return err
 	}
@@ -65,11 +77,6 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
-	videos, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
-	if err != nil {
-		return err
-	}
-	byVideo := videoRowsByVideoPath(videos)
 	var index int64
 	seen := make(map[string]string)
 	err = ReadCandidates(list, func(v Candidate) error {
@@ -99,12 +106,12 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		return err
 	}
 	if !c.KeepSource {
-		if err := pruneEmptyVideoDirs(s.cfg.VideoArchive); err != nil {
+		if err := pruneRestoredDirs(s); err != nil {
 			return err
 		}
 	}
 	if c.RegistryUpdate {
-		return writeRestoreOutputs(s, c, w)
+		return writeRestoreOutputs(s, c, videos)
 	}
 	return nil
 }

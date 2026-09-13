@@ -9,7 +9,8 @@
   install them; those tests skip there. `make ffmpeg` downloads the approved static 6.1.1 builds
   into `bin/` (next to `arxgo`, where tool discovery looks first); for `go test` put them on the
   path with `PATH="$PWD/bin:$PATH"`. The target needs network access, `curl`, `tar`, `gzip` and
-  `unzip`, and is not part of `make ci`.
+  `unzip`, and is not part of `make ci`. A local run that must exercise the live media tests sets
+  `ARXGO_TEST_REQUIRE_TOOLS=1`, so a missing tool fails instead of skipping.
 
 ## First-time setup
 

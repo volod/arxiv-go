@@ -27,41 +27,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Video restore -- `video-restore`
 
-#### review-stage-1-integrity
-
-Review stage-1 cross-module invariants before the stage proof and before stage 2 builds on them.
-
-- Serves: `video-restore` -- [Development integrity](../openspec/spec.md#development-integrity)
-- Agent status: CLEAR
-- Task kind: checkpoint
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md);
-  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md);
-  [Video restore](records/0020-restore-implement-video-restore.md);
-  [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
-- User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
-  contracts, lock and preflight agree across scan, split and restore.
-- Scope boundary: Read all stage-1 records, code and tests; trace a video through scan, split,
-  crash, recover, restore; check contract/spec drift and error accounting; review Windows-specific
-  code paths against the spec by reading and cross-compiling (no Windows host). Add missing
-  behavior tests at stable seams. No speculative refactor.
-- Data and artifact paths: Stage-1 records, `internal/`, `docs/openspec/stage-1-core/`.
-- Execution path: Invariant-to-evidence table in the record; targeted tests; audit notes routed to
-  one owner each.
-- Acceptance gates: Every incoming audit note dispositioned, Windows-only notes as deferred to the
-  [Windows verification scenario](../guide/windows-verification.md#deferred-items) (never
-  blockers); refactor/no-refactor verdict and `proceed`, `proceed-with-nonblocking-notes` or
-  `blocked` recorded; blockers get separate repair tasks before this checkpoint closes; `make ci`
-  passes on Linux.
-- Documentation target: `docs/impl/current.md`
-- Review checkpoint: none; this is the bounded checkpoint.
-
 #### prove-stage-1-on-generated-archive
 
 Run the complete stage-1 workflow end to end on a generated archive on Linux.
 
 - Serves: `video-restore` -- [Evaluation and acceptance](../openspec/spec.md#evaluation-and-acceptance)
 - Agent status: CLEAR
-- Dependencies: `review-stage-1-integrity`.
+- Dependencies: [Stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md).
 - User-visible outcome: A single integration test proves scan, split, kill, resume, restore and the
   round-trip gate through the built `arxgo` binary.
 - Scope boundary: Build the binary in a test temporary directory (so a developer's `bin/.env` is
@@ -78,7 +50,7 @@ Run the complete stage-1 workflow end to end on a generated archive on Linux.
   at three random points (seeded, seed logged) converges; exit codes match the contract; CI passes
   on `ubuntu-latest`; `GOOS=windows go vet -tags integration ./test/integration/...` passes.
 - Documentation target: `docs/impl/current.md`
-- Review checkpoint: `review-stage-1-integrity` record addendum.
+- Review checkpoint: [Stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md) addendum.
 
 ### Media previews -- `media-previews`
 
@@ -169,7 +141,10 @@ Generate previews after each committed move and clean them up on restore.
   delete` removes them.
 - Scope boundary: WAL preview records and recovery, preflight estimate, worker pool, stub/registry
   preview sections, scan exclusion of recorded previews, restore policy, missing-preview catch-up on
-  rerun, exit 6 on preview failure.
+  rerun, exit 6 on preview failure. While changing the registry reader and writer: an
+  `arxgo-videos.csv` that no longer parses gives an operator-actionable error instead of exit 1 on
+  every rerun, and archive bytes written count stubs and previews
+  (`AUD-review-stage-1-integrity-3`).
 - Data and artifact paths: `internal/archive/split.go`, `internal/archive/restore.go`,
   `internal/report/markdown.go`, `internal/state/`.
 - Execution path: Extend stage-1 integration test with preview flags when ffmpeg is present.
@@ -191,7 +166,9 @@ Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
 - Scope boundary: `make dist` packaging on top of the approved pins in `packaging/ffmpeg.lock` and
   the verified download in `scripts/fetch-ffmpeg.sh` (`make ffmpeg`), `SHA256SUMS`, GPLv3 licence
   text and source offer per bundle, CI release job on tags. Each bundle ships `.env.example` next
-  to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed.
+  to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed. Correct the
+  `make ffmpeg` row of the development guide, which still names `tools/fetch-ffmpeg.sh`
+  (`AUD-refactor-repository-layout-1`).
 - Data and artifact paths: `packaging/`, `scripts/fetch-ffmpeg.sh`, `make/`, `Makefile`,
   `.github/workflows/release.yml`, `dist/` (ignored).
 - Execution path: Declared run on Linux: `make dist` for linux/amd64 and windows/amd64 with network
@@ -353,6 +330,12 @@ Decide whether stage 1 is fit for use on real archives after a trial on a copy o
 - Dependencies: `prove-stage-1-on-generated-archive`.
 - Requested input or decision: Run scan, split, interrupt, resume and restore on a disposable copy
   of a representative archive; review registry, stubs, logs and timings; accept, or file defects.
+  Where available, put one root on a CIFS/NFS share and start a second `arxgo` from another host
+  against its lock; note scan throughput at the default `--checkpoint-every`; decide whether
+  restore should skip video-archive files whose registry row is `conflict` or `skipped`. These are
+  the routed notes `AUD-implement-filesystem-primitives-2`, `AUD-implement-run-lock-and-checkpoint-3`,
+  `AUD-implement-scan-operation-and-csv-registry-3` and `AUD-review-stage-1-integrity-2` of
+  [the stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md#audit-handoff).
 - Unblocks: Production use of stage 1. Stage-2 development does not wait for this decision.
 
 ### Cloud publishing -- `cloud-publishing`

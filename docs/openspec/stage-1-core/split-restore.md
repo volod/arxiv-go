@@ -38,10 +38,14 @@ there and where it went.
 
 - **Destination exists.** Same size (and hash with `--verify hash`) as the source: treat as already
   placed, continue from `placed`, log `adopted`. Different content: skip the video, log a conflict,
-  exit code 6. Split never overwrites.
-- **Stub exists.** A stub whose front matter names the same `rel_path` is rewritten; any other file
-  at `<rel_path>.md` is a conflict: the video is still moved, the stub is written as
-  `<rel_path>.arxgo.md`, and the conflict is logged.
+  exit code 6, and remove a `<dst>.arxgo-part` left by an earlier aborted transfer. Split never
+  overwrites. A destination that appears during a copy aborts the transaction; the `aborted` record
+  is durable before the part file is removed, so a crash in between is never rolled forward.
+- **Stub exists.** A stub whose front matter names the same `rel_path` is rewritten; anything else
+  at `<rel_path>.md` (a foreign file, a directory, a symlink or a file arxgo cannot read) is a
+  conflict: the video is still moved, the stub is written as `<rel_path>.arxgo.md` (then
+  `<name-prefix>-<idx>.<ext>.md`), and the conflict is logged. Only the first 64 KiB of a file are
+  read to find its front matter.
 - **Source changed during the run.** Size or mtime differs from the WAL `begin` record at copy
   completion: discard the part file, abort the transaction, retry once, then skip with a warning.
 - **Previews are not candidates.** Stage 2 preview clips are videos inside the archive; the scan
@@ -66,11 +70,17 @@ directories that no longer exist.
 
 1. Validate, take locks, recover.
 2. Scan the **video archive** with the registry scanner (registry output goes to the run directory,
-   not to a root). Candidates are `is_video=true` rows; reserved paths are excluded. Previews live
-   in the main archive (stage 2), so the video archive holds only originals.
+   not to a root). Candidates are `is_video=true` rows, plus every file whose path is the
+   `video_rel_path` of a `moved` or `restored` row in `arxgo-videos.csv`: a video that split
+   selected through `--video-extensions` (not a restore flag) is restored too. Reserved paths are
+   excluded. Previews live in the main archive (stage 2), so the video archive holds only
+   originals.
 3. When `arxgo-videos.csv` exists, each candidate is matched to its row by `video_rel_path` to
    recover the original path, size and hash. Candidates without a row are restored to the same
-   relative path and logged as `unregistered`.
+   relative path and logged as `unregistered`. The registry is read from a root that may be shared,
+   so a row whose `rel_path`, `video_rel_path` or `stub_rel_path` is not a local relative path
+   (empty, `.` or `..` segments, an absolute or volume path) or names a
+   [reserved path](../spec.md#reserved-paths) is ignored with a warning.
 4. Preflight free space for the archive device; a shortfall exits 4 before any mutation.
 5. For each candidate, one transaction:
    - destination `<archive>/<rel_path>`;
@@ -82,11 +92,15 @@ directories that no longer exist.
      delete from the video archive; `--transfer copy` keeps the video archive copy;
    - `--stubs delete` removes `<rel_path>.md` only when its front matter names this video;
    - commit.
-6. With `--registry-update`, rows in both `arxgo-videos.csv` copies get `status=restored` and the
-   summaries are regenerated. When no `moved` rows remain and `--stubs delete` was used, the
-   registries are renamed to `arxgo-videos.restored-<run-id>.csv/.md` rather than deleted.
-7. Empty directories left in the video archive are removed only with `--transfer auto` and only if
-   they contain no other files.
+6. With `--registry-update`, rows in both `arxgo-videos.csv` copies get `status=restored` (the
+   registry replays the transactions of every run, see [contracts](contracts.md#video-registry-csv),
+   so restores of an interrupted earlier run count too) and the summaries are regenerated. When no
+   `moved` rows remain and `--stubs delete` was used, the registries are renamed to
+   `arxgo-videos.restored-<run-id>.csv/.md` rather than deleted. Restore never creates a registry.
+7. With `--transfer auto`, the video-archive directories that held restored videos (restored by
+   this or an earlier run) are removed, deepest first with their ancestors, when they are empty;
+   the video archive root and unrelated directories are kept. The cleanup is best effort: a
+   directory that cannot be read or removed is logged and kept.
 
 ### Rules
 

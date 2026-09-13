@@ -2,9 +2,12 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/volod/arxiv-go/internal/archive"
+	"github.com/volod/arxiv-go/internal/fsops"
 )
 
 // sessionHooks lets tests replace the process identity used by the run lock and the clock. It sees
@@ -27,8 +30,55 @@ func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 		CheckpointEvery:    c.CheckpointEvery,
 		CheckpointInterval: c.CheckpointInterval,
 		Preflight:          archive.PreflightOptions{MinFree: int64(c.MinFree)},
+		RecovererFor:       recovererFor,
 	}
 	return cfg
+}
+
+func verifyMode(v string) fsops.VerifyMode {
+	if v == VerifyHash {
+		return fsops.VerifyHash
+	}
+	return fsops.VerifySize
+}
+
+// splitResolver is the recovery resolver of a split run; execute uses its stub writer too.
+func splitResolver(o SplitOptions) archive.SplitResolver {
+	verify := verifyMode(o.Verify)
+	r := archive.NewSplitResolver(nil, verify, nil)
+	r.Stubs = archive.NewMarkdownStub(archive.StubConfig{
+		Archive: o.Archive, VideoArchive: o.VideoArchive, BaseURL: o.BaseURL,
+		Registry: o.Registry, Version: version, Verify: verify,
+	})
+	return r
+}
+
+// restoreResolver is the recovery resolver of a restore run.
+func restoreResolver(o RestoreOptions) archive.RestoreResolver {
+	return archive.NewRestoreResolver(archive.RestoreResolver{
+		Verify: verifyMode(o.Verify), KeepStubs: o.Stubs == StubsKeep,
+		KeepSource: o.Transfer == TransferCopy, Archive: o.Archive,
+	})
+}
+
+// recovererFor rebuilds the resolver of an earlier incomplete run from its options.json, so a run
+// that a new run replaces finishes its transactions with the options that started them.
+func recovererFor(op string, raw json.RawMessage) (archive.Resolver, error) {
+	switch op {
+	case OpSplit:
+		var o SplitOptions
+		if err := json.Unmarshal(raw, &o); err != nil {
+			return nil, err
+		}
+		return splitResolver(o), nil
+	case OpRestore:
+		var o RestoreOptions
+		if err := json.Unmarshal(raw, &o); err != nil {
+			return nil, err
+		}
+		return restoreResolver(o), nil
+	}
+	return nil, fmt.Errorf("operation %q writes no transactions", op)
 }
 
 // scanConfig maps the scan settings onto the registry scan of root.

@@ -12,7 +12,7 @@ import (
 )
 
 // openRun resumes the current incomplete run or creates a new run directory.
-func (s *Session) openRun() error {
+func (s *Session) openRun(ctx context.Context) error {
 	cfg := s.cfg
 	options, err := json.Marshal(cfg.Options)
 	if err != nil {
@@ -23,7 +23,7 @@ func (s *Session) openRun() error {
 		return err
 	}
 	if !cfg.DryRun {
-		if resumed, err := s.tryResume(defining); err != nil || resumed {
+		if resumed, err := s.tryResume(ctx, defining); err != nil || resumed {
 			return err
 		}
 	}
@@ -46,8 +46,10 @@ func (s *Session) openRun() error {
 }
 
 // tryResume continues the run named by current when it has no report and was started with the
-// same operation and defining options. Corrupt state stops the run for operator action.
-func (s *Session) tryResume(defining json.RawMessage) (bool, error) {
+// same operation and defining options. An incomplete run that is not resumed is recovered first,
+// so a new run never replaces unfinished transactions. Corrupt state stops the run for operator
+// action.
+func (s *Session) tryResume(ctx context.Context, defining json.RawMessage) (bool, error) {
 	id, err := state.ReadCurrent(s.cfg.Archive)
 	if err != nil || id == "" {
 		return false, err
@@ -67,13 +69,16 @@ func (s *Session) tryResume(defining json.RawMessage) (bool, error) {
 	if err := state.ReadJSON(rd.File(state.OptionsFile), &prev); err != nil {
 		return false, err
 	}
-	switch {
-	case s.cfg.NewRun:
-		s.Log.Info("--new-run: leaving the incomplete run and starting a new one", "previous_run", id)
-		return false, nil
-	case !prev.SameDefinition(s.cfg.Op, defining):
-		s.Log.Warn("incomplete run has a different operation or options; starting a new run "+
-			"(rerun with the same options to resume it)", "previous_run", id, "previous_op", prev.Op)
+	if s.cfg.NewRun || !prev.SameDefinition(s.cfg.Op, defining) {
+		if err := s.recoverReplaced(ctx, rd, prev); err != nil {
+			return false, err
+		}
+		if s.cfg.NewRun {
+			s.Log.Info("--new-run: leaving the incomplete run and starting a new one", "previous_run", id)
+		} else {
+			s.Log.Warn("incomplete run has a different operation or options; leaving it and starting a new run",
+				"previous_run", id, "previous_op", prev.Op)
+		}
 		return false, nil
 	}
 	cp, err := state.ReadCheckpoint(rd.File(state.CheckpointFile))

@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0021`.
+Next unused sequence: `0024`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -29,3 +29,6 @@ Next unused sequence: `0021`.
 | [0018 Video split transactions](0018-split-implement-video-split-transactions.md) | Split scan, preflight, WAL transactions and recovery with placeholder stubs | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0019 Stubs and video registry](0019-split-implement-stubs-and-video-registry.md) | Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` after split | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0020 Video restore](0020-restore-implement-video-restore.md) | Restore videos from the video archive with directory, conflict, stub and registry policies | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0021 Stage-1 integrity review](0021-restore-review-stage-1-integrity.md) | Stage-1 checkpoint: invariant-to-evidence table, audit-note dispositions, restore preflight and cross-device crash tests, live-tool test opt-in, declared kill/resume/round-trip run on a generated archive | Accepted: `proceed-with-nonblocking-notes`, no refactor; blockers repaired in 0022 and 0023; `make ci` passes on Linux |
+| [0022 Recover an incomplete run before replacing it](0022-restore-recover-incomplete-run-before-replacing-it.md) | A new run first recovers the interrupted `current` run with its own options, or exits 5 when it does not lock that run's roots | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0023 Split/restore round-trip repairs](0023-restore-repair-split-restore-round-trip-defects.md) | Registered restore candidates, registry path validation, run-ordered registry replay, targeted cleanup, stub path classification, conflict abort order, cached stub hints, QuickTime handler | Accepted; `make ci` passes on Linux; Windows cross-compiled |

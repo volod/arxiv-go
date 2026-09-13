@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/report"
@@ -22,12 +23,22 @@ type RestoreResolver struct {
 	KeepStubs  bool
 	KeepSource bool
 	Archive    string
+
+	hints *stubHints // stub_rel_path by rel_path, loaded once from the archive's video registry
+}
+
+// stubHints caches the stub paths of the video registry. The registry is rewritten only in the
+// report phase, after every transaction, so one load serves recovery and execute.
+type stubHints struct {
+	once  sync.Once
+	byRel map[string]string
 }
 
 func NewRestoreResolver(r RestoreResolver) RestoreResolver {
 	if r.FS == nil {
 		r.FS = fsops.System{}
 	}
+	r.hints = &stubHints{}
 	return r
 }
 
@@ -54,11 +65,10 @@ func (r RestoreResolver) DeletePart(tx state.Tx) error {
 	return hitSplit(r.Crash, "fs:delete_part")
 }
 
+// StubPath is the owned stub that WriteStub removes (or keeps with --stubs keep), or "" when
+// there is none. Callers record it before WriteStub runs.
 func (r RestoreResolver) StubPath(tx state.Tx) string {
-	if p := r.ownedStub(tx); p != "" {
-		return p
-	}
-	return tx.Begin.Dst + ".md"
+	return r.ownedStub(tx)
 }
 
 func (r RestoreResolver) WriteStub(tx state.Tx) error {
@@ -110,14 +120,29 @@ func (r RestoreResolver) stubHint(rel string) string {
 	if r.Archive == "" {
 		return ""
 	}
-	rows, err := report.LoadVideoFile(filepath.Join(r.Archive, scanner.VideoRegistryName))
-	if err != nil || rows == nil {
-		return ""
+	h := r.hints
+	if h == nil {
+		h = &stubHints{}
 	}
-	for _, row := range rows {
-		if (row.RelPath == rel || row.VideoRelPath == rel) && row.StubRelPath != "" {
-			return filepath.Join(r.Archive, filepath.FromSlash(row.StubRelPath))
+	h.once.Do(func() {
+		h.byRel = map[string]string{}
+		rows, err := report.LoadVideoFile(filepath.Join(r.Archive, scanner.VideoRegistryName))
+		if err != nil {
+			return
 		}
+		for _, row := range rows {
+			if row.StubRelPath == "" || !scanner.LocalRelPath(row.StubRelPath) {
+				continue
+			}
+			for _, key := range []string{row.RelPath, row.VideoRelPath} {
+				if _, ok := h.byRel[key]; !ok && key != "" {
+					h.byRel[key] = row.StubRelPath
+				}
+			}
+		}
+	})
+	if stub := h.byRel[rel]; stub != "" {
+		return filepath.Join(r.Archive, filepath.FromSlash(stub))
 	}
 	return ""
 }

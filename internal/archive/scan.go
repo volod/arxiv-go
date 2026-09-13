@@ -30,6 +30,9 @@ type ScanConfig struct {
 	VideoExtensions []string // --video-extensions
 	Exclude         []string // --exclude globs
 	SkipPaths       []string // OS paths excluded besides the registry (a nested video archive)
+	// Include, when set, makes a file a candidate although detection does not classify it as
+	// video (restore: a path that the video registry lists as moved).
+	Include func(rel string) bool
 	// Preflight runs the scan free-space preflight before traversal (the scan operation). Split
 	// and restore run their own preflight after the scan.
 	Preflight bool

@@ -21,7 +21,8 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   Preflight estimates the registry from the file it replaces (256 B per row, less what a resumed
   part file holds). `Scan(ctx, session, ScanConfig)` is also the scan phase of
   [split](video-split.md) (`Preflight=false`, video archive in `SkipPaths`); [restore](video-restore.md)
-  scans the video archive the same way (registry output in the run directory).
+  scans the video archive the same way (registry output in the run directory) and passes
+  `ScanConfig.Include` so registered moved videos are candidates whatever detection says.
 - Pipeline: `scanner.Walk` in the calling goroutine queues every entry on a bounded order channel
   (`Window`, default 256) and hands files and symlinks to 16 detection workers (`scanner.Detect`,
   `os.Readlink`). A writer goroutine takes entries in order, waits for each one's detection and
@@ -46,7 +47,9 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
 - Resume: both files are truncated to the checkpointed offsets and the walk resumes after the
   cursor with the checkpointed statistics; the cursor never moves backwards. A missing or shorter
   part file restarts the scan from scratch with a warning. A run whose checkpoint says the scan is
-  `complete` (renamed, but the report was not written) does not scan again.
+  `complete` (renamed, but the report was not written) does not scan again. An entry added behind
+  the cursor while a scan was interrupted is registered only by a later full scan (a later run);
+  for `split` such a video is moved by the next split run.
 - Statistics: one `scan summary` log line and the report's `scan` section (files, dirs, symlinks,
   bytes, the five flag totals, top 10 MIME types by bytes, skipped by reason, elapsed). The run
   counters `files`/`bytes` count rows. Skipped entries from an earlier process of the run still
@@ -58,7 +61,9 @@ Measured on the development host (i9-14900K, NVMe ext4, Go 1.27.1), binary on a 
 `--checkpoint-every 500` (about 340 checkpoints, 3 fsyncs each), 1.0 s with checkpoints only at
 phase boundaries; 14 MB RSS; registry 29 MB (191 B per row). Detection throughput is flat from 8
 workers up (1.0 s at 8, 16 and 32 workers; 3.3 s at 1). For very large local archives a larger
-`--checkpoint-every` trades resume granularity for speed.
+`--checkpoint-every` trades resume granularity for speed. The stage-1 review measured the same
+shape on 200,000 small files: 3.7 s at 500, 1.2 s at 5000, 0.8 s at 100000; the default stays as
+specified.
 
 
 ## Directory walker (`internal/scanner`)

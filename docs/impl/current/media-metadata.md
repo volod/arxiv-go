@@ -3,7 +3,8 @@
 Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-discovery.md),
 [0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
 [0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md),
-[0016 ffprobe metadata](../records/0016-metadata-implement-ffprobe-metadata.md).
+[0016 ffprobe metadata](../records/0016-metadata-implement-ffprobe-metadata.md);
+QuickTime handler fix in [0023](../records/0023-restore-repair-split-restore-round-trip-defects.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
 shipped. `--metadata media` requires a working `ffprobe` at startup, even for a scan containing
 only ISO BMFF files; successful ISO BMFF parsing itself does not invoke it.
@@ -14,7 +15,9 @@ only ISO BMFF files; successful ISO BMFF parsing itself does not invoke it.
 `metadata.media` to their registry rows. The normalized object contains container, duration,
 estimated bit rate, first video stream's display dimensions and rotation, frame rate, codecs,
 stream counts, audio presence, creation time and selected text tags. Unknown sample-entry codecs
-remain as four-character codes. The box walk skips `mdat`, limits metadata reads to 32 MiB and
+remain as four-character codes. A track's kind comes from the `hdlr` directly inside `mdia`; the
+data handler (`dhlr`) that QuickTime movies also carry inside `minf` is ignored. Before that fix a
+QuickTime `.mov` parsed with no streams and `--metadata media` left it in the archive as not video. The box walk skips `mdat`, limits metadata reads to 32 MiB and
 individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. It reads fragment
 duration from `mehd` or summed fragments, including `trex` defaults and fragments before `moov`.
 

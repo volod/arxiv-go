@@ -5,7 +5,10 @@ Owners: `archive-registry` (file registry), `video-split` (video registry, stub,
 column value and is a spec amendment.
 
 All text outputs are UTF-8 without BOM, `\n` line endings on every platform, paths relative to the
-owning root with `/` separators. CSV follows RFC 4180 as written by Go `encoding/csv` (quotes when
+owning root with `/` separators. Exception: a Linux file name that is not valid UTF-8 is written to
+the CSV files as its raw bytes, while JSON (metadata, candidate list, WAL) replaces the invalid
+bytes with U+FFFD; such a video is registered but cannot be split and is reported as skipped
+(exit 6). CSV follows RFC 4180 as written by Go `encoding/csv` (quotes when
 needed). Booleans are `true`/`false`. Sizes are bytes as base-10 integers. Times are RFC 3339 UTC.
 
 ## File registry CSV
@@ -98,8 +101,13 @@ row, in walk order. It is run state for split and restore, not an operator outpu
 | 12 | `previews` | Stage 2: `;`-separated preview paths relative to the archive; empty in stage 1 |
 | 13 | `metadata` | Same JSON as the file registry |
 
-Rows are sorted by `rel_path` walk order key. The file is regenerated from the WAL of all runs plus
-the existing file, written via `.arxgo-part` and rename.
+Rows are sorted by `rel_path` walk order key. The file is regenerated from the existing file and
+the WAL of every run, written via `.arxgo-part` and rename. Runs are replayed one after another in
+the order they started (`created_at` in `options.json`, then run id), so a later run wins: a
+committed split makes the row `moved`; a split aborted at its destination makes it `conflict`, and
+any other aborted split `skipped`, unless the row is `moved`; a committed restore sets `restored`
+and that restore's `run_id`. A split then adds `conflict`/`skipped` rows for the videos it skipped
+before a transaction began. Restore only updates rows; it never adds one.
 
 ## Markdown stub
 
@@ -152,8 +160,10 @@ links.
  "transfer":"copy"}
 ```
 
-Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on `verified`,
-`stub` on `stubbed`/`stub_removed`, `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
+`mtime` keeps full precision (RFC 3339 with nanoseconds when present) because a copy compares it
+exactly. Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
+`verified`, `stub` on `stubbed`/`stub_removed`: the stub written, or the owned stub restore removed
+or kept, omitted when there is none; `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
 increases by one for each record in the file. Records are shown wrapped here; on disk each is one
 line. Recovery writes `aborted` with `reason` `unplaced` when work had not reached `placed`.
 

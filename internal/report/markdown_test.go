@@ -229,3 +229,42 @@ func TestFrontMatterRoundTripQuoted(t *testing.T) {
 		t.Fatalf("%v", fm)
 	}
 }
+
+func TestInspectStubTreatsNonFilesAsForeign(t *testing.T) {
+	dir := t.TempDir()
+	owned := []byte("---\narxgo_stub: 1\nrel_path: clip.mp4\n---\n")
+	ownedPath := filepath.Join(dir, "owned.md")
+	if err := os.WriteFile(ownedPath, owned, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "dir.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	long := append([]byte("---\n"), bytes.Repeat([]byte("note: padding\n"), stubHeaderLimit/8)...)
+	long = append(long, []byte("rel_path: clip.mp4\n---\n")...)
+	if err := os.WriteFile(filepath.Join(dir, "long.md"), long, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]StubOccupancy{"missing.md": StubAbsent, "owned.md": StubOwned, "dir.md": StubForeign, "long.md": StubForeign}
+	if err := os.Symlink(ownedPath, filepath.Join(dir, "link.md")); err == nil {
+		cases["link.md"] = StubForeign
+	}
+	if err := os.WriteFile(filepath.Join(dir, "locked.md"), owned, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := os.Open(filepath.Join(dir, "locked.md")); err != nil {
+		cases["locked.md"] = StubForeign // unreadable for this user (not root)
+	} else {
+		f.Close()
+	}
+	for name, want := range cases {
+		got, err := InspectStub(filepath.Join(dir, name), "clip.mp4")
+		if err != nil || got != want {
+			t.Errorf("%s: occupancy %v, %v; want %v", name, got, err, want)
+		}
+	}
+	p, err := ChooseStubPath(filepath.Join(dir, "dir"), "clip.mp4")
+	if err != nil || filepath.Base(p) != "dir.arxgo.md" {
+		t.Fatalf("directory at the primary stub path: %s, %v", p, err)
+	}
+}

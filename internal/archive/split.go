@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/state"
@@ -136,7 +137,7 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 	for attempt := 0; attempt < 2; attempt++ {
 		fi, err := os.Lstat(src)
 		if err != nil || !fi.Mode().IsRegular() {
-			skipSplit(s, v, "source missing or no longer a regular file")
+			skipSplit(s, v, missingSourceReason(v.RelPath))
 			return nil
 		}
 		adopted, conflict, err := destinationStatus(src, dst, fi.Size(), c.Verify)
@@ -148,6 +149,9 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 			mode = state.TransferCopy
 		}
 		if conflict {
+			if err := removeStalePart(dst); err != nil {
+				return err
+			}
 			skipSplit(s, v, "destination exists with different content")
 			return nil
 		}
@@ -170,10 +174,7 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 			var err error
 			sum, err = placeSplit(ctx, s, w, rec, mode, *c)
 			if errors.Is(err, fs.ErrExist) {
-				if e := os.Remove(fsops.PartPath(dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
-					return e
-				}
-				if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "destination conflict"}); e != nil {
+				if e := abortConflict(s, w, rec); e != nil {
 					return e
 				}
 				skipSplit(s, v, "destination appeared during transfer")
@@ -256,6 +257,37 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 		return nil
 	}
 	return nil
+}
+
+// abortConflict ends a transaction whose destination appeared before placement. The abort is
+// durable before the part file is removed: a copied or verified transaction without its part
+// and with a same-size destination would otherwise be rolled forward, removing the source.
+func abortConflict(s *Session, w *state.WAL, rec state.Record) error {
+	if _, err := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "destination conflict"}); err != nil {
+		return err
+	}
+	if err := removeStalePart(rec.Dst); err != nil {
+		return err
+	}
+	return hitSplit(s.cfg.Crash, "fs:delete_part")
+}
+
+// removeStalePart deletes dst.arxgo-part left by an aborted transfer. Recovery has already closed
+// every transaction of the run, so no open transaction owns it.
+func removeStalePart(dst string) error {
+	if err := os.Remove(fsops.PartPath(dst)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// missingSourceReason explains a candidate whose source is gone. Candidate and WAL records are
+// JSON, which replaces bytes of a file name that is not valid UTF-8, so such a video is never found.
+func missingSourceReason(rel string) string {
+	if strings.ContainsRune(rel, utf8.RuneError) {
+		return "source missing or no longer a regular file (file names that are not valid UTF-8 are not supported)"
+	}
+	return "source missing or no longer a regular file"
 }
 
 func skipSplit(s *Session, v Candidate, reason string) {

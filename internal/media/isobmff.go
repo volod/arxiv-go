@@ -174,7 +174,9 @@ func (s *isoScan) box(h *mp4.ReadHandle) (any, error) {
 			s.track.timescale, s.track.duration = v.Timescale, v.GetDuration()
 		}
 	case "hdlr":
-		if s.track != nil && inPath(path, "mdia") {
+		// Only the media handler directly in mdia names the track kind; QuickTime also puts a data
+		// handler (dhlr) in minf, which must not overwrite it.
+		if s.track != nil && parent(path) == "mdia" {
 			box, err := readSmall(h)
 			if err != nil {
 				return nil, err

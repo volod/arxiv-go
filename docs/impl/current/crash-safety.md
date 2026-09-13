@@ -3,10 +3,11 @@
 Accepted work: [0005 Filesystem primitives](../records/0005-safety-implement-filesystem-primitives.md);
 [0006 Run lock and checkpoint](../records/0006-safety-implement-run-lock-and-checkpoint.md);
 [0007 Write-ahead log and recovery](../records/0007-safety-implement-write-ahead-log-and-recovery.md);
-[0009 Disk-space preflight](../records/0009-safety-implement-disk-space-preflight.md).
+[0009 Disk-space preflight](../records/0009-safety-implement-disk-space-preflight.md);
+[0022 Recover an incomplete run before replacing it](../records/0022-restore-recover-incomplete-run-before-replacing-it.md).
 Specification: [integrity](../../openspec/stage-1-core/integrity.md) and
-[contracts](../../openspec/stage-1-core/contracts.md#wal-record). The stage-1 integrity review is
-still open in the [plan](../plan.md#review-stage-1-integrity).
+[contracts](../../openspec/stage-1-core/contracts.md#wal-record). Reviewed by the
+[stage-1 integrity checkpoint](../records/0021-restore-review-stage-1-integrity.md).
 
 ## Filesystem primitives (`internal/fsops`)
 
@@ -58,8 +59,18 @@ Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock).
 
 A later process resumes `current` when that run has no report and the operation plus defining
 options match (roots and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
-`--dry-run`, `--new-run` or `--force-unlock`). `--dry-run` always creates its own directory and
-never changes `current`. `--new-run` leaves an incomplete run in place.
+`--dry-run`, `--new-run` or `--force-unlock`). `--dry-run` always creates its own directory, recovers
+nothing and never changes `current`.
+
+Otherwise (other defining options, another operation, or `--new-run`) the incomplete run is left in
+place, but first its unfinished WAL transactions are recovered, so `current` never moves away from
+them. `archive.Config.RecovererFor` rebuilds that run's resolver from its `options.json`
+(`cli.recovererFor` decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
+gets the stub with its own `--base-url` and `--verify`, and a restore keeps its `--stubs` and
+`--transfer` policies. The recovery is logged to the console and appended to the earlier run's
+`run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run on
+another video archive stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
+directory, names the run and the roots to rerun, and releases its locks.
 
 ## Run lock
 
@@ -166,9 +177,12 @@ level=INFO msg="preflight passed" op=split devices=2
   video-archive scan).
 - `DurableCopy` needs the destination directory to exist and does not remove the source.
 - Remote-host lock refusal is tested with injected host names, not a live network share.
-- A `Start` that sees corrupt run state releases the lock (exit 5) so `--new-run` does not need
-  `--force-unlock`; see the record's audit note.
+- A `Start` refused with exit 5 (corrupt run state, an interrupted run it may not recover)
+  releases the locks it took, so the rerun that fixes the cause needs no `--force-unlock`; exit 5
+  after the run started (a lost lock) keeps them. The integrity specification states both.
 - `FSResolver` writes a marker stub (`rel_path: ...`); split writes the full Markdown stub
   through `archive.MarkdownStub`; restore removes an owned stub through `archive.RestoreResolver`.
-  Crash injection uses a hook (error or panic), not a killed process.
+  Crash injection in tests uses a hook (error or panic), not a killed process; the stage-1 review's
+  declared run killed `split` and `restore` with SIGKILL at seeded random points and resumed them
+  with changed options ([0021](../records/0021-restore-review-stage-1-integrity.md)).
 - The 1e6 committed-set gate is an in-memory index, not a million-line WAL file.

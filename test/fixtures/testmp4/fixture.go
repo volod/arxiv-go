@@ -14,7 +14,10 @@ type Track struct {
 }
 
 type Options struct {
-	Brand      string
+	Brand string
+	// QuickTime writes the media handler as component type mhlr and adds the data handler hdlr
+	// (dhlr, "url ") that QuickTime movies carry inside minf.
+	QuickTime  bool
 	Tracks     []Track
 	MoovAtEnd  bool
 	Fragmented bool
@@ -34,7 +37,7 @@ func File(o Options) []byte {
 	var children [][]byte
 	children = append(children, mvhd(o.Fragmented))
 	for i, t := range o.Tracks {
-		children = append(children, track(uint32(i+1), t, o.Fragmented))
+		children = append(children, track(uint32(i+1), t, o.Fragmented, o.QuickTime))
 	}
 	if o.Fragmented {
 		var mvex []byte
@@ -100,7 +103,7 @@ func mvhd(fragmented bool) []byte {
 	return Box("mvhd", b)
 }
 
-func track(id uint32, t Track, fragmented bool) []byte {
+func track(id uint32, t Track, fragmented, quickTime bool) []byte {
 	var children [][]byte
 	tk := make([]byte, 84)
 	binary.BigEndian.PutUint32(tk[12:16], id)
@@ -123,8 +126,15 @@ func track(id uint32, t Track, fragmented bool) []byte {
 	copy(hd[8:12], []byte(t.Kind))
 	stsd := Box("stsd", append(append(fullBox(), u32(1)...), Box(t.Codec, nil)...))
 	stts := Box("stts", append(append(append(fullBox(), u32(1)...), u32(125)...), u32(40)...))
-	stbl := Box("stbl", bytes.Join([][]byte{stsd, stts}, nil))
-	mdia := Box("mdia", bytes.Join([][]byte{Box("mdhd", md), Box("hdlr", hd), Box("minf", stbl)}, nil))
+	minf := [][]byte{Box("stbl", bytes.Join([][]byte{stsd, stts}, nil))}
+	if quickTime {
+		copy(hd[4:8], []byte("mhlr"))
+		data := make([]byte, 24)
+		copy(data[4:8], []byte("dhlr"))
+		copy(data[8:12], []byte("url "))
+		minf = append([][]byte{Box("hdlr", data)}, minf...)
+	}
+	mdia := Box("mdia", bytes.Join([][]byte{Box("mdhd", md), Box("hdlr", hd), Box("minf", bytes.Join(minf, nil))}, nil))
 	children = append(children, mdia)
 	return Box("trak", bytes.Join(children, nil))
 }

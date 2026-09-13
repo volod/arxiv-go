@@ -133,16 +133,17 @@ func recoverPlaced(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observatio
 		return Recovery{}, fmt.Errorf("%w: destination missing or wrong size after placed in %s (size %d, want %d, exists %v)",
 			ErrStateCorrupt, tx.Begin.TxID, obs.DstSize, tx.Begin.Size, obs.DstExists)
 	}
-	if err := res.WriteStub(tx); err != nil {
-		return Recovery{}, err
-	}
 	step := StepStubbed
 	if tx.Begin.Op == "restore" {
 		step = StepStubRemoved
 	}
+	// The path is chosen before the effect: a removed stub can no longer be found afterwards.
 	path := stubPath(tx.Begin)
 	if namer, ok := res.(interface{ StubPath(Tx) string }); ok {
 		path = namer.StubPath(tx)
+	}
+	if err := res.WriteStub(tx); err != nil {
+		return Recovery{}, err
 	}
 	if _, err := w.Append(tx.Begin.TxID, step, Record{Stub: path}); err != nil {
 		return Recovery{}, err

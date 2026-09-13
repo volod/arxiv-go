@@ -1,16 +1,28 @@
 # Video Restore
 
-Accepted work: [0020 Video restore](../records/0020-restore-implement-video-restore.md).
+Accepted work: [0020 Video restore](../records/0020-restore-implement-video-restore.md);
+[0021 Stage-1 integrity review](../records/0021-restore-review-stage-1-integrity.md);
+[0022 Recover an incomplete run before replacing it](../records/0022-restore-recover-incomplete-run-before-replacing-it.md);
+[0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md).
 Specification: [restore](../../openspec/stage-1-core/split-restore.md#restore),
 [recovery](../../openspec/stage-1-core/integrity.md#recovery).
-The capability remains planned until the stage-1 checkpoint and proof are accepted.
+The stage-1 checkpoint is accepted; the capability remains planned until the stage-1 proof is
+accepted.
 
-`arxgo restore` takes locks on both roots, recovers an incomplete restore run, then scans the
-**video archive** (the file registry for that scan stays in the run directory). Candidates are
-`is_video=true` rows. When `arxgo-videos.csv` exists, each candidate is matched by
-`video_rel_path` to recover the original archive path; a video with no row is restored to the
-same relative path and logged as unregistered. A row whose status is already `restored` is
-restored again if the file is still in the video archive.
+`arxgo restore` takes locks on both roots and recovers an incomplete run: the current restore run
+when it resumes, or an interrupted split or restore that this run replaces (with that run's own
+options, see [crash safety](crash-safety.md#run-layout-internalstate)). It then scans the **video
+archive** (the file registry for that scan stays in the run directory).
+
+Candidates are `is_video=true` rows plus every file whose path is the `video_rel_path` of a `moved`
+or `restored` row in `arxgo-videos.csv` (`ScanConfig.Include`), so a video that split selected
+with `--video-extensions` is restored although restore has no such flag. When the registry exists,
+each candidate is matched by `video_rel_path` to recover the original archive path; a video with no
+row is restored to the same relative path and logged as unregistered. A row whose `rel_path`,
+`video_rel_path` or `stub_rel_path` is not a local relative path, or names a reserved path
+(`scanner.LocalRelPath`), is ignored with a warning, so an edited or foreign registry can never
+direct a write outside the archive. A row whose status is already `restored` is restored again if
+the file is still in the video archive.
 
 Preflight uses the restore table (negligible on a same-device rename; the sum of candidate sizes
 on the archive device for copy or other devices). `--dry-run` stops after the plan. Each
@@ -19,22 +31,35 @@ candidate is one WAL transaction with `stub_removed` in place of split's `stubbe
 - destination `<archive>/<rel_path>`;
 - missing parent: skip with `missing-directory` (exit 6) unless `--create-dirs`;
 - destination exists with identical content: adopt as placed; different content: skip as a
-  conflict unless `--overwrite`, which replaces through a `.arxgo-part` rename;
+  conflict (removing a stale `<dst>.arxgo-part`) unless `--overwrite`, which replaces through a
+  `.arxgo-part` rename;
 - `--transfer auto` renames on the same device and otherwise copies, verifies, then deletes the
   video-archive file; `--transfer copy` keeps that copy;
-- `--stubs delete` removes a Markdown stub only when its front matter names this `rel_path`;
-  a foreign file at `<rel_path>.md` is left untouched. `--stubs keep` leaves stubs in place.
+- `--stubs delete` removes a Markdown stub only when its front matter names this `rel_path`: the
+  registry's `stub_rel_path` (hints loaded once per run), `<rel_path>.md` or `<rel_path>.arxgo.md`.
+  A foreign file, directory, symlink or unreadable file is never removed. `--stubs keep` leaves
+  stubs in place. The WAL `stub` field records the owned stub, taken before it is removed.
 
-Empty directories left in the video archive are removed only with `--transfer auto` and only when
-they contain no other files. The video-archive root and `.arxgo/` are kept.
+With `--transfer auto`, the video-archive directories that held videos restored by this or an
+earlier run are removed when empty, deepest first with their ancestors. The root, `.arxgo/` and
+unrelated directories (for example an empty directory the operator created) are kept; a directory
+that cannot be read or removed is logged and kept, so it never fails the run.
 
-With `--registry-update` (the default), both `arxgo-videos.csv` copies get `status=restored` for
-committed paths and the summaries are regenerated. When no `moved` rows remain and `--stubs delete`
-was used, the live files are renamed to `arxgo-videos.restored-<run-id>.csv/.md`.
-`--registry-update=false` leaves the video registry unchanged.
+With `--registry-update` (the default), both `arxgo-videos.csv` copies are regenerated by replaying
+the transactions of every run in start order (see [video split](video-split.md#video-registry-and-summary)):
+committed restores set `status=restored` and the restoring run id, including those of an
+interrupted earlier run. When no `moved` rows remain and `--stubs delete` was used, the live files
+are renamed to `arxgo-videos.restored-<run-id>.csv/.md`. `--registry-update=false` leaves the video
+registry unchanged. Restore never creates a registry.
 
 Linux tests cover split-then-restore round trips (paths, sizes, mtimes, SHA-256) on rename and
-copy, missing directories, conflicts vs `--overwrite`, foreign stubs, `--transfer copy`, crash
-injection on both transfer paths, dry-run, registry retire, and a second run. Windows is
+copy, missing directories, conflicts vs `--overwrite`, foreign and owned fallback stubs,
+`--transfer copy`, crash injection on the rename, copy-keep and cross-device copy+delete paths,
+preflight refusal without mutation, dry-run, registry update, retire and history after a later
+split, `--video-extensions` videos, registry paths outside the archive, cleanup beside unreadable
+and unrelated directories, a replaced interrupted restore, and a second run. The stage-1 review's
+declared run on a generated 805 MiB archive (kill -9 during split and restore, reruns with other
+options and `--new-run`, same-device and tmpfs video archives) reproduced every path, size, mtime
+and SHA-256. Restoring 4000 videos took 38 s (97 s before stub hints were cached). Windows is
 cross-compiled only; runtime checks belong to the
 [Windows verification scenario](../../guide/windows-verification.md).

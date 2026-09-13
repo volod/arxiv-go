@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -16,8 +17,14 @@ type fakeClock struct {
 	t  time.Time
 }
 
+// clocks counts newClock calls. Each clock starts one minute after the previous one, so runs
+// started from successive configurations have distinct, ordered start times (as real runs do);
+// the video registry replays runs in start order.
+var clocks atomic.Int64
+
 func newClock() *fakeClock {
-	return &fakeClock{t: time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)}
+	start := time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
+	return &fakeClock{t: start.Add(time.Duration(clocks.Add(1)) * time.Minute)}
 }
 
 func (c *fakeClock) Now() time.Time {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/volod/arxiv-go/test/fixtures/testmp4"
+	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
 func TestFFprobeCapturedFormats(t *testing.T) {
@@ -129,14 +130,8 @@ func TestFFprobeLive(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("live ffprobe fixture runs only outside CI")
 	}
-	ffmpeg, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		t.Skip("ffmpeg unavailable: live ffprobe fixture skipped")
-	}
-	ffprobe, err := exec.LookPath("ffprobe")
-	if err != nil {
-		t.Skip("ffprobe unavailable: live ffprobe fixture skipped")
-	}
+	ffmpeg := tooltest.LookPath(t, "ffmpeg")
+	ffprobe := tooltest.LookPath(t, "ffprobe")
 	p := filepath.Join(t.TempDir(), "live.avi")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

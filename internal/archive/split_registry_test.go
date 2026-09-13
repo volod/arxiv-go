@@ -69,23 +69,32 @@ func TestSplitRegistryMergesTwoRuns(t *testing.T) {
 }
 
 func TestSplitMediaModeStubHasDuration(t *testing.T) {
-	r := newRoots(t)
-	body := testmp4.File(testmp4.Options{
-		Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1", Width: 1920, Height: 1080}, {Kind: "soun", Codec: "mp4a"}},
-		Title:  "Interview",
-	})
-	src := filepath.Join(r.archive, "interview.mp4")
-	if err := os.WriteFile(src, body, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, c := splitConfig(r, "auto")
-	c.Scan.Metadata = "media"
-	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
-		t.Fatalf("split = %+v", res)
-	}
-	stub := string(mustRead(t, src+".md"))
-	if !strings.Contains(stub, "0:05 | 1920x1080 | h264 + aac | 25 fps") {
-		t.Fatalf("media line:\n%s", stub)
+	// A QuickTime movie carries a second (data) handler box; it must still be a moved video.
+	for name, quickTime := range map[string]bool{"interview.mp4": false, "camera.mov": true} {
+		t.Run(name, func(t *testing.T) {
+			r := newRoots(t)
+			body := testmp4.File(testmp4.Options{
+				Tracks:    []testmp4.Track{{Kind: "vide", Codec: "avc1", Width: 1920, Height: 1080}, {Kind: "soun", Codec: "mp4a"}},
+				Title:     "Interview",
+				QuickTime: quickTime,
+			})
+			src := filepath.Join(r.archive, name)
+			if err := os.WriteFile(src, body, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, c := splitConfig(r, "auto")
+			c.Scan.Metadata = "media"
+			if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
+				t.Fatalf("split = %+v", res)
+			}
+			if exists(src) || !exists(filepath.Join(r.video, name)) {
+				t.Fatal("video not moved")
+			}
+			stub := string(mustRead(t, src+".md"))
+			if !strings.Contains(stub, "0:05 | 1920x1080 | h264 + aac | 25 fps") {
+				t.Fatalf("media line:\n%s", stub)
+			}
+		})
 	}
 }
 

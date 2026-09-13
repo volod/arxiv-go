@@ -70,3 +70,4 @@ each one as deferred to this scenario; the step column shows where it is checked
 | `AUD-implement-video-split-transactions-1` | Case-fold skip of colliding video names; same-volume rename vs copy | W7 |
 | `AUD-implement-file-type-detection-4` | Detection open on files locked by another process or denied by ACL returns an error counted unreadable | W5 |
 | `AUD-implement-tool-discovery-1` | `LookPath` on `.exe` candidates, `-version` via `CreateProcess`, timeout kill; only `.exe` names are candidates, so runtime checks use the helper-process tests and a real `ffprobe.exe` | W6 |
+| `AUD-review-stage-1-integrity-1` | Registry path validation (`filepath.IsLocal` device names, `\`), replaced-run root comparison by recorded spelling, cleanup `filepath.Rel` case folding | W7 |

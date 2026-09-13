@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
 const okVersion = "ffprobe version 9.9-fake Copyright (c) the testers"
@@ -252,9 +254,7 @@ func TestDiscoverReportsMissingRequirementsInOrder(t *testing.T) {
 }
 
 func TestFindRealFFprobe(t *testing.T) {
-	if _, err := exec.LookPath("ffprobe"); err != nil {
-		t.Skip("ffprobe not on PATH; live discovery runs only where it is installed")
-	}
+	tooltest.LookPath(t, "ffprobe")
 	got, err := (Finder{}).Find(context.Background(), FFprobe)
 	if err != nil {
 		t.Fatal(err)

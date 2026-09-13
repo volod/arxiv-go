@@ -158,23 +158,35 @@ const (
 	StubForeign
 )
 
+// stubHeaderLimit bounds the bytes read from a candidate stub path; arxgo front matter is far
+// smaller, so a longer header is not an arxgo stub.
+const stubHeaderLimit = 64 << 10
+
 // InspectStub reports whether path is missing, an arxgo stub for relPath, or a foreign file.
 // A matching rel_path in front matter is enough to treat the file as ours (and overwrite it).
+// Anything that is not a readable regular file (a directory, a symlink, a file without read
+// permission) is foreign: arxgo never overwrites or deletes it. Only a failure to look up the path
+// itself is returned as an error.
 func InspectStub(path, relPath string) (StubOccupancy, error) {
-	fm, err := ReadFrontMatterFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
+	fi, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return StubAbsent, nil
-	}
-	if err != nil {
-		if errors.Is(err, ErrNotFrontMatter) {
-			return StubForeign, nil
-		}
+	case err != nil:
 		return StubForeign, err
+	case !fi.Mode().IsRegular():
+		return StubForeign, nil
 	}
-	if fm["rel_path"] == relPath {
-		return StubOwned, nil
+	f, err := os.Open(path)
+	if err != nil {
+		return StubForeign, nil
 	}
-	return StubForeign, nil
+	defer f.Close()
+	fm, err := ParseFrontMatter(io.LimitReader(f, stubHeaderLimit))
+	if err != nil || fm["rel_path"] != relPath {
+		return StubForeign, nil
+	}
+	return StubOwned, nil
 }
 
 // FormatFrontMatter writes the stub header in contract key order, omitting empty optional fields.

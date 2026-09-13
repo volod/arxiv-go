@@ -35,9 +35,14 @@ A run is complete when its `report.json` exists. Starting an operation (after ta
 resumes the run named in `current` when that run is incomplete, has the same operation and the
 same defining options (the roots and operation flags; not logging, progress, checkpoint cadence,
 `--min-free`, `--dry-run`, `--new-run` or `--force-unlock`). Otherwise a new run directory is
-created and `current` points at it; an incomplete run with different options is left in place with
-a warning. `--dry-run` always creates its own run directory, never resumes and never changes
-`current`, so it cannot hide an interrupted real run from recovery.
+created and `current` points at it; an incomplete run with different options, or one replaced with
+`--new-run`, is left in place with a warning. Before that, its unfinished WAL transactions are
+[recovered](#recovery) with a resolver rebuilt from its own `options.json`, so `current` never
+moves away from unfinished transactions. Recovery needs the locks of that run's roots: a process
+that does not hold them (`scan`, which locks only the archive, or a run on another video archive)
+exits 5 before creating a run directory, names the interrupted run and the roots that recover it,
+and releases its locks. `--dry-run` always creates its own run directory, never resumes, recovers
+nothing and never changes `current`, so it cannot hide an interrupted real run from recovery.
 
 ## Run lock
 
@@ -61,7 +66,10 @@ a warning. `--dry-run` always creates its own run directory, never resumes and n
 - Every checkpoint verifies that both lock files still name this run; a removed or replaced lock
   stops the run with exit 5 and nothing more is written into the run directory.
 - The lock is removed on every exit the process controls (0, 1, 3, 4, 6, 70, and 130 after the
-  checkpoint), except exit 5 for lost locks or state that needs operator action.
+  checkpoint), except exit 5 after the run started (a lost lock, or corrupt state found while
+  running). A start refused with exit 5 (a held, stale, remote or unreadable lock, corrupt run
+  state, or an interrupted run this process may not recover) releases the locks it took, so the
+  rerun that fixes the cause needs no `--force-unlock`.
 
 ## Write-ahead log
 
@@ -80,7 +88,8 @@ a warning. `--dry-run` always creates its own run directory, never resumes and n
 ## Recovery
 
 Recovery runs after taking the lock and before scanning, for the run named in `current` when its
-report is absent. For each transaction without `commit` or `aborted`, in begin `seq` order, the last
+report is absent, whether the process resumes that run or [replaces it](#state-layout) with a new
+one. For each transaction without `commit` or `aborted`, in begin `seq` order, the last
 durable step decides:
 
 | Last step | Filesystem check | Action |
@@ -100,7 +109,7 @@ durable step decides:
 Aborted transactions are retried by the resumed run because their sources are still candidates.
 After recovery, a run whose scan had completed continues from `candidates.jsonl`, skipping
 committed `rel_path`s (a hash set built from the WAL). With `--new-run` a fresh run id starts
-instead. Recovery is idempotent: a second pass writes nothing when the first succeeded.
+after the recovery instead. Recovery is idempotent: a second pass writes nothing when the first succeeded.
 
 ## Checkpoints
 

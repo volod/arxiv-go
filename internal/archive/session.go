@@ -3,6 +3,7 @@ package archive
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -55,8 +56,15 @@ type Config struct {
 
 	// Recoverer, when set, is applied to an existing wal.jsonl after the lock is taken.
 	Recoverer state.Resolver
-	Crash     state.CrashHook
+	// RecovererFor rebuilds the resolver of an earlier incomplete run from its operation and
+	// options.json, so a run that this process replaces is recovered with the options that
+	// started it. Nil leaves such a run with unfinished transactions to the operator (exit 5).
+	RecovererFor func(op string, options json.RawMessage) (Resolver, error)
+	Crash        state.CrashHook
 }
+
+// Resolver applies operation-specific filesystem effects during WAL recovery.
+type Resolver = state.Resolver
 
 func (c *Config) defaults() {
 	if c.Now == nil {
@@ -145,7 +153,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	if err := s.lockRoots(provisional); err != nil {
 		return nil, err
 	}
-	if err := s.openRun(); err != nil {
+	if err := s.openRun(ctx); err != nil {
 		return nil, err
 	}
 	for _, l := range s.locks {
@@ -156,11 +164,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		}
 	}
 
-	fileLevel := slog.LevelInfo
-	if cfg.LogLevel < slog.LevelInfo {
-		fileLevel = cfg.LogLevel
-	}
-	if s.runLog, err = state.OpenRunLog(s.Run.File(state.LogFile), fileLevel); err != nil {
+	if s.runLog, err = state.OpenRunLog(s.Run.File(state.LogFile), runLogLevel(cfg.LogLevel)); err != nil {
 		return nil, err
 	}
 	s.Log = slog.New(state.Fanout(cfg.Console, s.runLog.Handler()))

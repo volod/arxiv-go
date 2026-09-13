@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/volod/arxiv-go/test/fixtures/testmp4"
+	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
 func fixtureFile(t *testing.T, name string, data []byte) string {
@@ -54,6 +55,18 @@ func TestISOAudioOnlyAndRotation(t *testing.T) {
 				t.Fatalf("metadata: %+v", m)
 			}
 		})
+	}
+}
+
+func TestISOQuickTimeDataHandlerKeepsTrackKind(t *testing.T) {
+	p := fixtureFile(t, "camera.mov", testmp4.File(testmp4.Options{
+		Brand: "qt  ", QuickTime: true,
+		Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1", Width: 1280, Height: 720}, {Kind: "soun", Codec: "mp4a"}},
+	}))
+	m := ReadISO(context.Background(), p, "video/quicktime")
+	if m.Error != "" || m.Container != "mov" || m.VideoStreams != 1 || m.AudioStreams != 1 || m.VideoCodec != "h264" ||
+		m.AudioCodec != "aac" || m.Width != 1280 || m.Height != 720 {
+		t.Fatalf("metadata: %+v", m)
 	}
 }
 
@@ -138,20 +151,20 @@ func TestISOSkipsLargeMdat(t *testing.T) {
 }
 
 func TestISOLiveFFmpeg(t *testing.T) {
-	ffmpeg, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		t.Skip("ffmpeg unavailable: live ISO BMFF fixture skipped")
-	}
-	p := filepath.Join(t.TempDir(), "live.mp4")
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:r=25", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "1", "-c:v", "mpeg4", "-c:a", "aac", "-shortest", "-y", p)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("ffmpeg fixture: %v: %s", err, out)
-	}
-	m := ReadISO(context.Background(), p, "video/mp4")
-	if m.Error != "" || m.VideoStreams != 1 || m.AudioStreams != 1 || m.VideoCodec != "mpeg4" || m.AudioCodec != "aac" || m.Width != 320 || m.Height != 240 || m.DurationS < 0.9 || m.DurationS > 1.1 {
-		t.Fatalf("live metadata: %+v", m)
+	ffmpeg := tooltest.LookPath(t, "ffmpeg")
+	for name, mime := range map[string]string{"live.mp4": "video/mp4", "live.mov": "video/quicktime"} {
+		p := filepath.Join(t.TempDir(), name)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cmd := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:r=25", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "1", "-c:v", "mpeg4", "-c:a", "aac", "-shortest", "-y", p)
+		out, err := cmd.CombinedOutput()
+		cancel()
+		if err != nil {
+			t.Fatalf("ffmpeg fixture %s: %v: %s", name, err, out)
+		}
+		m := ReadISO(context.Background(), p, mime)
+		if m.Error != "" || m.VideoStreams != 1 || m.AudioStreams != 1 || m.VideoCodec != "mpeg4" || m.AudioCodec != "aac" || m.Width != 320 || m.Height != 240 || m.DurationS < 0.9 || m.DurationS > 1.1 {
+			t.Fatalf("live metadata %s: %+v", name, m)
+		}
 	}
 }
 

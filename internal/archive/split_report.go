@@ -3,7 +3,9 @@ package archive
 import (
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
@@ -61,33 +63,24 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 }
 
 func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
-	existing, err := report.LoadVideoFile(filepath.Join(s.cfg.Archive, scanner.VideoRegistryName))
+	existing, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
 	if err != nil {
 		return nil, err
-	}
-	if existing == nil && s.cfg.VideoArchive != "" {
-		existing, err = report.LoadVideoFile(filepath.Join(s.cfg.VideoArchive, scanner.VideoRegistryName))
-		if err != nil {
-			return nil, err
-		}
 	}
 	regRows, err := report.LoadRegistry(c.Scan.Registry)
 	if err != nil {
 		s.Log.Warn("video registry: file registry unavailable", "error", err)
 	}
 	byReg := report.RegistryByPath(regRows)
-	walRows, err := rowsFromAllWALs(s.cfg.Archive)
+	fill := func(row *report.VideoRow) { fillVideoRow(row, byReg, c.BaseURL) }
+	merged, err := replayVideoRows(existing, s.cfg.Archive, fill)
 	if err != nil {
 		return nil, err
 	}
-	for i := range walRows {
-		fillVideoRow(&walRows[i], byReg, c.BaseURL)
-	}
 	issueRows := rowsFromIssues(s.Issues())
 	for i := range issueRows {
-		fillVideoRow(&issueRows[i], byReg, c.BaseURL)
+		fill(&issueRows[i])
 	}
-	merged := report.MergeVideoRows(existing, walRows)
 	merged = report.MergeVideoRows(merged, issueRows)
 	if c.BaseURL != "" {
 		for i := range merged {
@@ -99,61 +92,99 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 	return merged, nil
 }
 
-func rowsFromAllWALs(archiveRoot string) ([]report.VideoRow, error) {
-	ids, err := state.ListRunIDs(archiveRoot)
+// replayVideoRows applies the transactions of every run in the archive to the existing registry
+// rows, run by run in start order, so a later run always wins: a committed split makes a row
+// moved, a split aborted at its destination makes it a conflict (other aborts skipped) unless it
+// is moved, and a committed restore marks the row restored. fill completes new split rows.
+func replayVideoRows(existing []report.VideoRow, archiveRoot string, fill func(*report.VideoRow)) ([]report.VideoRow, error) {
+	runs, err := runsInStartOrder(archiveRoot)
 	if err != nil {
 		return nil, err
 	}
-	var incoming []report.VideoRow
-	for _, id := range ids {
-		rd, err := state.OpenRunDir(archiveRoot, id)
-		if err != nil {
-			return nil, err
-		}
+	rows := report.MergeVideoRows(nil, existing)
+	for _, rd := range runs {
 		recs, err := state.ReadWALRecords(rd.File(state.WALFile))
 		if err != nil {
 			return nil, err
 		}
-		incoming = append(incoming, rowsFromWAL(recs, archiveRoot)...)
+		if len(recs) == 0 {
+			continue
+		}
+		split, restored := videoEvents(recs, archiveRoot)
+		if fill != nil {
+			for i := range split {
+				fill(&split[i])
+			}
+		}
+		rows = report.MarkRestored(report.MergeVideoRows(rows, split), restored, rd.ID)
 	}
-	return incoming, nil
+	return rows, nil
 }
 
-func rowsFromWAL(recs []state.Record, archiveRoot string) []report.VideoRow {
+// runsInStartOrder lists the run directories of root ordered by the creation time in their
+// options.json, then by id. Run ids alone order only to the second.
+func runsInStartOrder(root string) ([]state.RunDir, error) {
+	ids, err := state.ListRunIDs(root)
+	if err != nil {
+		return nil, err
+	}
+	type run struct {
+		dir     state.RunDir
+		created time.Time
+	}
+	runs := make([]run, 0, len(ids))
+	for _, id := range ids {
+		rd, err := state.OpenRunDir(root, id)
+		if err != nil {
+			return nil, err
+		}
+		var o state.RunOptions
+		_ = state.ReadJSON(rd.File(state.OptionsFile), &o) // a run without options sorts first
+		runs = append(runs, run{rd, o.CreatedAt})
+	}
+	sort.SliceStable(runs, func(i, j int) bool { return runs[i].created.Before(runs[j].created) })
+	out := make([]state.RunDir, len(runs))
+	for i, r := range runs {
+		out[i] = r.dir
+	}
+	return out, nil
+}
+
+// videoEvents reduces one run's WAL to its final split rows and the rel_paths it restored.
+func videoEvents(recs []state.Record, archiveRoot string) ([]report.VideoRow, map[string]struct{}) {
 	open := map[string]*walAcc{}
 	byRel := map[string]report.VideoRow{}
+	restored := map[string]struct{}{}
 	for _, rec := range recs {
-		switch rec.Step {
-		case state.StepBegin:
+		a := open[rec.TxID]
+		switch {
+		case rec.Step == state.StepBegin:
 			open[rec.TxID] = &walAcc{begin: rec}
-		case state.StepVerified:
-			if a := open[rec.TxID]; a != nil && rec.SHA256 != "" {
-				a.sha = rec.SHA256
+		case a == nil:
+		case a.begin.Op == opRestore:
+			if rec.Step == state.StepCommit {
+				restored[a.begin.RelPath] = struct{}{}
 			}
-		case state.StepStubbed:
-			if a := open[rec.TxID]; a != nil && rec.Stub != "" {
-				a.stub = rec.Stub
+		case rec.Step == state.StepVerified && rec.SHA256 != "":
+			a.sha = rec.SHA256
+		case rec.Step == state.StepStubbed && rec.Stub != "":
+			a.stub = rec.Stub
+		case rec.Step == state.StepCommit:
+			a.status = report.StatusMoved
+			byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
+		case rec.Step == state.StepAborted:
+			if old, ok := byRel[a.begin.RelPath]; ok && old.Status == report.StatusMoved {
+				continue
 			}
-		case state.StepCommit:
-			if a := open[rec.TxID]; a != nil {
-				a.status = report.StatusMoved
-				byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
-			}
-		case state.StepAborted:
-			if a := open[rec.TxID]; a != nil {
-				if old, ok := byRel[a.begin.RelPath]; ok && old.Status == report.StatusMoved {
-					continue
-				}
-				a.status = abortStatus(rec.Reason)
-				byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
-			}
+			a.status = abortStatus(rec.Reason)
+			byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
 		}
 	}
 	out := make([]report.VideoRow, 0, len(byRel))
 	for _, r := range byRel {
 		out = append(out, r)
 	}
-	return out
+	return out, restored
 }
 
 func rowFromAcc(a *walAcc, archiveRoot string) report.VideoRow {

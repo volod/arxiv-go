@@ -41,7 +41,7 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 	for attempt := 0; attempt < 2; attempt++ {
 		fi, err := os.Lstat(src)
 		if err != nil || !fi.Mode().IsRegular() {
-			skipSplit(s, v, "source missing or no longer a regular file")
+			skipSplit(s, v, missingSourceReason(v.RelPath))
 			return nil
 		}
 		missing, err := ensureRestoreDirs(s, dst, c.CreateDirs)
@@ -59,6 +59,9 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 		overwrite := false
 		if conflict {
 			if !c.Overwrite {
+				if err := removeStalePart(dst); err != nil {
+					return err
+				}
 				skipSplit(s, v, "destination exists with different content")
 				return nil
 			}
@@ -97,10 +100,11 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 		if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
 			return err
 		}
+		stub := r.StubPath(tx)
 		if err := r.WriteStub(tx); err != nil {
 			return err
 		}
-		if _, err := w.Append(rec.TxID, state.StepStubRemoved, state.Record{Stub: r.StubPath(tx)}); err != nil {
+		if _, err := w.Append(rec.TxID, state.StepStubRemoved, state.Record{Stub: stub}); err != nil {
 			return err
 		}
 		if mode == state.TransferCopy && !c.KeepSource {
@@ -135,10 +139,7 @@ func restorePlaceError(ctx context.Context, s *Session, w *state.WAL, rec state.
 		return false, false, nil
 	}
 	if errors.Is(err, fs.ErrExist) {
-		if e := os.Remove(fsops.PartPath(rec.Dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
-			return false, false, e
-		}
-		if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "destination conflict"}); e != nil {
+		if e := abortConflict(s, w, rec); e != nil {
 			return false, false, e
 		}
 		skipSplit(s, v, "destination appeared during transfer")
@@ -177,12 +178,21 @@ func restorePlaceError(ctx context.Context, s *Session, w *state.WAL, rec state.
 	return false, false, err
 }
 
-func videoRowsByVideoPath(rows []report.VideoRow) map[string]report.VideoRow {
+// videoRowsByVideoPath indexes registry rows by video_rel_path. The registry lives in a root that
+// may be shared, so a row whose paths would leave a root or name a reserved path is ignored and
+// its video, if any, is restored as unregistered to its own relative path.
+func videoRowsByVideoPath(s *Session, rows []report.VideoRow) map[string]report.VideoRow {
 	out := make(map[string]report.VideoRow, len(rows))
 	for _, r := range rows {
 		key := r.VideoRelPath
 		if key == "" {
 			key = r.RelPath
+		}
+		if !scanner.LocalRelPath(key) || !scanner.LocalRelPath(r.RelPath) ||
+			(r.StubRelPath != "" && !scanner.LocalRelPath(r.StubRelPath)) {
+			s.Log.Warn("video registry row ignored: a path is not a local path below its root",
+				"rel_path", r.RelPath, "video_rel_path", r.VideoRelPath, "stub_rel_path", r.StubRelPath)
+			continue
 		}
 		out[key] = r
 	}

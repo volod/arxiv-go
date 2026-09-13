@@ -15,7 +15,6 @@ import (
 	"syscall"
 
 	"github.com/volod/arxiv-go/internal/archive"
-	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/media"
 )
 
@@ -70,21 +69,12 @@ var defaultHandlers = Handlers{
 		cfg := sessionConfig(OpSplit, o.Common, o, d)
 		cfg.CreateVideoArchive = o.CreateVideoArchive
 		cfg.Preflight.Transfer = o.Transfer
-		verify := fsops.VerifySize
-		if o.Verify == VerifyHash {
-			verify = fsops.VerifyHash
-		}
 		scan := scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), false)
 		scan.SkipPaths = []string{o.VideoArchive}
-		stubs := archive.NewMarkdownStub(archive.StubConfig{
-			Archive: o.Archive, VideoArchive: o.VideoArchive, BaseURL: o.BaseURL,
-			Registry: o.Registry, Version: version, Verify: verify,
-		})
-		resolver := archive.NewSplitResolver(nil, verify, nil)
-		resolver.Stubs = stubs
+		resolver := splitResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
-			Scan: scan, Transfer: o.Transfer, Verify: verify, BaseURL: o.BaseURL, Stubs: stubs,
+			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Stubs: resolver.Stubs,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
@@ -92,24 +82,16 @@ var defaultHandlers = Handlers{
 		d.Common = definingCommon(o.Common)
 		cfg := sessionConfig(OpRestore, o.Common, o, d)
 		cfg.Preflight.Transfer = o.Transfer
-		verify := fsops.VerifySize
-		if o.Verify == VerifyHash {
-			verify = fsops.VerifyHash
-		}
-		keepStubs := o.Stubs == StubsKeep
-		keepSource := o.Transfer == TransferCopy
-		resolver := archive.NewRestoreResolver(archive.RestoreResolver{
-			Verify: verify, KeepStubs: keepStubs, KeepSource: keepSource, Archive: o.Archive,
-		})
+		resolver := restoreResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.RestoreBody(archive.RestoreConfig{
 			Scan: archive.ScanConfig{
 				Root: o.VideoArchive, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
 				SkipPaths: []string{o.Archive},
 			},
-			Transfer: o.Transfer, Verify: verify,
+			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
-			KeepStubs: keepStubs, KeepSource: keepSource,
+			KeepStubs: resolver.KeepStubs, KeepSource: resolver.KeepSource,
 		}))
 	},
 }
