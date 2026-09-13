@@ -1,7 +1,8 @@
 # CLI contract
 
-Owner: `project-foundation`. Stage-2 and stage-3 flags are listed so the parser reserves their
-names; until their capability ships, using them exits 2 with `option not available in this build`.
+Owner: `project-foundation`. Stage-2 and stage-3 flags are listed so the parser recognizes their
+names. Split preview settings are validated; active modes exit 70 until generation is integrated.
+Unshipped restore and stage-3 flags exit 2 with `option not available in this build`.
 
 ## Synopsis
 
@@ -33,8 +34,10 @@ Parsing details:
   platform path list separator (`:` on Linux, `;` on Windows). If the flag appears on the
   command line, the variable is ignored.
 - A flag of another operation (for example `--stubs` on `scan`) is an unknown flag (exit 2).
-  Stage-2 and stage-3 flags of the selected operation, and `--follow-symlinks=true`, exit 2 with
-  `option not available in this build` whether they come from the command line or the environment.
+  Split preview flags are parsed and validated, but an active `--sample` or `--image` mode exits 70
+  before opening a run until preview generation is integrated. Restore `--previews`, stage-3 flags
+  and `--follow-symlinks=true` exit 2 with `option not available in this build` whether they come
+  from the command line or the environment.
 - `scan` accepts `--video-archive` (including `ARXGO_VIDEO_ARCHIVE`) and ignores it.
 - All validation errors are printed together, one per line, followed by a pointer to
   `arxgo help <operation>`.

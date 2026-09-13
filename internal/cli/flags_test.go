@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/volod/arxiv-go/internal/media"
 )
 
 // fixture creates an archive and a sibling video archive in a temporary directory.
@@ -81,6 +83,7 @@ func TestDefaults(t *testing.T) {
 	wantSplit := SplitOptions{
 		Common: defaultCommon(archive, video), ScanSettings: defaultScan,
 		Transfer: TransferAuto, Verify: VerifySize,
+		Preview: media.DefaultPreviewOptions(),
 	}
 	if !reflect.DeepEqual(split, wantSplit) {
 		t.Errorf("split defaults\n got %+v\nwant %+v", split, wantSplit)
@@ -133,6 +136,7 @@ func TestEveryFlagParses(t *testing.T) {
 			Exclude: []string{"*.tmp", "cache/**"}, VideoExtensions: []string{".mts", ".m2ts"},
 		},
 		Transfer: TransferCopy, Verify: VerifyHash, BaseURL: "https://cdn.example.com/v",
+		Preview: media.DefaultPreviewOptions(),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("split options\n got %+v\nwant %+v", got, want)

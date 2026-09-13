@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0027`.
+Next unused sequence: `0028`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -35,3 +35,4 @@ Next unused sequence: `0027`.
 | [0024 Simplify build artifact names](0024-foundation-simplify-build-artifact-names.md) | Shared Linux build output `bin/arxgo` for `make build` and `make build-all`; Windows output `bin/arxgo.exe` | Accepted; `make ci` passes on Linux; Windows cross-compiled |
 | [0025 Stage-1 proof on a generated archive](0025-restore-prove-stage-1-on-generated-archive.md) | End-to-end `integration` test through the built binary: generated archive, seeded kills of split and restore, resume, restore, contract checks, round-trip manifests; CI step; audio-only `is_video` refinement repair | Accepted; `make ci` and `make test-integration` pass on Linux; Windows vetted only |
 | [0026 FFmpeg runner](0026-preview-implement-ffmpeg-runner.md) | Safe ffmpeg process execution, progress, timeout, error capture, part-file finalization and encoder probe | Accepted; `make ci` and local `lavfi` run pass on Linux; Windows cross-compiled |
+| [0027 Preview planning](0027-preview-implement-preview-planning.md) | Pure preview positions, clamps, naming, estimates, CLI settings | Accepted; `make ci` passes on Linux; Windows cross-compiled |

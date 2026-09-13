@@ -184,6 +184,10 @@ func run(ctx context.Context, args []string, e env) int {
 		if err != nil {
 			return usageError(e, op, err)
 		}
+		if o.Preview.SampleMode != "none" || o.Preview.ImageMode != "none" {
+			fmt.Fprintln(e.stderr, "arxgo: preview generation is not available in this build")
+			return ExitNotImplemented
+		}
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
 		if o.Tools, code, ok = requireTools(ctx, e, log, scanNeeds(o.ScanSettings)); ok {

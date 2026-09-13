@@ -23,6 +23,12 @@ type settings struct {
 	transfer, verify, stubs               string
 	baseURL, videoExtensions              string
 	createDirs, overwrite, registryUpdate bool
+	sampleMode, imageMode                 string
+	sampleResolution, imageResolution     string
+	sampleQuality, imageQuality           string
+	sampleDuration, sampleEvery           time.Duration
+	imageEvery                            time.Duration
+	previewMaxItems                       int
 
 	// reserved maps a later-stage flag name to its value, which records whether it was given.
 	reserved map[string]*reservedValue
@@ -62,6 +68,9 @@ var (
 	transferModes   = []string{TransferAuto, TransferCopy}
 	verifyModes     = []string{VerifySize, VerifyHash}
 	stubPolicies    = []string{StubsDelete, StubsKeep}
+	previewModes    = []string{"none", "start", "middle", "end", "series"}
+	previewSizes    = []string{"sd", "hd", "4k"}
+	previewQuality  = []string{"low", "medium", "high"}
 	defaultMinFree  = Size(1 << 30)
 	defaultLarge    = Size(1 << 30)
 	defaultEvery    = 500
@@ -117,6 +126,9 @@ func stringField(s *settings, name string) *string {
 		"log-format": &s.logFormat, "registry": &s.registry, "metadata": &s.metadata,
 		"transfer": &s.transfer, "verify": &s.verify, "stubs": &s.stubs,
 		"base-url": &s.baseURL, "video-extensions": &s.videoExtensions,
+		"sample": &s.sampleMode, "image": &s.imageMode,
+		"sample-resolution": &s.sampleResolution, "image-resolution": &s.imageResolution,
+		"sample-quality": &s.sampleQuality, "image-quality": &s.imageQuality,
 	}
 	return fields[name]
 }

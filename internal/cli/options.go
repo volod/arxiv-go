@@ -74,6 +74,7 @@ type SplitOptions struct {
 	Transfer string // TransferAuto or TransferCopy
 	Verify   string // VerifySize or VerifyHash
 	BaseURL  string // empty, or absolute http(s) URL without a trailing slash
+	Preview  media.PreviewOptions
 	// CreateVideoArchive is true when the video archive root does not exist yet; its parent does,
 	// and the split operation creates it after taking the lock.
 	CreateVideoArchive bool
@@ -180,6 +181,22 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	o := SplitOptions{Common: common, CreateVideoArchive: videoMissing}
 	o.ScanSettings = buildScan(s, o.Archive, fsys, v)
 	o.Transfer, o.Verify = s.transfer, s.verify
+	o.Preview = media.PreviewOptions{SampleMode: s.sampleMode, ImageMode: s.imageMode,
+		SampleDuration: s.sampleDuration, SampleEvery: s.sampleEvery, ImageEvery: s.imageEvery,
+		SampleResolution: s.sampleResolution, ImageResolution: s.imageResolution,
+		SampleQuality: s.sampleQuality, ImageQuality: s.imageQuality, MaxItems: s.previewMaxItems}
+	if o.Preview.SampleDuration <= 0 {
+		v.addf("--sample-duration must be positive")
+	}
+	if o.Preview.SampleEvery <= 0 {
+		v.addf("--sample-every must be positive")
+	}
+	if o.Preview.ImageEvery <= 0 {
+		v.addf("--image-every must be positive")
+	}
+	if o.Preview.MaxItems < 1 {
+		v.addf("--preview-max-items must be at least 1")
+	}
 	if s.baseURL != "" {
 		u, err := validateBaseURL(s.baseURL)
 		if err != nil {

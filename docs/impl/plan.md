@@ -27,32 +27,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media previews -- `media-previews`
 
-#### implement-preview-planning
-
-Compute preview positions, series, resolution clamp and names without running ffmpeg.
-
-- Serves: `media-previews` -- [Position modes](../openspec/stage-2-previews/previews.md#position-modes)
-- Agent status: CLEAR
-- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
-- User-visible outcome: Operators get predictable preview files for every mode and resolution.
-- Scope boundary: Pure planner from `MediaInfo` and options to a list of preview jobs (time ranges,
-  output size, encoder choice, file names, collision suffix), series cap, space estimate. Enables
-  stage-2 flags in the CLI.
-- Data and artifact paths: `internal/media/preview.go`, `internal/cli/`.
-- Execution path: Table tests only.
-- Acceptance gates: Positions for start/middle/end/series including `D <= L`, unknown duration,
-  cap; clamp for landscape/portrait below and above each box with even rounding; names with index
-  padding and collisions; estimate formula.
-- Documentation target: `docs/impl/current/media-previews.md`
-- Review checkpoint: `review-stage-2-previews`.
-
 #### implement-video-samples
 
 Generate sample clips in the source container format.
 
 - Serves: `media-previews` -- [Encoding by container](../openspec/stage-2-previews/previews.md#encoding-by-container)
 - Agent status: CLEAR
-- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); `implement-preview-planning`.
+- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); [Preview planning](records/0027-preview-implement-preview-planning.md).
 - User-visible outcome: `--sample start|middle|end|series` produces playable `-smplNN` clips at the
   requested duration and clamped resolution.
 - Scope boundary: ffmpeg argument construction for single and chunked series clips, encoder
@@ -71,7 +52,7 @@ Generate PNG frames at the planned positions.
 
 - Serves: `media-previews` -- [Position modes](../openspec/stage-2-previews/previews.md#position-modes)
 - Agent status: CLEAR
-- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); `implement-preview-planning`.
+- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); [Preview planning](records/0027-preview-implement-preview-planning.md).
 - User-visible outcome: `--image start|middle|end|series` produces `-imgNN.png` frames at the
   clamped resolution.
 - Scope boundary: Frame extraction arguments, compression mapping, PNG validation with
