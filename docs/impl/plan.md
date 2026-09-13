@@ -27,28 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Video restore -- `video-restore`
 
-#### implement-video-restore
-
-Return videos from the video archive to the main archive with the specified directory, conflict,
-stub and registry policies.
-
-- Serves: `video-restore` -- [Restore](../openspec/stage-1-core/split-restore.md#restore)
-- Agent status: CLEAR
-- Dependencies: [Stubs and video registry](records/0019-split-implement-stubs-and-video-registry.md).
-- User-visible outcome: `arxgo restore` moves or copies videos back, skips or recreates missing
-  directories, deletes or keeps matching stubs, updates registries, and resumes after a crash.
-- Scope boundary: Restore phases, recovery resolver, registry matching, `--create-dirs`,
-  `--overwrite`, `--stubs`, `--registry-update`, empty video-archive directory cleanup. `--previews`
-  stays reserved until stage 2.
-- Data and artifact paths: `internal/archive/restore.go`, `internal/archive/restore_recovery.go`.
-- Execution path: Reuses the split transaction engine with swapped roots and restore steps.
-- Acceptance gates: Split-then-restore round trip reproduces paths, sizes, mtimes and SHA-256;
-  missing directory skipped by default and recreated with the flag; conflict skipped vs
-  overwritten; foreign stub never deleted; `--transfer copy` keeps the video archive copy; crash
-  injection converges; rerun is a no-op.
-- Documentation target: `docs/impl/current/video-restore.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### review-stage-1-integrity
 
 Review stage-1 cross-module invariants before the stage proof and before stage 2 builds on them.
@@ -57,7 +35,8 @@ Review stage-1 cross-module invariants before the stage proof and before stage 2
 - Agent status: CLEAR
 - Task kind: checkpoint
 - Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md);
-  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md); `implement-video-restore`;
+  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md);
+  [Video restore](records/0020-restore-implement-video-restore.md);
   [ffprobe metadata](records/0016-metadata-implement-ffprobe-metadata.md).
 - User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
   contracts, lock and preflight agree across scan, split and restore.

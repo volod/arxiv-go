@@ -29,7 +29,11 @@ type forcedOtherDevice struct{ fsops.Ops }
 func (forcedOtherDevice) SameDevice(string, string) (bool, error) { return false, nil }
 
 func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, c SplitConfig) (string, error) {
-	if mode == state.TransferRename {
+	return placeVideo(ctx, s, w, rec, mode, c.Verify, false, c.StageCopy)
+}
+
+func placeVideo(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, verify fsops.VerifyMode, overwrite bool, stage func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)) (string, error) {
+	if mode == state.TransferRename && !overwrite {
 		fi, err := os.Lstat(rec.Src)
 		if err != nil || !fi.Mode().IsRegular() || fi.Size() != rec.Size || !fi.ModTime().Equal(rec.Mtime) {
 			return "", fsops.ErrSourceChanged
@@ -39,12 +43,11 @@ func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record,
 		}
 		return "", hitSplit(s.cfg.Crash, "fs:place")
 	}
-	stage := c.StageCopy
 	if stage == nil {
 		stage = fsops.StageCopy
 	}
 	res, err := stage(ctx, rec.Src, rec.Dst, fsops.CopyOptions{
-		Verify: c.Verify, ExpectSize: rec.Size, ExpectModTime: rec.Mtime,
+		Verify: verify, Overwrite: overwrite, ExpectSize: rec.Size, ExpectModTime: rec.Mtime,
 	})
 	if err != nil {
 		return "", err
@@ -58,10 +61,34 @@ func placeSplit(ctx context.Context, s *Session, w *state.WAL, rec state.Record,
 	if _, err := w.Append(rec.TxID, state.StepVerified, state.Record{SHA256: res.SHA256}); err != nil {
 		return "", err
 	}
-	if err := renamePlaced(s, fsops.PartPath(rec.Dst), rec.Dst, rec.Size); err != nil {
+	part := fsops.PartPath(rec.Dst)
+	if overwrite {
+		if err := replacePlaced(s, part, rec.Dst, rec.Size); err != nil {
+			return "", err
+		}
+	} else if err := renamePlaced(s, part, rec.Dst, rec.Size); err != nil {
 		return "", err
 	}
 	return res.SHA256, hitSplit(s.cfg.Crash, "fs:place")
+}
+
+// replacePlaced moves oldpath onto dst, replacing an existing file. A directory-flush
+// failure after the replace is already placed.
+func replacePlaced(s *Session, oldpath, dst string, size int64) error {
+	err := s.cfg.FS.Replace(oldpath, dst)
+	if err == nil {
+		return nil
+	}
+	var le *os.LinkError
+	if errors.As(err, &le) {
+		return err
+	}
+	fi, st := os.Lstat(dst)
+	if st != nil || !fi.Mode().IsRegular() || fi.Size() != size {
+		return err
+	}
+	s.Log.Warn("destination placed but directory flush failed; continuing", "dst", dst, "error", err)
+	return nil
 }
 
 // renamePlaced moves oldpath to dst. A directory-flush failure after the rename is already

@@ -158,7 +158,7 @@ acceptance evidence exist. Registry order is the implementation line followed by
 | 3 | `archive-registry` | 1 | shipped | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Current](../impl/current/archive-registry.md) |
 | 4 | `media-metadata` | 1 | shipped | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Current](../impl/current/media-metadata.md) |
 | 5 | `video-split` | 1 | shipped | Byte-identical videos in mirrored tree, stubs, registries, same/cross-device paths, idempotent rerun | [Current](../impl/current/video-split.md) |
-| 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Open work](../impl/plan.md#video-restore----video-restore) |
+| 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Current](../impl/current/video-restore.md) |
 | 7 | `media-previews` | 2 | planned | Sample/frame count, duration, resolution clamp, naming and restore cleanup on generated fixtures | [Open work](../impl/plan.md#media-previews----media-previews) |
 | 8 | `cloud-publishing` | 3 | planned | Resumable upload, link rewrite and idempotent re-publish against recorded API fixtures and a test tenant | [Open work](../impl/plan.md#cloud-publishing----cloud-publishing) |
 

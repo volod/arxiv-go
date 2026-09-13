@@ -14,7 +14,7 @@ arxiv-go/
 |   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
 |   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go
-|   |-- archive/                 session.go, session_state.go, resume.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, restore.go
+|   |-- archive/                 session.go, session_state.go, resume.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
 |   |-- report/                  csv.go, csv_read.go (file registry); markdown.go, frontmatter.go, names.go, videos.go, summary.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
@@ -90,7 +90,9 @@ flowchart LR
 | 5. Execute | candidate list | videos, stubs, WAL | committed transaction set |
 | 6. Report | WAL, candidate list | `arxgo-videos.csv`, `arxgo-videos.md` | regenerate from WAL |
 
-Restore uses the same phases with the roots swapped for scanning (it scans the video archive).
+Restore uses the same phases with the roots swapped for scanning (it scans the video archive;
+the file registry for that scan stays in the run directory). Phase 5 uses `stub_removed` instead
+of `stubbed`. Phase 6 marks matching video-registry rows `restored`.
 `scan` runs phases 1-3 only and takes only the archive lock (exclusive, since it writes the
 registry); its free-space preflight runs before traversal. Within phase 3 the walker feeds a
 bounded detection worker pool and a writer that takes entries back in walk order, so the registry,

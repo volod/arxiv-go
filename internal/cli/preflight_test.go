@@ -37,7 +37,7 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 		{[]string{"split", "--archive", arc, "--video-archive", video, "--transfer", "copy", "--min-free", "2GiB"},
 			archive.PreflightOptions{Transfer: "copy", MinFree: 2 << 30}, "", ExitOK},
 		{[]string{"restore", "--archive", arc, "--video-archive", video},
-			archive.PreflightOptions{Transfer: "auto", MinFree: 1 << 30}, "", ExitNotImplemented},
+			archive.PreflightOptions{Transfer: "auto", MinFree: 1 << 30}, "", ExitOK},
 		{[]string{"scan", "--archive", arc, "--metadata", "media", "--registry", registry, "--min-free", "0"},
 			archive.PreflightOptions{Metadata: "media"}, registry, ExitOK},
 	}

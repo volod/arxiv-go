@@ -98,3 +98,27 @@ func TestFileMetadataOmitsZeroTime(t *testing.T) {
 		t.Errorf("metadata = %+v", m)
 	}
 }
+
+func TestMarkRestoredAndHasMoved(t *testing.T) {
+	rows := []VideoRow{
+		{RelPath: "a.mp4", VideoRelPath: "a.mp4", Status: StatusMoved, RunID: "old"},
+		{RelPath: "b.mp4", VideoRelPath: "v/b.mp4", Status: StatusMoved},
+		{RelPath: "c.mp4", Status: StatusConflict},
+	}
+	got := MarkRestored(rows, map[string]struct{}{"a.mp4": {}, "v/b.mp4": {}}, "new")
+	if got[0].Status != StatusRestored || got[0].RunID != "new" {
+		t.Fatalf("a = %+v", got[0])
+	}
+	if got[1].Status != StatusRestored {
+		t.Fatalf("b = %+v", got[1])
+	}
+	if got[2].Status != StatusConflict {
+		t.Fatalf("c = %+v", got[2])
+	}
+	if HasMoved(got) {
+		t.Fatal("HasMoved after marking a and b")
+	}
+	if !HasMoved(rows) {
+		t.Fatal("original still has moved")
+	}
+}

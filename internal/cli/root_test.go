@@ -46,7 +46,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
 		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},
 		{"split", append([]string{"split"}, roots...), ExitOK, "", "op=split"},
-		{"restore", append([]string{"restore"}, roots...), ExitNotImplemented, "", "op=restore"},
+		{"restore", append([]string{"restore"}, roots...), ExitOK, "", "scan summary"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

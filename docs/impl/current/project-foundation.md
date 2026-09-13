@@ -15,11 +15,13 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
   [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
-  [video transactions, stubs and video registry](video-split.md), while `restore` exits 70. The version string is stamped
+  [video transactions, stubs and video registry](video-split.md); `restore` runs
+  [video restore](video-restore.md). The version string is stamped
   with `-ldflags -X`.
 - `internal/media` is described in [media metadata](media-metadata.md); `internal/scanner` and
   `internal/report` are described in [archive registry](archive-registry.md) and
-  [video split](video-split.md); `internal/fsops`, `internal/state` and `internal/archive` are
+  [video split](video-split.md); restore is described in [video restore](video-restore.md);
+  `internal/fsops`, `internal/state` and `internal/archive` are
   described in [crash safety](crash-safety.md).
 
 ## CLI

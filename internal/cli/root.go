@@ -92,7 +92,25 @@ var defaultHandlers = Handlers{
 		d.Common = definingCommon(o.Common)
 		cfg := sessionConfig(OpRestore, o.Common, o, d)
 		cfg.Preflight.Transfer = o.Transfer
-		return runSession(ctx, cfg, log, notImplemented)
+		verify := fsops.VerifySize
+		if o.Verify == VerifyHash {
+			verify = fsops.VerifyHash
+		}
+		keepStubs := o.Stubs == StubsKeep
+		keepSource := o.Transfer == TransferCopy
+		resolver := archive.NewRestoreResolver(archive.RestoreResolver{
+			Verify: verify, KeepStubs: keepStubs, KeepSource: keepSource, Archive: o.Archive,
+		})
+		cfg.Recoverer = resolver
+		return runSession(ctx, cfg, log, archive.RestoreBody(archive.RestoreConfig{
+			Scan: archive.ScanConfig{
+				Root: o.VideoArchive, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
+				SkipPaths: []string{o.Archive},
+			},
+			Transfer: o.Transfer, Verify: verify,
+			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
+			KeepStubs: keepStubs, KeepSource: keepSource,
+		}))
 	},
 }
 

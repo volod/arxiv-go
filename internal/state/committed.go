@@ -47,3 +47,17 @@ func (s *CommittedSet) Len() int {
 	defer s.mu.RUnlock()
 	return len(s.m)
 }
+
+// Paths returns a copy of the committed rel_path set.
+func (s *CommittedSet) Paths() map[string]struct{} {
+	out := make(map[string]struct{})
+	if s == nil {
+		return out
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for p := range s.m {
+		out[p] = struct{}{}
+	}
+	return out
+}

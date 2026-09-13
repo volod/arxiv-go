@@ -193,6 +193,36 @@ func overlayVideoRow(old, in VideoRow) VideoRow {
 	return in
 }
 
+// MarkRestored sets status=restored and run_id on rows whose rel_path or
+// video_rel_path is in rels. Other columns are left unchanged.
+func MarkRestored(rows []VideoRow, rels map[string]struct{}, runID string) []VideoRow {
+	out := append([]VideoRow(nil), rows...)
+	for i, r := range out {
+		_, hit := rels[r.RelPath]
+		if !hit {
+			_, hit = rels[r.VideoRelPath]
+		}
+		if !hit {
+			continue
+		}
+		out[i].Status = StatusRestored
+		if runID != "" {
+			out[i].RunID = runID
+		}
+	}
+	return out
+}
+
+// HasMoved reports whether any row still has status moved.
+func HasMoved(rows []VideoRow) bool {
+	for _, r := range rows {
+		if r.Status == StatusMoved {
+			return true
+		}
+	}
+	return false
+}
+
 func sortVideoRows(rows []VideoRow) {
 	slices.SortFunc(rows, func(a, b VideoRow) int {
 		return scanner.Compare(scanner.KeyOf(a.RelPath), scanner.KeyOf(b.RelPath))

@@ -23,12 +23,13 @@ const DirName = ".arxgo"
 
 // Files inside a run directory.
 const (
-	OptionsFile    = "options.json"
-	CheckpointFile = "checkpoint.json"
-	WALFile        = "wal.jsonl"
-	CandidatesFile = "candidates.jsonl"
-	ReportFile     = "report.json"
-	LogFile        = "run.log.jsonl"
+	OptionsFile      = "options.json"
+	CheckpointFile   = "checkpoint.json"
+	WALFile          = "wal.jsonl"
+	CandidatesFile   = "candidates.jsonl"
+	ScanRegistryFile = "scan-registry.csv" // restore: scan of the video archive stays in the run dir
+	ReportFile       = "report.json"
+	LogFile          = "run.log.jsonl"
 )
 
 const (
