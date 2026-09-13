@@ -1,11 +1,28 @@
 # Media Metadata
 
 Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-discovery.md),
-[0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md).
+[0014 Shell-free discovery tests](../records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
+[0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
-planned: ISO BMFF and ffprobe parsing remain in the
-[plan](../plan.md#media-metadata----media-metadata), so `--metadata media` still writes file
-metadata only, but it now requires a working `ffprobe`.
+planned: ffprobe parsing for other containers remains in the
+[plan](../plan.md#media-metadata----media-metadata). `--metadata media` still requires a working
+`ffprobe` at startup, even for a scan containing only ISO BMFF files; ISO BMFF file parsing itself
+does not invoke it.
+
+## ISO BMFF metadata (`internal/media`)
+
+`scan --metadata media` reads detected MP4, MOV, M4A, M4V and 3GP files with `go-mp4` and adds
+`metadata.media` to their registry rows. The normalized object contains container, duration,
+estimated bit rate, first video stream's display dimensions and rotation, frame rate, codecs,
+stream counts, audio presence, creation time and selected text tags. Unknown sample-entry codecs
+remain as four-character codes. The box walk skips `mdat`, limits metadata reads to 32 MiB and
+individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. It reads fragment
+duration from `mehd` or summed fragments, including `trex` defaults and fragments before `moov`.
+
+A successful parse with no video track clears `is_video` before statistics and the candidate list
+are written, including for audio-only `.mp4`. A malformed or truncated file gets a
+`metadata.media.error`; scanning continues and retains the original MIME-based video flag. The
+ffprobe fallback for parse failures belongs to the remaining ffprobe task.
 
 ## Tool discovery (`internal/media`)
 
@@ -61,3 +78,8 @@ file on Linux. No test writes a fake ffprobe/ffmpeg executable or runs a shell s
 reason otherwise. Linux tests and `make ci` pass; Windows behavior is cross-compiled and vetted,
 with runtime step W6 still deferred in the
 [Windows verification scenario](../../guide/windows-verification.md).
+
+Generated ISO BMFF fixtures cover video plus audio, audio-only `.mp4` and M4A, rotated MOV, late
+`moov`, fragmented duration, tags, corrupt boxes and a sparse 1 GiB `mdat` for the read bound. A
+live MP4 fixture uses ffmpeg when installed and skips with a reason otherwise. Scan integration
+checks the JSON, non-fatal errors, audio-only classification and candidate list.

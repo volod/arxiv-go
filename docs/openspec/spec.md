@@ -108,6 +108,7 @@ Runtime dependencies must be pure Go and statically linkable. Approved candidate
 | --- | --- | --- |
 | [`github.com/gabriel-vasile/mimetype`](https://github.com/gabriel-vasile/mimetype) | Signature-based MIME detection with text/binary hierarchy | 1 |
 | [`github.com/abema/go-mp4`](https://github.com/abema/go-mp4) | ISO BMFF (MP4, M4A, M4V, MOV, 3GP) box parsing | 1 |
+| [`github.com/google/uuid`](https://github.com/google/uuid) | Pure-Go indirect dependency of `go-mp4` | 1 |
 | [`golang.org/x/sys`](https://pkg.go.dev/golang.org/x/sys) | Free-space and device identity syscalls | 1 |
 | [`github.com/joho/godotenv`](https://github.com/joho/godotenv) | Parse the optional `.env` file next to the executable ([environment file](stage-1-core/cli.md#environment-file)) | 1 |
 | `golang.org/x/oauth2` | OAuth 2.0 token flows for cloud targets | 3 |

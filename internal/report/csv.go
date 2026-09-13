@@ -11,6 +11,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/volod/arxiv-go/internal/media"
 )
 
 // RegistryHeader is the fixed column order of the file registry; see
@@ -25,10 +27,11 @@ const MetadataVersion = 1
 
 // Metadata is the metadata column. Keys with zero values are omitted.
 type Metadata struct {
-	V          int    `json:"v"`
-	MTime      string `json:"mtime,omitempty"`
-	Mode       string `json:"mode,omitempty"`
-	LinkTarget string `json:"link_target,omitempty"`
+	V          int              `json:"v"`
+	MTime      string           `json:"mtime,omitempty"`
+	Mode       string           `json:"mode,omitempty"`
+	LinkTarget string           `json:"link_target,omitempty"`
+	Media      *media.MediaInfo `json:"media,omitempty"`
 }
 
 // FileMetadata returns the file-mode metadata for a modification time and mode.

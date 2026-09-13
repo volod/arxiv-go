@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/volod/arxiv-go/internal/media"
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
@@ -15,11 +16,12 @@ import (
 
 // scanItem is one walked entry travelling from the walker through detection to the writer.
 type scanItem struct {
-	e    scanner.Entry
-	ft   scanner.FileType
-	link string
-	err  error         // detection or readlink error
-	done chan struct{} // closed when detection finished; nil when the entry needs none
+	e     scanner.Entry
+	ft    scanner.FileType
+	media *media.MediaInfo
+	link  string
+	err   error         // detection or readlink error
+	done  chan struct{} // closed when detection finished; nil when the entry needs none
 }
 
 // pipeline walks the root in order, detects file types on a bounded worker pool and writes rows in
@@ -97,6 +99,9 @@ func (r *scanRun) inspect(ctx context.Context, it *scanItem) {
 	switch it.e.Kind {
 	case scanner.KindFile:
 		it.ft, it.err = scanner.Detect(it.e.Path, it.e.Info.Size(), r.detect)
+		if it.err == nil && r.cfg.Metadata == "media" && media.IsISOBMFF(it.ft.MIME) {
+			it.media = media.ReadISO(ctx, it.e.Path, it.ft.MIME)
+		}
 	case scanner.KindSymlink:
 		it.link, it.err = os.Readlink(it.e.Path)
 	}
@@ -165,13 +170,22 @@ func (r *scanRun) write(it *scanItem) error {
 		return nil
 	}
 	size, ft := e.Info.Size(), it.ft
+	if it.media != nil {
+		if it.media.Error != "" {
+			r.s.Log.Warn("media metadata unavailable", "rel_path", e.Rel, "error", it.media.Error)
+		} else if it.media.VideoStreams == 0 {
+			ft.IsVideo = false
+		}
+	}
 	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Large: ft.IsLarge})
 	r.s.Stats.Files.Add(1)
 	r.s.Stats.Bytes.Add(size)
+	meta := report.FileMetadata(e.Info.ModTime(), e.Info.Mode())
+	meta.Media = it.media
 	row := report.RegistryRow{
 		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: size, FileType: ft.Type, FileMIME: ft.MIME,
 		IsBinary: ft.IsBinary, IsMedia: ft.IsMedia, IsPicture: ft.IsPicture, IsVideo: ft.IsVideo, IsLarge: ft.IsLarge,
-		Metadata: report.FileMetadata(e.Info.ModTime(), e.Info.Mode()),
+		Metadata: meta,
 	}
 	if err := r.reg.Write(row); err != nil {
 		return err

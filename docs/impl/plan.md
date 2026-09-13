@@ -27,29 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media metadata -- `media-metadata`
 
-#### implement-iso-bmff-metadata
-
-Read MP4/MOV/M4A container and stream metadata in pure Go.
-
-- Serves: `media-metadata` -- [ISO BMFF parser](../openspec/stage-1-core/metadata.md#iso-bmff-parser)
-- Agent status: CLEAR
-- Dependencies: [Scan operation and CSV registry](records/0012-registry-implement-scan-operation-and-csv-registry.md).
-- User-visible outcome: `arxgo scan --metadata media` fills duration, resolution, codecs, audio
-  presence and tags for ISO BMFF files without any external tool, and audio-only MP4 files are not
-  flagged as video.
-- Scope boundary: Normalized `MediaInfo` type and JSON, `github.com/abema/go-mp4` probe, codec
-  fourcc mapping, rotation, fragmented files, tags, non-fatal errors, registry integration and the
-  `is_video` refinement.
-- Data and artifact paths: `internal/media/metadata.go`, `internal/media/isobmff.go`,
-  `internal/media/testmp4/` (box builder test helper); `go.mod`, `go.sum`.
-- Execution path: `mp4.Probe` plus targeted `ReadBoxStructure` for `udta/meta/ilst` and `tkhd`
-  matrices.
-- Acceptance gates: Generated fixtures: video+audio, audio-only `.mp4`, M4A, MOV with rotation
-  matrix, `moov` at end, fragmented with `mehd`, truncated/corrupt box -> `error` field and scan
-  continues; parse reads a bounded number of bytes regardless of `mdat` size.
-- Documentation target: `docs/impl/current/media-metadata.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-ffprobe-metadata
 
 Read metadata for other containers through ffprobe JSON output.
@@ -57,7 +34,7 @@ Read metadata for other containers through ffprobe JSON output.
 - Serves: `media-metadata` -- [ffprobe parser](../openspec/stage-1-core/metadata.md#ffprobe-parser)
 - Agent status: CLEAR
 - Dependencies: [Tool discovery](records/0013-metadata-implement-tool-discovery.md);
-  `implement-iso-bmff-metadata`.
+  [ISO BMFF metadata](records/0015-metadata-implement-iso-bmff-metadata.md).
 - User-visible outcome: Matroska, WebM, AVI, MPEG-TS and other media get the same metadata fields
   as MP4 when ffprobe is available; ISO BMFF parse failures fall back to ffprobe.
 - Scope boundary: `exec.CommandContext` invocation, timeout, output limit, typed JSON decode,
@@ -91,7 +68,9 @@ Move every video into the mirrored video archive as a write-ahead-logged transac
 - Data and artifact paths: `internal/archive/split.go`, `internal/archive/split_recovery.go`.
 - Execution path: Candidate iterator from the scan run, per-candidate transaction using `fsops` and
   `state`, crash-injection tests through `state/crashtest`, cross-device simulated by an injected
-  device function.
+  device function. Ensure that if the source archive path ARXGO_ARCHIVE and the target video archive
+  path ARXGO_VIDEO_ARCHIVE reside on the same physical device, we use strict move semantics rather
+  than copy-and-delete. In this case, we will not overload storage by copying gigabytes of data.
 - Acceptance gates: Byte-identical videos at mirrored paths; non-video media untouched; crash
   injection after every step on both transfer paths converges; adopted identical destination;
   conflicting destination skipped with exit 6; source modified mid-copy aborted and retried;
