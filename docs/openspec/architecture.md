@@ -13,8 +13,8 @@ arxiv-go/
 |   |-- scanner/                 walker.go (traversal), mimetype.go (detection and flags)
 |   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   lock.go, checkpoint.go, wal.go, recovery
-|   |-- archive/                 split.go, restore.go, preflight.go, progress.go
+|   |-- state/                   rundir.go, lock.go, checkpoint.go, report.go, runlog.go; wal.go, recovery
+|   |-- archive/                 session.go (run lifecycle), progress.go; split.go, restore.go, preflight.go
 |   |-- report/                  csv.go, markdown.go, summary
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
@@ -51,7 +51,10 @@ Rules:
   `Options` value down. Domain packages never call `os.Exit` or print to stdout.
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
 - `media` is the only package that runs external processes.
-- `fsops` is the only package with build-tagged platform files.
+- `fsops` is the only package with build-tagged platform files; it also holds the process liveness
+  check used by the run lock.
+- `cli` maps validated options onto `archive.Config` and exit codes onto `archive.Status`; it does
+  not import `state` directly.
 - All long-running functions accept a `context.Context`; cancellation (Ctrl+C) stops at the next
   transaction boundary after writing a checkpoint.
 
@@ -83,7 +86,8 @@ flowchart LR
 | 6. Report | WAL, candidate list | `arxgo-videos.csv`, `arxgo-videos.md` | regenerate from WAL |
 
 Restore uses the same phases with the roots swapped for scanning (it scans the video archive).
-`scan` runs phases 1-3 only and takes a shared read lock.
+`scan` runs phases 1-3 only and takes only the archive lock (exclusive, since it writes the
+registry).
 
 ## Transaction state machine
 

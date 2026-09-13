@@ -1,7 +1,7 @@
 # Data contracts
 
 Owners: `archive-registry` (file registry), `video-split` (video registry, stub, summary),
-`crash-safety` (WAL, checkpoint). A change to any format increments its version field or `format`
+`crash-safety` (run lock, run options, WAL, checkpoint, run report). A change to any format increments its version field or `format`
 column value and is a spec amendment.
 
 All text outputs are UTF-8 without BOM, `\n` line endings on every platform, paths relative to the
@@ -140,12 +140,67 @@ links.
 Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on `verified`,
 `stub` on `stubbed`, `reason` on `aborted`). Records are shown wrapped here; on disk each is one line.
 
+## Run lock
+
+`<root>/.arxgo/lock`, one JSON object and a newline, created with `O_CREATE|O_EXCL`:
+
+```json
+{"v":1,"run_id":"20260913T101500Z-1a2b3c4d","pid":48213,"host":"archive-host",
+ "started_at":"2026-09-13T10:15:00Z","op":"split","role":"archive",
+ "root":"/data/archive","peer":"/mnt/nas/video"}
+```
+
+`role` is `archive` in the archive root and `mirror` in the video archive root, where `peer` names
+the owning archive. `scan` omits `peer`. A lock without `v` 1, `run_id`, a positive `pid` and `host`
+is unreadable.
+
+## Run options
+
+`options.json` in the run directory, written once when the run is created:
+
+```json
+{"v":1,"run_id":"20260913T101500Z-1a2b3c4d","op":"split","version":"v1.0.0",
+ "created_at":"2026-09-13T10:15:00Z","archive":"/data/archive","video_archive":"/mnt/nas/video",
+ "defining":{"...":"..."},"options":{"...":"..."}}
+```
+
+`options` holds every validated option and `defining` the subset compared for resume (see
+[integrity](integrity.md#state-layout)); both use the Go field names of the validated option
+types, durations in nanoseconds and sizes in bytes. `dry_run` is present only for dry runs.
+
 ## Checkpoint
 
 ```json
 {"v":1,"run_id":"20260913T101500Z-1a2b3c4d","op":"split","phase":"execute",
  "scan_cursor":["projects","2024","zeta.pdf"],"registry_offset":81234567,
  "candidate_index":42,"wal_offset":18233,"counters":{"files":1203344,"bytes":4012345678901,
- "videos_done":41,"videos_skipped":1,"videos_failed":0},"elapsed_s":5234.2,
+ "videos_done":41,"videos_skipped":1,"videos_failed":0,"video_bytes":30000000000,
+ "archive_bytes_written":164000,"video_archive_bytes_written":30000000000,
+ "archive_bytes_freed":30000000000},"elapsed_s":5234.2,
  "written_at":"2026-09-13T11:44:54Z"}
 ```
+
+`phase` is `start` until the operation enters its first phase. `scan_cursor` is omitted when
+empty. `video_bytes` (bytes of handled videos) and the per-root `*_bytes_written`/`*_bytes_freed`
+counters are omitted when zero. `elapsed_s` accumulates across resumed processes.
+
+## Run report
+
+`report.json` in the run directory; its presence marks the run complete:
+
+```json
+{"v":1,"run_id":"20260913T101500Z-1a2b3c4d","op":"split","version":"v1.0.0",
+ "status":"partial","resumed":true,"started_at":"2026-09-13T12:00:00Z",
+ "finished_at":"2026-09-13T13:10:00Z","wall_s":4200.0,"counters":{"files":1203344,"...":0},
+ "phases":[{"name":"execute","started_at":"2026-09-13T12:00:02Z","wall_s":4190.1,
+ "counters":{"videos_done":40,"...":0}}],
+ "roots":[{"root":"/data/archive","bytes_written":164000,"bytes_freed":30000000000},
+ {"root":"/mnt/nas/video","bytes_written":30000000000,"bytes_freed":0}],
+ "issues":[{"kind":"skipped","rel_path":"projects/a.mp4","reason":"destination exists"}]}
+```
+
+`status` is `completed`, `partial` (skipped or failed items) or `not_implemented`; a dry run that
+was interrupted or failed also writes `interrupted` or `failed`. `dry_run` and `resumed` are present
+only when true. `issues` keeps the first 10000 items and `issues_omitted` counts the rest; the run
+log lists every issue. Phase times and counters cover the process that wrote the report
+(`started_at` is that process's start); `counters` are cumulative for the run.

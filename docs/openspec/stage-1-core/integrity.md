@@ -27,18 +27,41 @@ operator must be able to rerun the same command to continue.
 `-- lock                         mirror lock naming the owning archive run
 ```
 
-`<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>`. Run directories are kept; a later cleanup flag may prune
-them.
+`<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` (UTC). Run directories are kept; a later cleanup flag may
+prune them. Formats of `lock`, `options.json`, `checkpoint.json` and `report.json` are in
+[contracts](contracts.md#run-lock).
+
+A run is complete when its `report.json` exists. Starting an operation (after taking the lock)
+resumes the run named in `current` when that run is incomplete, has the same operation and the
+same defining options (the roots and operation flags; not logging, progress, checkpoint cadence,
+`--min-free`, `--dry-run`, `--new-run` or `--force-unlock`). Otherwise a new run directory is
+created and `current` points at it; an incomplete run with different options is left in place with
+a warning. `--dry-run` always creates its own run directory, never resumes and never changes
+`current`, so it cannot hide an interrupted real run from recovery.
 
 ## Run lock
 
 - Created with `O_CREATE|O_EXCL` in both roots before any mutation; `scan` takes only the archive
   lock.
 - A second process finding the lock exits 5 and prints the owner.
-- A lock whose `host` equals this host and whose `pid` is not alive is stale; the process exits 5
-  with instructions unless `--force-unlock` is given. Locks from another host are never taken over
-  automatically (network shares).
-- The lock is removed on normal exit, on exit 3/4/6, and on interrupt after the checkpoint.
+- The archive lock is taken first, then the mirror lock; when the mirror lock is refused, the archive
+  lock is released again and nothing else is written. `split` creates a missing video archive root
+  after taking the archive lock (not in `--dry-run`, which then skips the mirror lock).
+- A lock whose `host` equals this host (case-insensitive) and whose `pid` is not alive is stale; a
+  lock naming the current process's own pid is also stale (pid reuse, for example pid 1 in a
+  container). The process exits 5 with instructions unless `--force-unlock` is given. Liveness is
+  `kill(pid, 0)` on Unix and `OpenProcess` + `GetExitCodeProcess` on Windows. Locks from another
+  host are never taken over, even with `--force-unlock` (network shares): the operator deletes the
+  file once that run is known to be stopped.
+- An empty or undecodable lock (a crash between create and write) is re-read briefly, then exits 5
+  as unreadable; `--force-unlock` replaces it.
+- A takeover moves the judged lock aside under a unique `lock.<hex>.arxgo-part` name, checks that it
+  moved exactly the bytes it judged (otherwise it puts the lock back and retries), removes it and
+  creates its own lock with `O_EXCL`.
+- Every checkpoint verifies that both lock files still name this run; a removed or replaced lock
+  stops the run with exit 5 and nothing more is written into the run directory.
+- The lock is removed on every exit the process controls (0, 1, 3, 4, 6, 70, and 130 after the
+  checkpoint), except exit 5 for lost locks or state that needs operator action.
 
 ## Write-ahead log
 
@@ -74,8 +97,9 @@ instead.
 
 ## Checkpoints
 
-- Written every `--checkpoint-every` processed files or `--checkpoint-interval`, whichever comes
-  first, at phase boundaries, and on interrupt.
+- Written when a run starts, every `--checkpoint-every` processed files or `--checkpoint-interval`,
+  whichever comes first, at phase boundaries, and when the run ends (including interrupt and
+  failure).
 - Written atomically with `fsops.AtomicWriteFile`: `checkpoint.json.arxgo-part`, fsync, rename,
   fsync directory. A leftover part file is ignored and replaced.
 - Contents: run id, phase, scan cursor (walk order key of the last fully processed entry), registry
@@ -117,8 +141,17 @@ Resume recomputes preflight from the remaining candidates only.
   the total is unknown.
 - `debug` level logs each transaction step; `info` logs one line per completed video only when the
   video is larger than `--large-threshold`.
+- Scan-style phases (unknown total) log `phase=scan entries=5000 bytes=3.0GiB rate="2500 entries/s"`.
+  The rate covers the window since the previous line; the ETA extrapolates the phase average over
+  the remaining bytes (items when the byte total is unknown).
 - `report.json` and the final log line hold totals per phase, skipped/failed items with reasons,
-  per-device bytes written and freed, and wall time.
+  bytes written and freed per root, and wall time. `report.json` is written when a run completes
+  (exit 0 or 6, or 70 while an operation is not implemented) and for every dry run; an interrupted
+  or failed run has none and is resumed. Per-phase figures cover the process that wrote the report;
+  the counters are cumulative across resumed processes.
+- `run.log.jsonl` receives records at `info` and above (or `debug` with `--log-level debug`) as JSON
+  Lines with UTC times, whatever the console level and format. It is appended on resume (a torn
+  last line is terminated first) and flushed at phase boundaries and at the end of the run.
 - SIGINT/SIGTERM (Ctrl+C / console close on Windows) cancels the context; the current transaction
   finishes its current step, a checkpoint is written, and the process exits 130. A second signal
   exits immediately; recovery handles the rest.

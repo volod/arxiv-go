@@ -18,7 +18,8 @@ starting.
 Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
-> Status: repository scaffold. Operations are specified and planned but not implemented yet.
+> Status: stage 1 in progress. Operations take a run lock and write checkpoints, then exit 70
+> until scan, split and restore land.
 
 ```bash
 arxgo --archive /data/archive

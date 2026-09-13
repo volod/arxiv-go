@@ -56,3 +56,8 @@ func syncParents(oldpath, newpath string) error {
 	}
 	return nil
 }
+
+// SyncDir flushes the entries of dir so that files created or removed in it
+// survive a crash. It is a no-op on Windows, and filesystems that cannot
+// flush a directory are tolerated.
+func SyncDir(dir string) error { return syncDir(dir) }

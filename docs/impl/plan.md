@@ -20,38 +20,13 @@ change; `make ci` must pass.
 
 ### Crash safety -- `crash-safety`
 
-#### implement-run-lock-and-checkpoint
-
-Give every run an owned state directory, a lock that prevents concurrent mutation, periodic atomic
-checkpoints and structured run logs with progress.
-
-- Serves: `crash-safety` -- [Integrity](../openspec/stage-1-core/integrity.md#run-lock)
-- Agent status: CLEAR
-- Dependencies: [Filesystem primitives](records/0005-safety-implement-filesystem-primitives.md).
-- User-visible outcome: A second `arxgo` on the same roots exits 5 naming the owner; a stale local
-  lock needs `--force-unlock`; each run leaves `options.json`, `checkpoint.json`, `run.log.jsonl`
-  and `report.json`; progress lines appear at the configured interval.
-- Scope boundary: `.arxgo/` layout, run id, `current` pointer, lock create/verify/release in one or
-  two roots, checkpoint write/read with version field, `slog` fan-out handler (console + JSON file),
-  progress reporter with rate/ETA, report writer, interrupt checkpoint. No WAL records.
-- Data and artifact paths: `internal/state/lock.go`, `internal/state/checkpoint.go`,
-  `internal/state/rundir.go`, `internal/archive/progress.go`.
-- Execution path: `O_CREATE|O_EXCL` lock files; PID liveness via `os.FindProcess`+signal 0 on Unix
-  and `OpenProcess` on Windows; checkpoint through `fsops.AtomicWriteFile`; progress driven by a
-  ticker reading atomic counters.
-- Acceptance gates: Concurrent lock attempt fails; stale lock detection with a dead PID; remote-host
-  lock never taken over; checkpoint round-trips and a torn temp file is ignored; progress throttle
-  honors the interval with an injected clock; context cancel writes a final checkpoint.
-- Documentation target: `docs/impl/current/crash-safety.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-write-ahead-log-and-recovery
 
 Journal each file transaction and recover interrupted ones by rolling forward or back.
 
 - Serves: `crash-safety` -- [Recovery](../openspec/stage-1-core/integrity.md#recovery)
 - Agent status: CLEAR
-- Dependencies: `implement-run-lock-and-checkpoint`.
+- Dependencies: [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
 - User-visible outcome: Killing `arxgo` at any moment and rerunning the same command leaves every
   file in exactly one complete location or with its original intact.
 - Scope boundary: WAL writer (append, fsync policy per step), reader with torn-tail truncation and
@@ -141,7 +116,7 @@ Wire the walker, detection and checkpoints into the resumable `scan` operation a
 - Serves: `archive-registry` -- [Registry writing](../openspec/stage-1-core/registry.md#registry-writing)
 - Agent status: CLEAR
 - Dependencies: `implement-directory-walker`; `implement-file-type-detection`;
-  `implement-run-lock-and-checkpoint`.
+  [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
 - User-visible outcome: `arxgo scan --archive PATH` writes `arxgo-registry.csv` with the specified
   columns and statistics, resumes after interruption, and exits 6 when entries were skipped.
 - Scope boundary: CSV writer with part file, offset checkpoints and final rename; `file`-mode

@@ -51,23 +51,24 @@ type Handlers struct {
 	Restore func(ctx context.Context, opts RestoreOptions, log *slog.Logger) int
 }
 
-func notImplemented(op string) func(context.Context, *slog.Logger) int {
-	return func(_ context.Context, log *slog.Logger) int {
-		log.Error("operation not implemented in this build", "op", op)
-		return ExitNotImplemented
-	}
-}
-
-// defaultHandlers is the operation table of this build.
+// defaultHandlers is the operation table of this build. Each operation runs inside a run session.
 var defaultHandlers = Handlers{
-	Scan: func(ctx context.Context, _ ScanOptions, log *slog.Logger) int {
-		return notImplemented(OpScan)(ctx, log)
+	Scan: func(ctx context.Context, o ScanOptions, log *slog.Logger) int {
+		d := o
+		d.Common = definingCommon(o.Common)
+		return runSession(ctx, sessionConfig(OpScan, o.Common, o, d), log, notImplemented)
 	},
-	Split: func(ctx context.Context, _ SplitOptions, log *slog.Logger) int {
-		return notImplemented(OpSplit)(ctx, log)
+	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
+		d := o
+		d.Common, d.CreateVideoArchive = definingCommon(o.Common), false
+		cfg := sessionConfig(OpSplit, o.Common, o, d)
+		cfg.CreateVideoArchive = o.CreateVideoArchive
+		return runSession(ctx, cfg, log, notImplemented)
 	},
-	Restore: func(ctx context.Context, _ RestoreOptions, log *slog.Logger) int {
-		return notImplemented(OpRestore)(ctx, log)
+	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
+		d := o
+		d.Common = definingCommon(o.Common)
+		return runSession(ctx, sessionConfig(OpRestore, o.Common, o, d), log, notImplemented)
 	},
 }
 
