@@ -43,7 +43,8 @@ independent and can be developed in parallel. The exact task graph is in the
 
 ## Exit criteria
 
-- `arxgo scan`, `arxgo split` and `arxgo restore` behave as specified on Linux and Windows CI.
+- `arxgo scan`, `arxgo split` and `arxgo restore` behave as specified on Linux; the Windows build
+  cross-compiles and type-checks (runtime checks: [Windows verification](../../guide/windows-verification.md), deferred).
 - Crash injection at every transaction step recovers without loss or duplication.
 - A split/restore round trip on a generated archive reproduces every path, size and SHA-256.
 - The stage checkpoint records `proceed` or `proceed-with-nonblocking-notes`.

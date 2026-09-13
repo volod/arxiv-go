@@ -1,7 +1,7 @@
 # Tests, format, vet, coverage, CI, and planning checks.
 
 ##@ Quality
-.PHONY: test test-race test-integration fmt fmt-check vet coverage ci
+.PHONY: test test-race test-integration fmt fmt-check vet vet-windows coverage ci
 test: ## Run unit tests
 	$(GO) test ./...
 
@@ -21,11 +21,14 @@ fmt-check: ## Fail when Go sources are not gofmt-formatted
 vet: ## Run go vet
 	$(GO) vet ./...
 
+vet-windows: ## Type-check all packages and tests for Windows (Windows runtime tests are not a gate)
+	GOOS=windows GOARCH=amd64 $(GO) vet ./...
+
 coverage: ## Write a diagnostic coverage report (never a gate)
 	$(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out | tail -n 1
 
-ci: fmt-check vet test build-all lint-spec-plan lint-doc-links ## Required checks before accepting a task
+ci: fmt-check vet vet-windows test build-all lint-spec-plan lint-doc-links ## Required checks before accepting a task
 
 ##@ Planning
 .PHONY: lint-spec-plan lint-doc-links plan-status

@@ -158,7 +158,8 @@ level=INFO msg="preflight passed" op=split devices=2
 
 ## Limits
 
-- Windows behavior is cross-compiled only; the CI Windows test job has not run it yet.
+- Windows behavior is implemented, cross-compiled and vetted only; test gates are Linux only and
+  host checks are in the deferred [Windows verification scenario](../../guide/windows-verification.md).
 - Preflight is not called by any operation yet: `scan`, `split` and `restore` have no candidate list
   in this build and still exit 70. The scan and split/restore tasks call `Session.Preflight`.
 - `DurableCopy` needs the destination directory to exist and does not remove the source.

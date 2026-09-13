@@ -128,6 +128,10 @@ Recovery rules for a transaction without `commit` (full table in
 
 ## Cross-platform notes
 
+Both columns are implemented. Linux behavior is tested as a gate; the Windows column is gated only
+by cross-compilation and `make vet-windows`, and its runtime checks are listed in the deferred
+[Windows verification scenario](../guide/windows-verification.md).
+
 | Concern | Linux | Windows |
 | --- | --- | --- |
 | Same device | `stat.Dev` equality; missing paths use the nearest existing ancestor | Volume serial (`GetVolumePathName` + `GetVolumeInformation`); serial 0 also requires equal mount-point strings |

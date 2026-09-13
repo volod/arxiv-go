@@ -16,6 +16,13 @@ fixtures are generated, never committed; each new dependency is the one approved
 [dependency table](../openspec/spec.md#dependencies) and enters `go.mod`/`go.sum` in the same
 change; `make ci` must pass.
 
+Test gates: every acceptance gate, declared run and CI job below runs on Linux (amd64) only.
+Implementation still covers the Windows specifics in the specification; for Windows the gate is
+`make build-all` and `make vet-windows` (both in `make ci`). Windows-only tests may be added and
+skip on Linux, but they are not acceptance evidence. Runtime checks on a Windows host belong to the
+deferred [Windows verification scenario](../guide/windows-verification.md), which is outside this
+plan: no task waits for it, and Windows-only audit notes are routed there.
+
 ## Agent Implementation Tasks
 
 ### Archive registry -- `archive-registry`
@@ -78,10 +85,12 @@ Find `ffprobe`/`ffmpeg` next to the executable or on `PATH`, and fail fast with 
   options, platform link table, injectable search path. Stage-2 requirements are declared but only
   enforced when those flags become available.
 - Data and artifact paths: `internal/media/tools.go`, `internal/cli/`.
-- Execution path: `os.Executable` + `filepath.EvalSymlinks`, then `exec.LookPath`; fake tool scripts
-  (`.sh` / `.bat`) generated in tests.
-- Acceptance gates: Next-to-executable beats PATH; PATH-only found; missing -> exit 3 with the
-  `GOOS/GOARCH` link; non-zero `-version` treated as missing; `--metadata file` needs no tool.
+- Execution path: `os.Executable` + `filepath.EvalSymlinks`, then `exec.LookPath`; fake `.sh` tool
+  scripts generated in tests. Windows `.exe` names are implemented; the `.bat` fake-tool check is
+  step W6 of the Windows scenario.
+- Acceptance gates: On Linux: next-to-executable beats PATH; PATH-only found; missing -> exit 3
+  with the `GOOS/GOARCH` link (table-tested for `linux/amd64` and `windows/amd64`); non-zero
+  `-version` treated as missing; `--metadata file` needs no tool.
 - Documentation target: `docs/impl/current/media-metadata.md`
 - Review checkpoint: `review-stage-1-integrity`.
 
@@ -215,20 +224,23 @@ Review stage-1 cross-module invariants before the stage proof and before stage 2
 - User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
   contracts, lock and preflight agree across scan, split and restore.
 - Scope boundary: Read all stage-1 records, code and tests; trace a video through scan, split,
-  crash, recover, restore; check contract/spec drift, Windows-specific paths and error accounting.
-  Add missing behavior tests at stable seams. No speculative refactor.
+  crash, recover, restore; check contract/spec drift and error accounting; review Windows-specific
+  code paths against the spec by reading and cross-compiling (no Windows host). Add missing
+  behavior tests at stable seams. No speculative refactor.
 - Data and artifact paths: Stage-1 records, `internal/`, `docs/openspec/stage-1-core/`.
 - Execution path: Invariant-to-evidence table in the record; targeted tests; audit notes routed to
   one owner each.
-- Acceptance gates: Every incoming audit note dispositioned; refactor/no-refactor verdict and
-  `proceed`, `proceed-with-nonblocking-notes` or `blocked` recorded; blockers get separate repair
-  tasks before this checkpoint closes; `make ci` passes.
+- Acceptance gates: Every incoming audit note dispositioned, Windows-only notes as deferred to the
+  [Windows verification scenario](../guide/windows-verification.md#deferred-items) (never
+  blockers); refactor/no-refactor verdict and `proceed`, `proceed-with-nonblocking-notes` or
+  `blocked` recorded; blockers get separate repair tasks before this checkpoint closes; `make ci`
+  passes on Linux.
 - Documentation target: `docs/impl/current.md`
 - Review checkpoint: none; this is the bounded checkpoint.
 
 #### prove-stage-1-on-generated-archive
 
-Run the complete stage-1 workflow end to end on a generated archive on Linux and Windows.
+Run the complete stage-1 workflow end to end on a generated archive on Linux.
 
 - Serves: `video-restore` -- [Evaluation and acceptance](../openspec/spec.md#evaluation-and-acceptance)
 - Agent status: CLEAR
@@ -238,14 +250,16 @@ Run the complete stage-1 workflow end to end on a generated archive on Linux and
 - Scope boundary: Build the binary in a test temporary directory (so a developer's `bin/.env` is
   never read) and run it with a scrubbed `ARXGO_*` environment, generate a multi-level archive (hundreds of files,
   generated MP4 headers and optional ffmpeg clips), run operations as subprocesses, kill the split
-  process mid-run, resume, restore, compare tree manifests. Not run against operator data.
+  process mid-run, resume, restore, compare tree manifests. Not run against operator data. The
+  test stays portable (no shell, `os.Process.Kill`, `.exe` suffix from `GOOS`) so step W7 of the
+  Windows scenario can run it unchanged; running it on Windows is not part of this task.
 - Data and artifact paths: `test/integration/stage1_test.go` (build tag `integration`),
-  `make test-integration`, CI job on `ubuntu-latest` and `windows-latest`.
+  `make test-integration`, CI job on `ubuntu-latest`.
 - Execution path: `go test -tags integration ./test/integration/...`; manifest of path/size/
   mtime/SHA-256 before split and after restore.
 - Acceptance gates: Manifests equal; registries and stubs validate against contracts; process kill
   at three random points (seeded, seed logged) converges; exit codes match the contract; CI passes
-  on both operating systems.
+  on `ubuntu-latest`; `GOOS=windows go vet -tags integration ./test/integration/...` passes.
 - Documentation target: `docs/impl/current.md`
 - Review checkpoint: `review-stage-1-integrity` record addendum.
 
@@ -362,11 +376,13 @@ Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
   to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed.
 - Data and artifact paths: `packaging/`, `scripts/fetch-ffmpeg.sh`, `make/`, `Makefile`,
   `.github/workflows/release.yml`, `dist/` (ignored).
-- Execution path: Declared run: `make dist` for linux/amd64 and windows/amd64 with network access,
-  then smoke-test each bundle (`arxgo split --image start` on a generated video) on its OS.
-- Acceptance gates: Checksums verified before packaging; bundle smoke tests pass on both OSes;
-  licence files match the approved variant; checksum mismatch fails the build; no bundle contains
-  a `.env` file, even when `bin/.env` exists on the build host.
+- Execution path: Declared run on Linux: `make dist` for linux/amd64 and windows/amd64 with network
+  access, then smoke-test the Linux bundle (`arxgo split --image start` on a generated video). The
+  Windows bundle smoke test is step W8 of the Windows scenario.
+- Acceptance gates: Checksums verified before packaging; Linux bundle smoke test passes; Windows
+  bundle is built and its file list (`arxgo.exe`, `ffmpeg.exe`, `ffprobe.exe`, licences,
+  `SHA256SUMS`) is checked on Linux; licence files match the approved variant; checksum mismatch
+  fails the build; no bundle contains a `.env` file, even when `bin/.env` exists on the build host.
 - Documentation target: `docs/guide/development.md`
 - Review checkpoint: `review-stage-2-previews`.
 
@@ -380,7 +396,8 @@ Review preview integration before cloud publishing builds on the stage-2 WAL and
 - Dependencies: `integrate-previews-into-split-and-restore`; `implement-release-bundle-with-ffmpeg`.
 - User-visible outcome: Stage 2 is coherent and stage 3 can rely on its contracts.
 - Scope boundary: Preview WAL/recovery, naming/exclusion invariants, restore cleanup, bundle
-  licensing evidence, cross-platform behavior. Add missing behavior tests; no speculative refactor.
+  licensing evidence, Windows code paths by review and cross-compilation (runtime checks deferred to
+  the Windows scenario). Add missing behavior tests; no speculative refactor.
 - Data and artifact paths: Stage-2 records, `internal/media/`, `internal/archive/`.
 - Execution path: Invariant-to-evidence table, targeted tests, routed notes.
 - Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
@@ -480,7 +497,8 @@ Publish a generated video archive to real test accounts for both providers.
   redacted, remote listing) kept outside the repository.
 - Data and artifact paths: `test/integration/cloud_test.go` (build tag `cloudlive`), run evidence
   under the operator's chosen directory.
-- Execution path: `go test -tags cloudlive ./test/integration/...` with credentials present.
+- Execution path: `go test -tags cloudlive ./test/integration/...` on Linux with credentials
+  present.
 - Acceptance gates: Uploaded sizes and hashes match; interrupted upload resumes; re-publish uploads
   nothing; links open for the test account.
 - Documentation target: `docs/impl/current/cloud-publishing.md`

@@ -51,8 +51,11 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   It provides host and cross builds (`CGO_ENABLED=0`, linux/windows amd64), tests, vet, gofmt
   check, coverage report and `make ci`; see the
   [development guide](../../guide/development.md#make-targets).
-- `.github/workflows/ci.yml` runs `make ci` on Ubuntu and vet, tests and a static build on Windows
-  (`actions/checkout@v7`, `actions/setup-go@v7`, cache keyed on `go.mod`).
+- `.github/workflows/ci.yml` runs `make ci` on Ubuntu, the only CI gate (`actions/checkout@v7`,
+  `actions/setup-go@v7`, cache keyed on `go.mod`). `make ci` includes the Windows cross-build and
+  `make vet-windows`. `.github/workflows/windows.yml` (manual `workflow_dispatch`: vet, tests and a
+  static build on Windows) is step W1 of the deferred
+  [Windows verification scenario](../../guide/windows-verification.md).
 - `HOST_EXE` in `make/config.mk` probes `go env GOOS` lazily, so `make ffmpeg` works without Go.
 - `make setup` runs `build`, `ffmpeg` and `env` (copy `.env.example` to `bin/.env` with mode 0600
   unless it exists) and prints configure/run instructions; it fails early with guidance when Go is

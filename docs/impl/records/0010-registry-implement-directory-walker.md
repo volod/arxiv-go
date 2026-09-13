@@ -4,7 +4,7 @@
 
 - Id / capability / checkpoint: `implement-directory-walker` / `archive-registry` /
   `review-stage-1-integrity`
-- State: accepted (Linux gates pass; Windows tests are cross-compiled only, see audit handoff)
+- State: accepted (Linux gates pass; Windows is cross-compiled and vetted only, see audit handoff)
 - Source: plan task `implement-directory-walker`, operator request on 2026-09-13
   ("implement, run, fix, improve implementation and then update documentation and plan.md").
   Branch `ag-01-stage-1` at `2b5add5`, clean tree.
@@ -119,7 +119,7 @@ Current state: [archive registry](../current/archive-registry.md#directory-walke
 | Tests detect regressions | Seven scratch mutations listed above | each failed named tests; sources restored |
 | Race and repeat | `CGO_ENABLED=1 go test -race -count=3 ./internal/scanner ./internal/cli` | pass, Linux |
 | Windows build compiles | `GOOS=windows go vet ./internal/scanner ./internal/cli`; `GOOS=windows go test -c` for both | pass (cross-compiled only) |
-| Windows tests pass in CI | `.github/workflows/ci.yml` `windows` job | not-run: changes are not pushed |
+| Windows tests on a Windows host | Deferred [Windows verification scenario](../../guide/windows-verification.md) step W5 | not a gate (Linux-only test gates adopted after acceptance) |
 | `make ci` on Linux | `make ci` (Go 1.27.1) | pass |
 
 ## Audit handoff
@@ -127,8 +127,9 @@ Current state: [archive registry](../current/archive-registry.md#directory-walke
 - `AUD-implement-directory-walker-1`: nonblocking. Windows behavior is cross-compiled only: symlink
   tests skip without symlink privilege, junctions are expected as `special` (Go reports them as
   irregular) but no fixture creates one, and `SkipPaths` compares paths case-sensitively. Next
-  check: Windows CI result after push and a junction in the stage-1 proof tree. Owner:
-  `review-stage-1-integrity`.
+  check: step W5 of the deferred
+  [Windows verification scenario](../../guide/windows-verification.md#deferred-items). Owner:
+  `review-stage-1-integrity` (disposition: deferred).
 - `AUD-implement-directory-walker-2`: nonblocking. An unreadable regular file is visible only
   when opened; the scan must count detection open/read failures as `unreadable` in the same
   `Stats` and exit 6. Owner: `implement-scan-operation-and-csv-registry`.
@@ -146,7 +147,8 @@ Current state: [archive registry](../current/archive-registry.md#directory-walke
 
 ## Close or resume
 
-All Linux gates pass; the Windows CI gate stays pending with `review-stage-1-integrity`. The task
+All Linux gates pass. Windows host checks are not a gate; they are listed in the deferred Windows
+verification scenario. The task
 was removed from the plan and `implement-scan-operation-and-csv-registry` links this record. The
 new archive-registry current page, current index and records index were updated;
 `archive-registry` stays `planned` (two tasks open). Plan counts after: 26 open (23 agent,

@@ -87,7 +87,8 @@ directory.
 
 ## Acceptance
 
-- Golden CSV for the generated fixture tree matches exactly (Linux and Windows, `/` separators).
+- Golden CSV for the generated fixture tree matches exactly on Linux. Paths use `/` separators on
+  every platform, so the same golden file serves the deferred Windows scenario.
 - Interrupting after N rows and resuming produces a byte-identical registry to an uninterrupted
   run.
 - `scan` never writes inside the archive except the registry output, its part file and `.arxgo/`.

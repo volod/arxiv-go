@@ -45,11 +45,12 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make fmt` | `gofmt -w` | Format |
 | `make fmt-check` | `gofmt -l` | Fail on unformatted files |
 | `make vet` | `go vet ./...` | Static checks |
+| `make vet-windows` | `GOOS=windows GOARCH=amd64 go vet ./...` | Type-checks Windows build-tagged code and tests on Linux |
 | `make lint-spec-plan` | `go run ./tools/plancheck lint` | Registry, plan and records agree |
 | `make lint-doc-links` | `go run ./tools/plancheck links` | Relative Markdown links and anchors resolve |
 | `make plan-status` | `go run ./tools/plancheck status` | Open task counts and next eligible task |
 | `make coverage` | `go test -coverprofile` | Diagnostic coverage report only |
-| `make ci` | fmt-check, vet, test, build-all, lint-spec-plan, lint-doc-links | Required before accepting a task |
+| `make ci` | fmt-check, vet, vet-windows, test, build-all, lint-spec-plan, lint-doc-links | Required before accepting a task (Linux) |
 | `make clean` | removes `bin/` contents except `bin/.env`, `dist/`, coverage files | Keeps local settings and credentials |
 
 ## Conventions
@@ -58,7 +59,9 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 - Domain packages return errors; only `internal/cli` maps them to exit codes and writes to
   stdout/stderr. Use `log/slog`, never `fmt.Print*`, for runtime messages in domain packages.
 - Platform code goes in `_unix.go` / `_windows.go` files inside `internal/fsops` (or the package
-  the architecture assigns); keep both variants compiling (`make build-all`).
+  the architecture assigns); keep both variants compiling (`make build-all`, `make vet-windows`).
+- Test gates are Linux only. Windows-only tests skip with a reason on other systems; they run
+  only in the deferred [Windows verification scenario](windows-verification.md).
 - Files aim for at most about 300 lines; split at real seams, not by line count alone.
 - Tests sit next to code (`foo_test.go`), build fixtures in `t.TempDir()`, and never touch the
   network. Media fixtures are generated in tests; tests that need ffmpeg call a shared helper that
@@ -69,6 +72,10 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 
 ## CI
 
-`.github/workflows/ci.yml` runs `make ci` on `ubuntu-latest` and the Go test/build steps on
-`windows-latest`. It does not install `ffmpeg` or `ffprobe`. Tests that need those tools skip
-in CI and run only on a local machine that has them on `PATH`.
+`.github/workflows/ci.yml` runs `make ci` on `ubuntu-latest` for pushes to `main` and pull
+requests; it is the only CI gate. It does not install `ffmpeg` or `ffprobe`. Tests that need those
+tools skip in CI and run only on a local machine that has them on `PATH`.
+
+`.github/workflows/windows.yml` runs vet, tests and a static build on `windows-latest` only when
+started manually (`workflow_dispatch`). It is step W1 of the deferred
+[Windows verification scenario](windows-verification.md) and never gates a task.
