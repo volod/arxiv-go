@@ -115,7 +115,7 @@ retried; at or after `placed` it rolls forward; a missing or wrong-size destinat
 stops for the operator. `stub_removed` is the restore counterpart of `stubbed`. A second recover
 pass is a no-op. Resume skips `rel_path`s in the committed-set hash index.
 
-`internal/state/crashtest` injects a crash after each WAL step and filesystem effect. Fake split
+`test/fixtures/crashtest` injects a crash after each WAL step and filesystem effect. Fake split
 and restore operations (copy and rename) recover to the same tree as an uninterrupted run.
 `archive.Start` recovers an existing WAL when `Config.Recoverer` is set.
 

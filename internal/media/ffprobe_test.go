@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/volod/arxiv-go/internal/media/testmp4"
+	"github.com/volod/arxiv-go/test/fixtures/testmp4"
 )
 
 func TestFFprobeCapturedFormats(t *testing.T) {
@@ -28,7 +28,7 @@ func TestFFprobeCapturedFormats(t *testing.T) {
 		{"rotated.json", "rotated.mp4", "video/mp4", "mp4", "mpeg4", "", 1, 240, 320, 1, 0},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
-			data, err := os.ReadFile(filepath.Join("testdata", "ffprobe", tc.file))
+			data, err := os.ReadFile(filepath.Join("..", "..", "test", "testdata", "ffprobe", tc.file))
 			if err != nil {
 				t.Fatal(err)
 			}

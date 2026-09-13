@@ -39,9 +39,9 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make build` | `go build -trimpath -o bin/arxgo ./cmd/arxgo` | Host binary with version stamp |
 | `make build-all` | `GOOS/GOARCH` loop, `CGO_ENABLED=0` | `bin/arxgo-<os>-<arch>[.exe]` for linux/windows amd64 |
 | `make ffmpeg` | `bash tools/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
-| `make test` | `go test ./...` | Unit tests |
+| `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |
-| `make test-integration` | `go test -tags integration ./test/integration/...` | End-to-end tests (from `prove-stage-1-on-generated-archive`) |
+| `make test-integration` | `go test -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs |
 | `make fmt` | `gofmt -w` | Format |
 | `make fmt-check` | `gofmt -l` | Fail on unformatted files |
 | `make vet` | `go vet ./...` | Static checks |
@@ -63,9 +63,12 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 - Test gates are Linux only. Windows-only tests skip with a reason on other systems; they run
   only in the deferred [Windows verification scenario](windows-verification.md).
 - Files aim for at most about 300 lines; split at real seams, not by line count alone.
-- Tests sit next to code (`foo_test.go`), build fixtures in `t.TempDir()`, and never touch the
-  network. Media fixtures are generated in tests; tests that need ffmpeg call a shared helper that
-  skips with a reason when it is missing.
+- Unit and white-box component tests sit next to code (`foo_test.go`). Cross-package integration
+  tests, end-to-end tests, external test applications, reusable test helpers, and committed mock or
+  golden data live under root-level [`test/`](../../test/README.md), following the
+  [Go project-layout `/test` convention](https://github.com/golang-standards/project-layout/tree/master/test).
+  Tests build runtime fixtures in `t.TempDir()` and never touch the network. Media fixtures are
+  generated in tests; tests that need ffmpeg skip with a reason when it is missing.
 - New dependencies must be listed in the [dependency table](../openspec/spec.md#dependencies) and
   be pure Go; commit `go.mod` and `go.sum` together.
 - ASCII in code, logs and docs unless a test needs Unicode input.

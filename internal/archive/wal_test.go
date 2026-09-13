@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/volod/arxiv-go/internal/state"
-	"github.com/volod/arxiv-go/internal/state/crashtest"
+	"github.com/volod/arxiv-go/test/fixtures/crashtest"
 )
 
 func TestCorruptWALOnResumeNeedsOperator(t *testing.T) {

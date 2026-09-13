@@ -3,7 +3,8 @@
 Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bootstrap-repository-and-agent-harness.md);
 [0003 CLI contract](../records/0003-foundation-implement-cli-contract.md);
 [0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md);
-[0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md).
+[0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md);
+[0017 Centralize test layout](../records/0017-foundation-centralize-test-layout.md).
 
 ## Identity
 
@@ -56,6 +57,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   It provides host and cross builds (`CGO_ENABLED=0`, linux/windows amd64), tests, vet, gofmt
   check, coverage report and `make ci`; see the
   [development guide](../../guide/development.md#make-targets).
+- Root-level [`test/`](../../../test/README.md) holds integration tests, test-only helpers and
+  static mock or golden data. Package tests requiring private hooks stay next to their code.
 - `.github/workflows/ci.yml` runs `make ci` on Ubuntu, the only CI gate (`actions/checkout@v7`,
   `actions/setup-go@v7`, cache keyed on `go.mod`). `make ci` includes the Windows cross-build and
   `make vet-windows`. `.github/workflows/windows.yml` (manual `workflow_dispatch`: vet, tests and a

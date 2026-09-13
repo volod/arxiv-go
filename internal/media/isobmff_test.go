@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/volod/arxiv-go/internal/media/testmp4"
+	"github.com/volod/arxiv-go/test/fixtures/testmp4"
 )
 
 func fixtureFile(t *testing.T, name string, data []byte) string {

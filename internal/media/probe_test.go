@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestMain(m *testing.M) {
 		}
 		switch mode {
 		case "valid":
-			data, err := os.ReadFile("testdata/ffprobe/avi.json")
+			data, err := os.ReadFile(filepath.Join("..", "..", "test", "testdata", "ffprobe", "avi.json"))
 			if err != nil {
 				os.Exit(16)
 			}

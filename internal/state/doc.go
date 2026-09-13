@@ -5,5 +5,5 @@
 //
 // Files: rundir.go, lock.go, checkpoint.go, report.go, runlog.go, wal.go,
 // wal_read.go, committed.go and recovery.go. Tests inject crashes through
-// crashtest/. Specification: docs/openspec/stage-1-core/integrity.md.
+// test/fixtures/crashtest/. Specification: docs/openspec/stage-1-core/integrity.md.
 package state

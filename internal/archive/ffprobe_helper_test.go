@@ -14,7 +14,7 @@ func TestMain(m *testing.M) {
 		if filepath.Base(os.Args[len(os.Args)-1]) == "audio-only.avi" {
 			name = "ogg.json"
 		}
-		data, err := os.ReadFile(filepath.Join("..", "media", "testdata", "ffprobe", name))
+		data, err := os.ReadFile(filepath.Join("..", "..", "test", "testdata", "ffprobe", name))
 		if err != nil {
 			os.Exit(20)
 		}

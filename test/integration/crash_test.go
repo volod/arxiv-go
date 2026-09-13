@@ -1,4 +1,4 @@
-package crashtest
+package integration
 
 import (
 	"context"
@@ -9,25 +9,26 @@ import (
 	"time"
 
 	"github.com/volod/arxiv-go/internal/state"
+	"github.com/volod/arxiv-go/test/fixtures/crashtest"
 )
 
 func TestCrashEachConvergesToUninterruptedState(t *testing.T) {
 	cases := []struct {
 		name   string
 		points []string
-		setup  func(dir string, h *Hook) (*Op, error)
+		setup  func(dir string, h *crashtest.Hook) (*crashtest.Op, error)
 	}{
-		{"split-copy", CopyPoints, func(dir string, h *Hook) (*Op, error) {
-			return SplitOp(NewLayout(dir, "n/clip.mp4"), false, h)
+		{"split-copy", crashtest.CopyPoints, func(dir string, h *crashtest.Hook) (*crashtest.Op, error) {
+			return crashtest.SplitOp(crashtest.NewLayout(dir, "n/clip.mp4"), false, h)
 		}},
-		{"split-rename", RenamePoints, func(dir string, h *Hook) (*Op, error) {
-			return SplitOp(NewLayout(dir, "n/clip.mp4"), true, h)
+		{"split-rename", crashtest.RenamePoints, func(dir string, h *crashtest.Hook) (*crashtest.Op, error) {
+			return crashtest.SplitOp(crashtest.NewLayout(dir, "n/clip.mp4"), true, h)
 		}},
-		{"restore-copy", RestoreCopyPoints, func(dir string, h *Hook) (*Op, error) {
-			return RestoreOp(NewLayout(dir, "n/clip.mp4"), false, h)
+		{"restore-copy", crashtest.RestoreCopyPoints, func(dir string, h *crashtest.Hook) (*crashtest.Op, error) {
+			return crashtest.RestoreOp(crashtest.NewLayout(dir, "n/clip.mp4"), false, h)
 		}},
-		{"restore-rename", RestoreRenamePoints, func(dir string, h *Hook) (*Op, error) {
-			return RestoreOp(NewLayout(dir, "n/clip.mp4"), true, h)
+		{"restore-rename", crashtest.RestoreRenamePoints, func(dir string, h *crashtest.Hook) (*crashtest.Op, error) {
+			return crashtest.RestoreOp(crashtest.NewLayout(dir, "n/clip.mp4"), true, h)
 		}},
 	}
 	for _, tc := range cases {
@@ -49,14 +50,14 @@ func TestCrashEachConvergesToUninterruptedState(t *testing.T) {
 			for _, point := range tc.points {
 				t.Run(point, func(t *testing.T) {
 					dir := t.TempDir()
-					h := &Hook{FailAt: point}
+					h := &crashtest.Hook{FailAt: point}
 					op, err := tc.setup(dir, h)
 					if err != nil {
 						t.Fatal(err)
 					}
 					w := mustWAL(t, dir, h.Func())
-					err = Catch(func() error { return op.Execute(context.Background(), w) })
-					if !errors.Is(err, ErrCrash) {
+					err = crashtest.Catch(func() error { return op.Execute(context.Background(), w) })
+					if !errors.Is(err, crashtest.ErrCrash) {
 						t.Fatalf("execute err = %v, want crash", err)
 					}
 					if err := w.Close(); err != nil {
@@ -102,14 +103,14 @@ func TestCrashEachConvergesToUninterruptedState(t *testing.T) {
 
 func TestCrashHookPanicIsCaught(t *testing.T) {
 	dir := t.TempDir()
-	h := &Hook{FailAt: "wal:begin", Panic: true}
-	op, err := SplitOp(NewLayout(dir, "a.mp4"), true, h)
+	h := &crashtest.Hook{FailAt: "wal:begin", Panic: true}
+	op, err := crashtest.SplitOp(crashtest.NewLayout(dir, "a.mp4"), true, h)
 	if err != nil {
 		t.Fatal(err)
 	}
 	w := mustWAL(t, dir, h.Func())
-	err = Catch(func() error { return op.Execute(context.Background(), w) })
-	if !errors.Is(err, ErrCrash) {
+	err = crashtest.Catch(func() error { return op.Execute(context.Background(), w) })
+	if !errors.Is(err, crashtest.ErrCrash) {
 		t.Fatalf("err = %v", err)
 	}
 }

@@ -44,7 +44,7 @@ Move every video into the mirrored video archive as a write-ahead-logged transac
   writes a placeholder stub that satisfies the WAL `stubbed` step.
 - Data and artifact paths: `internal/archive/split.go`, `internal/archive/split_recovery.go`.
 - Execution path: Candidate iterator from the scan run, per-candidate transaction using `fsops` and
-  `state`, crash-injection tests through `state/crashtest`, cross-device simulated by an injected
+  `state`, crash-injection tests through `test/fixtures/crashtest`, cross-device simulated by an injected
   device function. Ensure that if the source archive path ARXGO_ARCHIVE and the target video archive
   path ARXGO_VIDEO_ARCHIVE reside on the same physical device, we use strict move semantics rather
   than copy-and-delete. In this case, we will not overload storage by copying gigabytes of data.
@@ -349,7 +349,7 @@ Publish the video archive to Google Drive.
   `webViewLink`s.
 - Scope boundary: REST client, auth flows, folder cache, resumable upload, MD5 idempotency,
   backoff, sharing option. Tested against recorded fixtures only.
-- Data and artifact paths: `internal/cloud/gdrive/`, `internal/cloud/gdrive/testdata/`.
+- Data and artifact paths: `internal/cloud/gdrive/`, `test/testdata/cloud/gdrive/`.
 - Execution path: `httptest.Server` replaying sanitized exchanges.
 - Acceptance gates: Fixture scenarios from the cloud spec pass; no network in tests.
 - Documentation target: `docs/impl/current/cloud-publishing.md`
@@ -366,7 +366,7 @@ Publish the video archive to a SharePoint document library.
   records `webUrl`s.
 - Scope boundary: Graph REST client, client-credential and device-code auth, folder creation,
   upload sessions, quickXorHash idempotency, throttling, sharing option. Recorded fixtures only.
-- Data and artifact paths: `internal/cloud/sharepoint/`, `internal/cloud/sharepoint/testdata/`.
+- Data and artifact paths: `internal/cloud/sharepoint/`, `test/testdata/cloud/sharepoint/`.
 - Execution path: `httptest.Server` replaying sanitized exchanges; quickXorHash test vectors.
 - Acceptance gates: Fixture scenarios pass; quickXorHash matches published vectors; no network in
   tests.

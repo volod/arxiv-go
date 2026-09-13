@@ -51,7 +51,7 @@ func TestScanGoldenRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	mtime := info.ModTime().UTC().Format("2006-01-02T15:04:05Z07:00")
-	golden := filepath.Join("testdata", "scan-registry.golden.csv")
+	golden := filepath.Join("..", "..", "test", "testdata", "archive", "scan-registry.golden.csv")
 	if *updateGolden {
 		if err := os.WriteFile(golden, bytes.ReplaceAll(got, []byte(mtime), []byte(symlinkMTimeMark)), 0o644); err != nil {
 			t.Fatal(err)

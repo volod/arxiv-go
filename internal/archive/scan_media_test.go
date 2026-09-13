@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/volod/arxiv-go/internal/media/testmp4"
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/state"
+	"github.com/volod/arxiv-go/test/fixtures/testmp4"
 )
 
 func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
