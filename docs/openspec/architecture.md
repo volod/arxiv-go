@@ -10,7 +10,7 @@ arxiv-go/
 |-- cmd/arxgo/main.go            entry point: os.Exit(cli.Run(...)); nothing else
 |-- internal/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
-|   |-- scanner/                 walker.go (traversal), mimetype.go (detection and flags)
+|   |-- scanner/                 walker.go, order.go, entry.go (traversal); mimetype.go (detection and flags)
 |   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
 |   |-- state/                   rundir.go, lock.go, checkpoint.go, report.go, runlog.go, wal.go, recovery.go; crashtest/

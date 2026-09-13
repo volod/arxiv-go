@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/volod/arxiv-go/internal/scanner"
 )
 
 // Enumerated option values from the CLI contract.
@@ -129,7 +131,7 @@ func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSetti
 		v.addf("%s: option not available in this build", s.explicit["follow-symlinks"])
 	}
 	for _, g := range sc.Exclude {
-		if err := validateGlob(g); err != nil {
+		if err := validateGlob(g, runtime.GOOS == "windows"); err != nil {
 			v.addf("--exclude %q: %v", g, err)
 		}
 	}
@@ -248,24 +250,16 @@ func parseExtensions(list string) ([]string, error) {
 	return out, nil
 }
 
-// validateGlob checks a relative slash-path glob: path.Match syntax per segment, "**" for any
-// depth, no absolute or parent-directory patterns.
-func validateGlob(g string) error {
+// validateGlob checks a relative slash-path glob with the walker's grammar: path.Match syntax per
+// segment, "**" for any depth, no absolute or parent-directory patterns. On Windows a backslash is
+// rejected: it would be a path.Match escape, not the separator the operator probably meant.
+func validateGlob(g string, windows bool) error {
 	if strings.HasPrefix(g, "/") || filepath.IsAbs(g) || filepath.VolumeName(g) != "" {
 		return errors.New("must be relative to the archive root")
 	}
-	for _, seg := range strings.Split(g, "/") {
-		switch {
-		case seg == "":
-			return errors.New("empty path segment")
-		case seg == "..":
-			return errors.New("'..' segments are not allowed")
-		case seg == "**":
-			continue
-		}
-		if _, err := path.Match(seg, ""); err != nil {
-			return errors.New("malformed glob pattern")
-		}
+	if windows && strings.Contains(g, `\`) {
+		return errors.New(`use "/" between segments; "\" is a glob escape (match a literal "[" with "[[]")`)
 	}
-	return nil
+	_, err := scanner.CompileGlob(g)
+	return err
 }

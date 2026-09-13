@@ -20,28 +20,6 @@ change; `make ci` must pass.
 
 ### Archive registry -- `archive-registry`
 
-#### implement-directory-walker
-
-Traverse an archive deterministically with exclusions, special-entry handling and a resume cursor.
-
-- Serves: `archive-registry` -- [Traversal](../openspec/stage-1-core/registry.md#traversal)
-- Agent status: CLEAR
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md).
-- User-visible outcome: Scans visit every regular file once in a stable order, skip arxgo's own
-  files and excluded globs, report unreadable entries without aborting, and can restart after a
-  cursor.
-- Scope boundary: `Walk(ctx, root, opts, fn)` over `filepath.WalkDir`, walk order key and
-  comparison, reserved-path and `--exclude` matching (including `**`), symlink/special handling,
-  error accounting. No type detection or output.
-- Data and artifact paths: `internal/scanner/walker.go`, `internal/scanner/order.go`.
-- Execution path: Relative slash paths; cursor skip by key comparison with directory pruning when a
-  whole subtree precedes the cursor.
-- Acceptance gates: Order equals `WalkDir` order for trees where string order differs; resume after
-  every possible cursor in a fixture yields the uninterrupted sequence suffix; reserved paths and
-  globs excluded; symlink reported not followed; unreadable directory counted (Linux).
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 #### implement-file-type-detection
 
 Classify each file's MIME type and binary, media, picture, video and large flags.
@@ -68,7 +46,8 @@ Wire the walker, detection and checkpoints into the resumable `scan` operation a
 
 - Serves: `archive-registry` -- [Registry writing](../openspec/stage-1-core/registry.md#registry-writing)
 - Agent status: CLEAR
-- Dependencies: `implement-directory-walker`; `implement-file-type-detection`;
+- Dependencies: [Directory walker](records/0010-registry-implement-directory-walker.md);
+  `implement-file-type-detection`;
   [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
 - User-visible outcome: `arxgo scan --archive PATH` writes `arxgo-registry.csv` with the specified
   columns and statistics, resumes after interruption, and exits 6 when entries were skipped.

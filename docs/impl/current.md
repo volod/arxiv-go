@@ -15,6 +15,7 @@ linked here in the same change.
 | --- | --- | --- |
 | [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options, run the lock/checkpoint session, then exit 70 |
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery, disk-space preflight | Shipped; session used by every operation; preflight awaits split/restore candidates |
+| [Archive registry](current/archive-registry.md) | Directory walker: walk order, resume cursor, exclusions, symlink and unreadable-entry handling | Partial; walker available to the scan task, no registry output yet |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan`, `split` and `restore`
 take the run lock, write `options.json`, `checkpoint.json`, `run.log.jsonl` and `report.json`, then

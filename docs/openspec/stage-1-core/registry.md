@@ -15,13 +15,26 @@ input list for `split`.
 - The **walk order key** of a path is its list of slash-separated segments; key comparison is
   segment-by-segment byte comparison. This matches `WalkDir` order and is what a checkpoint cursor
   uses (plain string comparison does not, because `/` sorts after `-` and `.`).
+- Resume: every entry whose key is less than or equal to the cursor is skipped. A directory whose
+  key is less than the cursor and not a prefix of it is not listed at all, because its whole
+  subtree precedes the cursor. A directory on the cursor's path is listed but not reported again.
 - Excluded: [reserved paths](../spec.md#reserved-paths), paths matching `--exclude`, and the video
   archive root if it lies inside the archive (validation already forbids nesting; this is a guard).
+  An explicit `--registry` inside the archive is excluded the same way. The reserved file names and
+  `.arxgo/` are reserved only directly under the walked root; the `.arxgo-part` suffix at any depth.
+  Excluded entries are not counted.
+- `--exclude` globs match the whole relative slash path and are anchored at the walked root:
+  `*.tmp` matches only top-level names, `**/*.tmp` matches at any depth, and `**` matches zero or
+  more segments (`cache/**` also matches `cache`). A matching directory is excluded with its whole
+  subtree without being listed.
 - Symlinks and other non-regular entries (devices, sockets, junctions) are not followed or read.
   Symlinks get a row with `file_type=symlink`, size 0 and all flags `false`; other special entries
-  are logged and counted as skipped.
+  are logged and counted as skipped. A root given as a symlink to a directory is walked through its
+  target.
 - Unreadable directories or files are logged with the error, counted, and do not abort the run;
-  the final exit code is 6 when any entry was skipped.
+  the final exit code is 6 when any entry was skipped. A directory that cannot be listed counts as
+  a directory and as one skipped entry; its readable children, if any, are still walked. An archive
+  root that cannot be listed fails the run (exit 1).
 - Hidden files are included.
 
 ## Type detection

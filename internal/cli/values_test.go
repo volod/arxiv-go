@@ -99,7 +99,7 @@ func TestParseExtensions(t *testing.T) {
 func TestValidateGlob(t *testing.T) {
 	valid := []string{"*.tmp", "cache/**", "**/node_modules", "a/**/b/*.iso", "[a-z]?.bak", "Thumbs.db"}
 	for _, g := range valid {
-		if err := validateGlob(g); err != nil {
+		if err := validateGlob(g, false); err != nil {
 			t.Errorf("validateGlob(%q) = %v, want nil", g, err)
 		}
 	}
@@ -113,9 +113,18 @@ func TestValidateGlob(t *testing.T) {
 		"x/../..": "'..'",
 	}
 	for g, want := range invalid {
-		if err := validateGlob(g); err == nil || !strings.Contains(err.Error(), want) {
+		if err := validateGlob(g, false); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("validateGlob(%q) = %v, want error containing %q", g, err, want)
 		}
+	}
+	// Windows operators must not get a silently non-matching pattern from a backslash separator.
+	for _, g := range []string{`cache\*`, `a/\[b]`} {
+		if err := validateGlob(g, true); err == nil || !strings.Contains(err.Error(), `use "/"`) {
+			t.Errorf("windows validateGlob(%q) = %v, want separator error", g, err)
+		}
+	}
+	if err := validateGlob("a/[[]b]", true); err != nil {
+		t.Errorf("windows validateGlob literal bracket = %v", err)
 	}
 }
 

@@ -94,7 +94,7 @@ Used by `scan`, and by `split` for its scan phase.
 | `--large-threshold SIZE` | `1GiB` | Files with `file_size >= SIZE` get `is_large=true` |
 | `--registry PATH` | `<archive>/arxgo-registry.csv` | CSV registry output path |
 | `--metadata MODE` | `file` | `file`: file-system metadata only. `media`: also container/stream metadata for media files (see [metadata](metadata.md)) |
-| `--exclude GLOB` | none, repeatable | Relative-path glob (`path.Match` per segment, `**` for any depth) excluded from traversal |
+| `--exclude GLOB` | none, repeatable | Relative-path glob (`path.Match` per segment, `**` for any depth) anchored at the archive root and excluded from traversal with its subtree; see [traversal](registry.md#traversal) |
 | `--follow-symlinks` | `false` | Reserved; symlinks are recorded but never followed in stage 1 |
 
 ## Split flags
@@ -147,6 +147,8 @@ Validation happens before the lock is taken and before any filesystem write.
 - `--video-extensions` items are letters, digits, `_` or `-`, with an optional leading dot. They
   are normalized to lower case with a leading dot, and duplicates are dropped.
 - `--exclude` globs are relative, use `/` on every platform, and contain no empty or `..` segments.
+  On Windows a glob containing `\` is rejected, because `\` is a `path.Match` escape rather than a
+  separator there (a literal `[` is matched with `[[]`).
 - An explicit `--registry` is made absolute. It must not be a directory, and its parent directory
   must exist.
 - Tool-backed options are checked through [tool discovery](metadata.md#tool-discovery).
