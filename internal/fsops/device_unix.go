@@ -17,3 +17,5 @@ func deviceOf(path string) (Device, error) {
 	}
 	return Device{ID: uint64(st.Dev), Volume: path}, nil
 }
+
+func devicesEqual(a, b Device) bool { return a.ID == b.ID }

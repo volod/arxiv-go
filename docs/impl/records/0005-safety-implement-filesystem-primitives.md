@@ -55,7 +55,9 @@ Provide the platform-aware file operations every mutating task relies on.
   `AtomicWriteFile`) and `System`, the real implementation; `PartSuffix`/`PartPath`; `Device`,
   `DeviceOf`, `SameDevice`; `Space` (`Total`, `Free`, `Available`) and `FreeSpace`. Paths that do
   not exist yet (a split video archive root that will be created) resolve to the nearest existing
-  ancestor; `FreeSpace` on a file uses its directory.
+  ancestor; `FreeSpace` on a file uses its directory. `SameDevice` compares devices through
+  `devicesEqual`: Unix `st_dev` only; Windows volume serial, with serial 0 also requiring equal
+  mount-point strings (some network volumes report serial 0 for every share).
 - `device_unix.go`: `st_dev` from `unix.Stat`. `device_windows.go`: `GetVolumePathName`, then the
   volume serial from `GetVolumeInformation`; `Device.Volume` holds the mount point for logs.
 - `space_unix.go`: `unix.Statfs` with block unit `f_frsize` on Linux (`sys_linux.go`) and
@@ -107,6 +109,16 @@ Run, fix and improve:
   atomic-write test (Go opens files without `FILE_SHARE_DELETE`, so the reader now leaves gaps for
   the retry); chmod on filesystems without Unix modes no longer fails the copy; `transfer.go` split
   to keep files under about 300 lines.
+- Follow-up on this host: already-canceled `ctx` returned after creating a part file in hash mode
+  (no `ctx` check until the first chunk). `DurableCopy` now returns `ctx.Err()` before touching the
+  destination, and the hash copy loop checks cancel before each buffer (including while waiting for
+  the hasher). `Overwrite` plus a later error left the destination only by accident; that path now
+  has `TestDurableCopyOverwriteFailureKeepsDestination`. Windows serial 0 no longer makes every
+  such share look like one device (`TestDevicesEqual`). Copy-loop tests cover the digest against
+  `sha256.Sum256` with a slow writer. Error-path tests moved to `transfer_error_test.go`.
+  [Architecture](../../openspec/architecture.md#cross-platform-notes) now matches `f_frsize` and
+  volume-serial identity (it had described UNC comparison by server/share, which was not
+  implemented).
 
 Decisions and rejected alternatives:
 
@@ -130,9 +142,10 @@ Current state: [crash safety](../current/crash-safety.md).
 | --- | --- | --- |
 | Copy preserves bytes, mtime, (Linux) mode | `TestDurableCopyPreservesBytesMtimeAndMode` (size, hash, read-only 0444 source; 4 chunks), `TestDurableCopyEmptyFile`, `TestDurableCopyAcrossDevices` (tmp ext4 -> `/dev/shm` tmpfs and back, both verify modes) | pass, Linux, real cross-device copy |
 | Verification mismatch leaves no destination | `TestDurableCopyVerificationMismatchLeavesNoDestination` (flipped byte with hash, truncation with size, injected after the data is durable) | pass, Linux |
-| Part files removed on error | `TestDurableCopyRemovesPartFileOnError` (cancel mid-copy in both modes, injected error, missing parent, directory source), `TestDurableCopyDetectsSourceChanges` (expected attrs, append during copy in both modes), `TestDurableCopyReplacesStalePartFile`, `TestDurableCopyNeverOverwritesUnlessAsked` | pass, Linux |
+| Part files removed on error | `TestDurableCopyRemovesPartFileOnError` (cancel mid-copy in both modes, injected error, missing parent, directory source), `TestDurableCopyDetectsSourceChanges` (expected attrs, append during copy in both modes), `TestDurableCopyReplacesStalePartFile`, `TestDurableCopyNeverOverwritesUnlessAsked`, `TestDurableCopyOverwriteFailureKeepsDestination`, `TestDurableCopyHonorsCanceledContext` | pass, Linux |
+| Copy loop / hash | `TestCopyHashingAgreesWithSHA256`, `TestCopyHashingHonorsCanceledContext`, `TestCopyHashingSlowWriterMatches` | pass, Linux |
 | Atomic write never exposes partial content | `TestAtomicWriteNeverExposesPartialContent` (concurrent reader, 60 replacements of 1 MiB files), `TestAtomicWriteFailureKeepsPreviousContent` (old content visible mid-write and after failure), `TestAtomicWriteReplacesStalePartFile`, `TestAtomicWriteFileCreatesAndReplaces` | pass, Linux |
-| Same device true for siblings | `TestSameDeviceSiblings` (dirs, file, missing path, relative path), `TestDeviceOfMissingPathMatchesAncestor` | pass, Linux |
+| Same device true for siblings | `TestSameDeviceSiblings` (dirs, file, missing path, relative path), `TestDeviceOfMissingPathMatchesAncestor`, `TestDevicesEqual` | pass, Linux |
 | Same device false across `/dev/shm` and workspace | `TestSameDeviceFalseAcrossShmAndWorkspace` (skips with reason when unavailable or on one device) | pass, Linux (ran, not skipped) |
 | Rename classification | `TestRenameMovesWithoutReplacing`, `TestReplaceOverwrites`, `TestRenameMissingSource`, `TestRenameDeepPath`, `TestIsCrossDevice`, `TestRenameAcrossDevicesIsClassified` (real `EXDEV`) | pass, Linux; strace shows `RENAME_NOREPLACE` |
 | `FreeSpace` non-zero for temp dir | `TestFreeSpaceTempDir`, `TestFreeSpaceFileAndMissingPathUseTheirVolume` | pass, Linux |
@@ -145,11 +158,12 @@ Current state: [crash safety](../current/crash-safety.md).
 ## Audit handoff
 
 - `AUD-implement-filesystem-primitives-1`: nonblocking. The Windows code paths (volume serial,
-  `GetDiskFreeSpaceEx`, `MoveFileEx` no-replace and retry, `\\?\` prefix, mtime set after close)
-  are only cross-compiled; the Windows CI job has not run. Real cross-volume
-  `ERROR_NOT_SAME_DEVICE` is untested because runners have one volume. Next check: the Windows CI
-  result after push, and a second drive or `subst`/UNC root in the stage-1 proof. Owner:
-  `review-stage-1-integrity`.
+  serial-0 mount-point comparison, `GetDiskFreeSpaceEx`, `MoveFileEx` no-replace and retry, `\\?\`
+  prefix, mtime set after close) are only cross-compiled; the Windows CI job has not run. Real
+  cross-volume `ERROR_NOT_SAME_DEVICE` is untested because runners have one volume. Serial 0 is
+  covered by `TestDevicesEqual` with constructed `Device` values, not a live network share. Next
+  check: the Windows CI result after push, and a second drive or `subst`/UNC root in the stage-1
+  proof. Owner: `review-stage-1-integrity`.
 - `AUD-implement-filesystem-primitives-2`: nonblocking. Tests do not exercise the Linux fallback
   for filesystems without `RENAME_NOREPLACE` (some NFS, CIFS and FUSE mounts) or the tolerated
   directory-fsync and chmod errors; there it is check-then-rename, with a race window only against

@@ -97,8 +97,12 @@ type CopyResult struct {
 //
 // The parent directory of dst must exist. On any error the part file is
 // removed and dst is left as it was. Without Overwrite an existing dst
-// yields an error matching fs.ErrExist.
+// yields an error matching fs.ErrExist. A canceled ctx returns before any
+// destination file is created.
 func DurableCopy(ctx context.Context, src, dst string, opts CopyOptions) (res CopyResult, err error) {
+	if err := ctx.Err(); err != nil {
+		return res, err
+	}
 	if !opts.Overwrite {
 		if _, err := os.Lstat(dst); err == nil {
 			return res, &os.PathError{Op: "copy", Path: dst, Err: fs.ErrExist}
@@ -234,10 +238,7 @@ func finishPart(part string, src fs.FileInfo, h hash.Hash, mode VerifyMode) erro
 			return err
 		}
 	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	return f.Close()
+	return f.Sync()
 }
 
 func sameAttrs(fi fs.FileInfo, size int64, mtime time.Time) bool {

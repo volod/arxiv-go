@@ -63,7 +63,15 @@ func copyHashing(ctx context.Context, dst io.Writer, src io.Reader, h hash.Hash,
 	}()
 	nextCheck, reported := chunk, int64(0)
 	for {
-		buf := <-free
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+		var buf []byte
+		select {
+		case <-ctx.Done():
+			return total, ctx.Err()
+		case buf = <-free:
+		}
 		n, rerr := io.ReadFull(src, buf)
 		if n > 0 {
 			work <- buf[:n]

@@ -4,6 +4,7 @@ package fsops
 
 import (
 	"os"
+	"strings"
 
 	"golang.org/x/sys/windows"
 )
@@ -26,6 +27,16 @@ func deviceOf(path string) (Device, error) {
 		return Device{}, &os.PathError{Op: "GetVolumeInformation", Path: volume, Err: err}
 	}
 	return Device{ID: uint64(serial), Volume: volume}, nil
+}
+
+// devicesEqual uses the volume serial when it is set. Serial 0 is common on
+// some network volumes and would make every such share look identical, so
+// those devices also require an equal mount-point string.
+func devicesEqual(a, b Device) bool {
+	if a.ID != 0 && b.ID != 0 {
+		return a.ID == b.ID
+	}
+	return a.ID == b.ID && strings.EqualFold(a.Volume, b.Volume)
 }
 
 // volumePath returns the mount point of the volume holding path, with a

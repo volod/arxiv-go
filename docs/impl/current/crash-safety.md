@@ -14,7 +14,9 @@ restore tasks.
   for example a device check that reports two roots on different devices, or a `Rename` returning
   `NewCrossDeviceError`.
 - `SameDevice(a, b)` / `DeviceOf(path)`: `st_dev` on Unix; volume serial via `GetVolumePathName` +
-  `GetVolumeInformation` on Windows. Missing paths resolve to the nearest existing ancestor.
+  `GetVolumeInformation` on Windows. Missing paths resolve to the nearest existing ancestor. A
+  Windows volume serial of 0 (some network shares) also requires equal mount-point strings so two
+  serial-0 shares are not treated as one device.
 - `FreeSpace(path)` returns `Space{Total, Free, Available}` from `statfs` (`f_frsize` units on
   Linux) or `GetDiskFreeSpaceEx`. `Available` is the unprivileged/quota-aware figure preflight
   should use; `Total == 0` signals an unknown network value.
@@ -30,9 +32,10 @@ restore tasks.
   mtime and (on Unix, where the filesystem supports modes) permission bits, verifies size or
   SHA-256 by re-reading the part file (`ErrVerifyMismatch` / `*VerifyError`), then renames into
   place and flushes the directory. It never overwrites unless `Overwrite` is set, removes the part
-  file on every error, honors cancellation and reports progress every 32 MiB. `CopyResult` returns
-  size, mtime and the hex digest. The size mode keeps the kernel copy fast paths; the hash mode
-  hashes on a separate goroutine.
+  file on every error (and leaves an existing destination untouched even with `Overwrite`), honors
+  cancellation before creating a part file and between chunks, and reports progress every 32 MiB.
+  `CopyResult` returns size, mtime and the hex digest. The size mode keeps the kernel copy fast
+  paths; the hash mode hashes on a separate goroutine.
 - `AtomicWrite(path, perm, fn)` / `AtomicWriteFile(path, data, perm)`: buffered write to
   `path.arxgo-part`, fsync, atomic replace, directory flush. Readers see the old or the new content
   only.

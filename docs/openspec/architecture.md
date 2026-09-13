@@ -124,8 +124,8 @@ Recovery rules for a transaction without `commit` (full table in
 
 | Concern | Linux | Windows |
 | --- | --- | --- |
-| Same device | `stat.Dev` equality of source file and destination parent | Volume serial of `GetVolumePathName` roots; UNC shares compared by normalized server/share |
-| Free space | `unix.Statfs` `Bavail * Bsize` | `windows.GetDiskFreeSpaceEx` caller-available bytes |
+| Same device | `stat.Dev` equality; missing paths use the nearest existing ancestor | Volume serial (`GetVolumePathName` + `GetVolumeInformation`); serial 0 also requires equal mount-point strings |
+| Free space | `unix.Statfs` `Bavail` times `Frsize` on Linux (`Bsize` on other Unix) | `windows.GetDiskFreeSpaceEx` caller-available bytes |
 | Rename across devices | `EXDEV` -> copy path | `ERROR_NOT_SAME_DEVICE` -> copy path |
 | Directory fsync | `fsync` on the parent directory | not supported; skipped, rely on `MoveFileEx` write-through |
 | Case sensitivity | sensitive | insensitive; collisions detected by case-folded key |

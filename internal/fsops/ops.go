@@ -87,7 +87,7 @@ func SameDevice(a, b string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return da.ID == db.ID, nil
+	return devicesEqual(da, db), nil
 }
 
 // Space describes a volume's capacity in bytes. Available is what an

@@ -3,6 +3,7 @@ package fsops
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -76,6 +77,29 @@ func TestDeviceOfMissingPathMatchesAncestor(t *testing.T) {
 	}
 	if got.Volume == "" {
 		t.Fatal("Volume label is empty")
+	}
+}
+
+func TestDevicesEqual(t *testing.T) {
+	if !devicesEqual(Device{ID: 7, Volume: "a"}, Device{ID: 7, Volume: "b"}) {
+		t.Fatal("same ID must match when Volume differs")
+	}
+	if devicesEqual(Device{ID: 1, Volume: "x"}, Device{ID: 2, Volume: "x"}) {
+		t.Fatal("different IDs must not match")
+	}
+	zeroSame := devicesEqual(Device{ID: 0, Volume: `C:\`}, Device{ID: 0, Volume: `c:\`})
+	zeroDiff := devicesEqual(Device{ID: 0, Volume: `C:\`}, Device{ID: 0, Volume: `D:\`})
+	if runtime.GOOS == "windows" {
+		if !zeroSame {
+			t.Fatal("Windows: serial 0 must match equal mount points ignoring case")
+		}
+		if zeroDiff {
+			t.Fatal("Windows: serial 0 must not treat distinct mount points as one device")
+		}
+		return
+	}
+	if !devicesEqual(Device{ID: 0, Volume: "/tmp/a"}, Device{ID: 0, Volume: "/tmp/b"}) {
+		t.Fatal("Unix: st_dev 0 matches regardless of path")
 	}
 }
 
