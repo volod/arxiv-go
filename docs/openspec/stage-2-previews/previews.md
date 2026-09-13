@@ -87,7 +87,8 @@ Encoder availability is read once from `ffmpeg -hide_banner -encoders`.
   (default `max(60s, 4 x total output duration)`), stderr ring buffer for errors, and
   `-progress pipe:1 -nostats` parsed for progress (`out_time_us`, `speed`).
 - Output is written to `<name>.arxgo-part.<ext>` (extension kept so ffmpeg selects the muxer) and
-  renamed when ffmpeg exits 0 and the file is non-empty.
+  renamed without replacement when ffmpeg exits 0 and the file is non-empty. An existing output
+  or part file is refused; a failed invocation removes only the part file it reserved.
 - Single clip: `ffmpeg -hide_banner -y -ss START -t L -i SRC -map 0:v:0 -map 0:a:0? -vf SCALE
   -c:v ENC -crf Q -preset veryfast -c:a AENC -b:a AB -movflags +faststart OUT`.
 - Series clip: one ffmpeg call with `-ss/-t` inputs per fragment (input seeking) and the `concat`

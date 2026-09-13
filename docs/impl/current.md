@@ -19,6 +19,7 @@ linked here in the same change.
 | [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, stub and registry policies; crash recovery; the stage-1 end-to-end proof | Available; stage-1 checkpoint and proof accepted (proof runs in CI); operator trial on an archive copy pending |
+| [Media previews](current/media-previews.md) | ffmpeg runner, process supervision, progress, part-file publication and encoder probe | Runner available; preview planning and CLI integration remain |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).

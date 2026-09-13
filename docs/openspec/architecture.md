@@ -42,6 +42,7 @@ flowchart TD
     archive --> state
     archive --> report
     archive --> fsops
+    media --> fsops
     state --> fsops
     scanner --> media
     report --> media
@@ -56,8 +57,9 @@ Rules:
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
 - `media` is the only package that runs external processes. `cli` calls `media` only for tool
   discovery, which must finish before the run session starts.
-- `fsops` is the only package with build-tagged platform files; it also holds the process liveness
-  check used by the run lock.
+- `fsops` owns platform filesystem primitives and the process liveness check used by the run lock.
+  `media` owns build-tagged ffmpeg process-tree supervision. It uses `fsops.Rename` to publish
+  previews without replacing a file.
 - `cli` maps validated options onto `archive.Config` and exit codes onto `archive.Status`; it does
   not import `state` directly.
 - All long-running functions accept a `context.Context`; cancellation (Ctrl+C) stops at the next

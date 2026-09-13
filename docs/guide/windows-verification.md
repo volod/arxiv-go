@@ -49,6 +49,7 @@ in the plan only when the operator brings Windows into scope.
 | W5 Walker | Tree with a directory symlink, file symlink, junction, a directory denied to the user by ACL, hidden and system files, names differing only in case | Symlinks recorded not followed; junction skipped as special; denied directory counted unreadable; order equals `WalkDir` order |
 | W6 Tool discovery | `go test ./internal/media ./internal/cli` (in-memory discovery fakes and test-binary helper process, no fake tools); a real `ffprobe.exe` next to `arxgo.exe` and on `PATH` | Next-to-executable wins; failing tool treated as missing; exit 3 prints the `windows/amd64` link |
 | W7 Stage-1 proof | `go test -tags integration ./test/integration/...` on NTFS, then with `ARXGO_TEST_VIDEO_PARENT` naming a directory on the second volume | Manifests equal after split, kill, resume and restore; exit codes as specified |
+| W7a Preview runner | `go test -count=1 -run 'TestRunner' ./internal/media` on NTFS, including the test-binary child process | Timeout ends the child process, failed runs remove their part files, and successful output is published without replacement |
 | W8 Release bundle | Unpack `arxgo-<version>-windows-amd64.zip`; `arxgo.exe split --image start` on a generated video | Previews produced with the bundled `ffmpeg.exe`; no `.env` in the bundle |
 | W9 Cloud (stage 3) | Token cache and session state after a publish | Files readable only by the current user (ACL) |
 
@@ -59,6 +60,7 @@ each one as deferred to this scenario; the step column shows where it is checked
 
 | Note | Concern | Step |
 | --- | --- | --- |
+| `AUD-implement-ffmpeg-runner-1` | Windows Job Object process-tree cleanup and no-replace preview publication need a Windows runtime check | W7a |
 | `AUD-implement-cli-contract-1` | Case-variant roots on a real filesystem; `EvalSymlinks` on UNC and mapped drives | W1, W2, W3 |
 | `AUD-add-env-file-and-setup-1` | `.env` ACL instead of mode 0600; `make setup` under Git Bash | W2, W9 |
 | `AUD-implement-filesystem-primitives-1` | Volume serial and serial-0 shares, `GetDiskFreeSpaceEx`, `MoveFileEx` no-replace and retry, `\\?\` prefix, cross-volume copy | W3 |

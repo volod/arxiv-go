@@ -27,25 +27,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media previews -- `media-previews`
 
-#### implement-ffmpeg-runner
-
-Run ffmpeg safely with progress, timeouts and error capture.
-
-- Serves: `media-previews` -- [ffmpeg invocation](../openspec/stage-2-previews/previews.md#ffmpeg-invocation)
-- Agent status: CLEAR
-- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
-- User-visible outcome: Preview generation reports progress and fails cleanly with a readable reason
-  instead of hanging or leaving partial files.
-- Scope boundary: `media.Runner` for ffmpeg/ffprobe, `-progress pipe:1` parsing, stderr ring buffer,
-  timeout, cancellation, part-file naming and rename, encoder list probe. No preview planning.
-- Data and artifact paths: `internal/media/ffmpeg.go`.
-- Execution path: Test-binary helper process (the pattern of [shell-free discovery tests](records/0014-metadata-remove-shell-scripts-from-discovery-tests.md),
-  no shell scripts) for progress, exit-code and timeout tests; live test on a `lavfi` input.
-- Acceptance gates: Progress parsed; timeout kills the process tree; non-zero exit removes the part
-  file and returns the stderr tail; encoder list parsed from captured output.
-- Documentation target: `docs/impl/current/media-previews.md`
-- Review checkpoint: `review-stage-2-previews`.
-
 #### implement-preview-planning
 
 Compute preview positions, series, resolution clamp and names without running ffmpeg.
@@ -71,7 +52,7 @@ Generate sample clips in the source container format.
 
 - Serves: `media-previews` -- [Encoding by container](../openspec/stage-2-previews/previews.md#encoding-by-container)
 - Agent status: CLEAR
-- Dependencies: `implement-ffmpeg-runner`; `implement-preview-planning`.
+- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); `implement-preview-planning`.
 - User-visible outcome: `--sample start|middle|end|series` produces playable `-smplNN` clips at the
   requested duration and clamped resolution.
 - Scope boundary: ffmpeg argument construction for single and chunked series clips, encoder
@@ -90,7 +71,7 @@ Generate PNG frames at the planned positions.
 
 - Serves: `media-previews` -- [Position modes](../openspec/stage-2-previews/previews.md#position-modes)
 - Agent status: CLEAR
-- Dependencies: `implement-ffmpeg-runner`; `implement-preview-planning`.
+- Dependencies: [FFmpeg runner](records/0026-preview-implement-ffmpeg-runner.md); `implement-preview-planning`.
 - User-visible outcome: `--image start|middle|end|series` produces `-imgNN.png` frames at the
   clamped resolution.
 - Scope boundary: Frame extraction arguments, compression mapping, PNG validation with
