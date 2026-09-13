@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Download the pinned, statically linked ffmpeg and ffprobe builds from packaging/ffmpeg.lock.
 #
-# Usage: tools/fetch-ffmpeg.sh <out-dir> <os/arch>...
+# Usage: scripts/fetch-ffmpeg.sh <out-dir> <os/arch>...
 #
 # Writes ffmpeg/ffprobe (linux) and ffmpeg.exe/ffprobe.exe (windows) into <out-dir>, next to the
 # arxgo binaries, where tool discovery looks first. Every download and every extracted binary is

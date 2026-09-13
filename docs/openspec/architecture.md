@@ -18,12 +18,14 @@ arxiv-go/
 |   |-- report/                  csv.go, markdown.go, summary
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
-|-- tools/plancheck/             dev-only command wrapping internal/devtools/planning
+|-- tools/plancheck/             dev-only Go command wrapping internal/devtools/planning
+|-- scripts/                     shell helpers (pinned ffmpeg fetch)
+|-- make/                        Makefile fragments included by the root Makefile
 |-- docs/openspec/               specification tree (this directory)
 |-- docs/impl/                   plan.md, current.md, current/, records/
 |-- docs/guide/                  planning workflow, development guide
 |-- AGENTS.md                    canonical agent rules; CLAUDE.md/GEMINI.md link to it
-`-- Makefile                     build, cross-compile, test, lint, ci
+`-- Makefile                     entry point: help and includes of make/*.mk
 ```
 
 ## Dependency direction

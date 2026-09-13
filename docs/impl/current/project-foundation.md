@@ -2,7 +2,8 @@
 
 Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bootstrap-repository-and-agent-harness.md);
 [0003 CLI contract](../records/0003-foundation-implement-cli-contract.md);
-[0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md).
+[0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md);
+[0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md).
 
 ## Identity
 
@@ -46,12 +47,13 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 
 ## Build and quality
 
-- `Makefile` provides host and cross builds (`CGO_ENABLED=0`, linux/windows amd64), tests,
-  vet, gofmt check, coverage report and `make ci`; see the
+- Root `Makefile` is the developer entry point (`make help`); recipes live in `make/*.mk`.
+  It provides host and cross builds (`CGO_ENABLED=0`, linux/windows amd64), tests, vet, gofmt
+  check, coverage report and `make ci`; see the
   [development guide](../../guide/development.md#make-targets).
 - `.github/workflows/ci.yml` runs `make ci` on Ubuntu and vet, tests and a static build on Windows
   (`actions/checkout@v7`, `actions/setup-go@v7`, cache keyed on `go.mod`).
-- `HOST_EXE` in the `Makefile` probes `go env GOOS` lazily, so `make ffmpeg` works without Go.
+- `HOST_EXE` in `make/config.mk` probes `go env GOOS` lazily, so `make ffmpeg` works without Go.
 - `make setup` runs `build`, `ffmpeg` and `env` (copy `.env.example` to `bin/.env` with mode 0600
   unless it exists) and prints configure/run instructions; it fails early with guidance when Go is
   not on `PATH`. `make clean` keeps `bin/.env`.

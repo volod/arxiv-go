@@ -400,11 +400,11 @@ Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
 - User-visible outcome: Operators download one archive per platform that runs previews with no
   installation.
 - Scope boundary: `make dist` packaging on top of the approved pins in `packaging/ffmpeg.lock` and
-  the verified download in `tools/fetch-ffmpeg.sh` (`make ffmpeg`), `SHA256SUMS`, GPLv3 licence
+  the verified download in `scripts/fetch-ffmpeg.sh` (`make ffmpeg`), `SHA256SUMS`, GPLv3 licence
   text and source offer per bundle, CI release job on tags. Each bundle ships `.env.example` next
   to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed.
-- Data and artifact paths: `packaging/`, `Makefile`, `.github/workflows/release.yml`, `dist/`
-  (ignored).
+- Data and artifact paths: `packaging/`, `scripts/fetch-ffmpeg.sh`, `make/`, `Makefile`,
+  `.github/workflows/release.yml`, `dist/` (ignored).
 - Execution path: Declared run: `make dist` for linux/amd64 and windows/amd64 with network access,
   then smoke-test each bundle (`arxgo split --image start` on a generated video) on its OS.
 - Acceptance gates: Checksums verified before packaging; bundle smoke tests pass on both OSes;
