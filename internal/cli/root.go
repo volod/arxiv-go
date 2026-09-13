@@ -56,19 +56,24 @@ var defaultHandlers = Handlers{
 	Scan: func(ctx context.Context, o ScanOptions, log *slog.Logger) int {
 		d := o
 		d.Common = definingCommon(o.Common)
-		return runSession(ctx, sessionConfig(OpScan, o.Common, o, d), log, notImplemented)
+		cfg := sessionConfig(OpScan, o.Common, o, d)
+		cfg.Registry, cfg.Preflight.Metadata = o.Registry, o.Metadata
+		return runSession(ctx, cfg, log, notImplemented)
 	},
 	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
 		d := o
 		d.Common, d.CreateVideoArchive = definingCommon(o.Common), false
 		cfg := sessionConfig(OpSplit, o.Common, o, d)
 		cfg.CreateVideoArchive = o.CreateVideoArchive
+		cfg.Preflight.Transfer = o.Transfer
 		return runSession(ctx, cfg, log, notImplemented)
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
 		d := o
 		d.Common = definingCommon(o.Common)
-		return runSession(ctx, sessionConfig(OpRestore, o.Common, o, d), log, notImplemented)
+		cfg := sessionConfig(OpRestore, o.Common, o, d)
+		cfg.Preflight.Transfer = o.Transfer
+		return runSession(ctx, cfg, log, notImplemented)
 	},
 }
 

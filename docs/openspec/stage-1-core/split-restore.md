@@ -17,8 +17,8 @@ there and where it went.
 2. Take the lock on both roots and recover any incomplete run ([integrity](integrity.md#recovery)).
 3. Scan the archive ([registry](registry.md)); `is_video=true` rows become candidates. The registry
    is written as in `scan`.
-4. Preflight free space and print the plan ([integrity](integrity.md#preflight)). With
-   `--dry-run`, stop here with exit 0.
+4. Preflight free space and print the plan ([integrity](integrity.md#preflight)). A shortfall exits
+   4, also with `--dry-run`; otherwise `--dry-run` stops here with exit 0.
 5. For each candidate in walk order, run one transaction:
    - destination `<video-archive>/<rel_path>`; parent directories are created with the source
      directory permission bits (Linux) and never removed by split;
@@ -71,7 +71,7 @@ directories that no longer exist.
 3. When `arxgo-videos.csv` exists, each candidate is matched to its row by `video_rel_path` to
    recover the original path, size and hash. Candidates without a row are restored to the same
    relative path and logged as `unregistered`.
-4. Preflight free space for the archive device.
+4. Preflight free space for the archive device; a shortfall exits 4 before any mutation.
 5. For each candidate, one transaction:
    - destination `<archive>/<rel_path>`;
    - missing parent directory: without `--create-dirs` skip the video and log

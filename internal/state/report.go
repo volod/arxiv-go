@@ -12,7 +12,7 @@ type Report struct {
 	RunID      string       `json:"run_id"`
 	Op         string       `json:"op"`
 	Version    string       `json:"version"`
-	Status     string       `json:"status"` // completed, partial, not_implemented; dry runs may also be interrupted or failed
+	Status     string       `json:"status"` // completed, partial, not_implemented; dry runs may also be interrupted, failed or insufficient_space
 	DryRun     bool         `json:"dry_run,omitempty"`
 	Resumed    bool         `json:"resumed,omitempty"`
 	StartedAt  time.Time    `json:"started_at"`

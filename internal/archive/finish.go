@@ -14,13 +14,14 @@ type Status int
 
 // Run outcomes.
 const (
-	StatusCompleted      Status = iota // everything done, nothing skipped
-	StatusPartial                      // done with skipped or failed items
-	StatusNotImplemented               // the operation body is not in this build
-	StatusInterrupted                  // context canceled; checkpoint written
-	StatusFailed                       // unexpected error; rerun resumes
-	StatusNeedsOperator                // lock lost or corrupt state; lock kept when still ours
-	StatusLocked                       // another run holds the lock, or it is stale or remote
+	StatusCompleted         Status = iota // everything done, nothing skipped
+	StatusPartial                         // done with skipped or failed items
+	StatusNotImplemented                  // the operation body is not in this build
+	StatusInterrupted                     // context canceled; checkpoint written
+	StatusFailed                          // unexpected error; rerun resumes
+	StatusNeedsOperator                   // lock lost or corrupt state; lock kept when still ours
+	StatusLocked                          // another run holds the lock, or it is stale or remote
+	StatusInsufficientSpace               // preflight refused the run; nothing in the archive changed
 )
 
 // StartFailed logs why Start failed, naming the lock owner when the lock was not acquired, and
@@ -220,6 +221,8 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 		return StatusCompleted
 	case errors.Is(err, ErrNotImplemented):
 		return StatusNotImplemented
+	case errors.Is(err, ErrInsufficientSpace):
+		return StatusInsufficientSpace
 	case errors.Is(err, state.ErrLockLost), errors.Is(err, state.ErrStateCorrupt):
 		return StatusNeedsOperator
 	case ctx.Err() != nil || errors.Is(err, context.Canceled):
@@ -289,6 +292,8 @@ func (st Status) String() string {
 		return "needs_operator"
 	case StatusLocked:
 		return "locked"
+	case StatusInsufficientSpace:
+		return "insufficient_space"
 	}
 	return fmt.Sprintf("status(%d)", int(st))
 }

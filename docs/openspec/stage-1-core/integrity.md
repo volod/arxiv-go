@@ -125,17 +125,32 @@ Preflight runs after the scan and before the first mutation, and prints its comp
 | --- | --- |
 | `scan` | archive device (or `--registry` device): estimated registry size = rows x 256 B, plus metadata JSON estimate (512 B per media row in `media` mode) |
 | `split`, same device, `--transfer auto` | archive device: stubs (4 KiB each) + video registries (1 KiB per video, two copies) |
-| `split`, other device or `--transfer copy` | video archive device: sum of candidate sizes + registry copy; archive device: stubs + registry. Sources are removed one by one, so only the largest file is needed twice on a shared device when both roots share one |
+| `split`, other devices | video archive device: sum of candidate sizes + registry copy; archive device: stubs + registry |
+| `split`, same device, `--transfer copy` | the shared device: stubs + both registry copies + the largest candidate. Sources are removed one by one after each copy commits, so only the largest file is ever held twice |
 | `restore`, same device, `auto` | archive device: negligible (renames) |
-| `restore`, other device or `copy` | archive device: sum of candidate sizes |
+| `restore`, other devices, or `--transfer copy` | archive device: sum of candidate sizes (`copy` keeps the video archive copy) |
+| `split` and `restore` run state | archive device additionally: 2 KiB of WAL records per candidate |
 | Stage 2 previews | archive device additionally: estimated preview bytes from [previews](../stage-2-previews/previews.md#space-estimate) |
 
-Every write device must keep `--min-free` after the operation. Free space comes from
-`fsops.FreeSpace(path)` (Statfs / GetDiskFreeSpaceEx). When the sum exceeds free space minus
-`--min-free`, `arxgo` prints required, available and shortfall per device and exits 4. Devices are
-identified with `fsops.SameDevice`; two roots on one device are checked once with summed
-requirements. Network filesystems that report no free space (`0` total) produce a warning and
-continue, since the value is unknowable.
+A device is a write device when a role placed on it is written by the operation: the archive and
+the video archive for `split`, the archive for `restore`, and the registry file's device for
+`scan`. Every write device must keep `--min-free` after the operation, even when its estimate is
+zero. Free space is the caller-available figure of `fsops.FreeSpace(path)` (Statfs `Bavail` /
+GetDiskFreeSpaceEx); a missing root (a video archive split will create) uses its nearest existing
+ancestor. A device passes when required + `--min-free` <= available, so exactly at the threshold
+passes and one byte less fails. Devices are identified with `fsops.SameDevice`; two roots on one
+device are checked once with summed requirements and free space is read once per device.
+
+Preflight prints one `preflight device` line per write device with its roles, path, `required`,
+`min_free`, `available`, `shortfall` and the named estimates (`needs`), plus the same figures in
+exact bytes (`*_bytes`), then `preflight passed` or `preflight failed: insufficient free space`
+with the summed shortfall. The lines go to the console and the run log. On a shortfall `arxgo`
+exits 4 before any archive mutation, also with `--dry-run` (whose report records status
+`insufficient_space`). A real run refused by preflight writes no report and releases its locks, so
+the same command resumes it once space is freed (`--min-free` may change on resume). Network
+filesystems that report no free space (`0` total) show `available=unknown`, produce a warning and
+continue, since the value is unknowable. Failing to read device or free-space information is an
+ordinary failure (exit 1).
 
 Resume recomputes preflight from the remaining candidates only.
 
@@ -153,7 +168,8 @@ Resume recomputes preflight from the remaining candidates only.
   the remaining bytes (items when the byte total is unknown).
 - `report.json` and the final log line hold totals per phase, skipped/failed items with reasons,
   bytes written and freed per root, and wall time. `report.json` is written when a run completes
-  (exit 0 or 6, or 70 while an operation is not implemented) and for every dry run; an interrupted
+  (exit 0 or 6, or 70 while an operation is not implemented) and for every dry run (including one
+  refused by preflight); an interrupted
   or failed run has none and is resumed. Per-phase figures cover the process that wrote the report;
   the counters are cumulative across resumed processes.
 - `run.log.jsonl` receives records at `info` and above (or `debug` with `--log-level debug`) as JSON
@@ -171,5 +187,5 @@ Resume recomputes preflight from the remaining candidates only.
 - Torn final WAL line is truncated; corrupt middle line exits 5.
 - Lock: concurrent second run exits 5; stale lock requires `--force-unlock`.
 - Preflight: an injected free-space function below requirement exits 4 with no file mutated;
-  exactly at requirement plus `--min-free` passes.
+  exactly at requirement plus `--min-free` passes; one byte less fails; a zero-total device warns.
 - Interrupt: canceling the context mid-run leaves a checkpoint and resumes to completion.

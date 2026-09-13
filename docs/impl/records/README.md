@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0009`.
+Next unused sequence: `0010`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -17,3 +17,4 @@ Next unused sequence: `0009`.
 | [0006 Run lock and checkpoint](0006-safety-implement-run-lock-and-checkpoint.md) | `.arxgo/` layout, exclusive run lock, atomic checkpoints, slog fan-out run log, progress, report, session resume | Accepted; `make ci` passes on Linux; Windows CI pending |
 | [0007 Write-ahead log and recovery](0007-safety-implement-write-ahead-log-and-recovery.md) | WAL JSON Lines writer/reader, torn-tail truncation, recovery engine, committed-set, crash-injection helper | Accepted; `make ci` passes on Linux; Windows CI pending |
 | [0008 Refactor repository layout](0008-foundation-refactor-repository-layout.md) | Slim Makefile via `make/*.mk`; shell in `scripts/`; Go-only `tools/`; architecture tree | Accepted; `make ci` passes on Linux; Windows CI pending |
+| [0009 Disk-space preflight](0009-safety-implement-disk-space-preflight.md) | `internal/archive` preflight requirement model, device probe, report lines, `Session.Preflight`, exit 4 via `StatusInsufficientSpace` | Accepted; `make ci` passes on Linux; Windows CI pending |

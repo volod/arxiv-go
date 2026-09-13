@@ -30,6 +30,10 @@ type Config struct {
 	DryRun             bool
 	NewRun             bool
 	ForceUnlock        bool
+	Registry           string // scan: registry file placed by preflight; empty uses the archive
+
+	// Preflight holds the options that change the free-space requirement; Op is taken from Op.
+	Preflight PreflightOptions
 
 	// Options is every validated option, stored in options.json. Defining is the subset that must
 	// be equal for a later process to resume the run.
@@ -47,6 +51,7 @@ type Config struct {
 	Rand  io.Reader
 	Lock  state.LockOptions // Host, PID and Alive; ForceUnlock comes from the field above
 	Ticks func(d time.Duration) (<-chan time.Time, func())
+	FS    fsops.Ops // device and free-space queries for preflight
 
 	// Recoverer, when set, is applied to an existing wal.jsonl after the lock is taken.
 	Recoverer state.Resolver
@@ -68,6 +73,9 @@ func (c *Config) defaults() {
 			t := time.NewTicker(d)
 			return t.C, t.Stop
 		}
+	}
+	if c.FS == nil {
+		c.FS = fsops.System{}
 	}
 	c.Lock.ForceUnlock = c.ForceUnlock
 }

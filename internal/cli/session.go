@@ -7,7 +7,8 @@ import (
 	"github.com/volod/arxiv-go/internal/archive"
 )
 
-// sessionHooks lets tests replace the process identity used by the run lock and the clock.
+// sessionHooks lets tests replace the process identity used by the run lock and the clock. It sees
+// the complete configuration just before the session starts.
 var sessionHooks = func(cfg *archive.Config) {}
 
 // body is an operation's work inside a started session.
@@ -25,8 +26,8 @@ func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 		ProgressInterval:   c.ProgressInterval,
 		CheckpointEvery:    c.CheckpointEvery,
 		CheckpointInterval: c.CheckpointInterval,
+		Preflight:          archive.PreflightOptions{MinFree: int64(c.MinFree)},
 	}
-	sessionHooks(&cfg)
 	return cfg
 }
 
@@ -40,6 +41,7 @@ func definingCommon(c Common) Common {
 // runSession starts the run, executes fn and maps the outcome to an exit code.
 func runSession(ctx context.Context, cfg archive.Config, log *slog.Logger, fn body) int {
 	cfg.Console = log.Handler()
+	sessionHooks(&cfg)
 	s, err := archive.Start(ctx, cfg)
 	if err != nil {
 		return exitCode(archive.StartFailed(ctx, log, err))
@@ -60,6 +62,8 @@ func exitCode(st archive.Status) int {
 		return ExitInterrupted
 	case archive.StatusLocked, archive.StatusNeedsOperator:
 		return ExitLocked
+	case archive.StatusInsufficientSpace:
+		return ExitInsufficientDisk
 	default:
 		return ExitFailure
 	}

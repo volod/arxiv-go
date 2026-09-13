@@ -202,7 +202,8 @@ counters are omitted when zero. `elapsed_s` accumulates across resumed processes
 ```
 
 `status` is `completed`, `partial` (skipped or failed items) or `not_implemented`; a dry run that
-was interrupted or failed also writes `interrupted` or `failed`. `dry_run` and `resumed` are present
+was interrupted or failed also writes `interrupted` or `failed`, and one refused by preflight writes
+`insufficient_space`. `dry_run` and `resumed` are present
 only when true. `issues` keeps the first 10000 items and `issues_omitted` counts the rest; the run
 log lists every issue. Phase times and counters cover the process that wrote the report
 (`started_at` is that process's start); `counters` are cumulative for the run.

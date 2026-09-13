@@ -18,29 +18,6 @@ change; `make ci` must pass.
 
 ## Agent Implementation Tasks
 
-### Crash safety -- `crash-safety`
-
-#### implement-disk-space-preflight
-
-Refuse to start a mutating run that cannot finish for lack of space.
-
-- Serves: `crash-safety` -- [Preflight](../openspec/stage-1-core/integrity.md#preflight)
-- Agent status: CLEAR
-- Dependencies: [Filesystem primitives](records/0005-safety-implement-filesystem-primitives.md).
-- User-visible outcome: `split`, `restore` and `--dry-run` print required, available and shortfall
-  per device, and exit 4 before any mutation when space is insufficient.
-- Scope boundary: Requirement model per operation/transfer/device placement, `--min-free`, shared-
-  device aggregation, unknown network free space warning, stage-2 preview estimate hook (zero until
-  stage 2). Input is a candidate summary, not the scanner itself.
-- Data and artifact paths: `internal/archive/preflight.go`.
-- Execution path: Pure function `Plan(candidates, options, deviceInfo) Requirement` plus a thin
-  adapter over `fsops.SameDevice`/`FreeSpace`.
-- Acceptance gates: Table tests for each row of the preflight table, both roots on one device,
-  exactly-at-threshold pass, one byte short fails, zero-total network filesystem warns; formatted
-  report is stable.
-- Documentation target: `docs/impl/current/crash-safety.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 ### Archive registry -- `archive-registry`
 
 #### implement-directory-walker
@@ -181,7 +158,7 @@ Move every video into the mirrored video archive as a write-ahead-logged transac
 - Serves: `video-split` -- [Split](../openspec/stage-1-core/split-restore.md#split)
 - Agent status: CLEAR
 - Dependencies: [Write-ahead log and recovery](records/0007-safety-implement-write-ahead-log-and-recovery.md);
-  `implement-disk-space-preflight`;
+  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md);
   `implement-scan-operation-and-csv-registry`.
 - User-visible outcome: `arxgo split` moves videos by rename on one device or copy+verify+delete
   across devices, honors `--dry-run`, never overwrites, and resumes after any crash.
@@ -253,8 +230,9 @@ Review stage-1 cross-module invariants before the stage proof and before stage 2
 - Serves: `video-restore` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md); `implement-disk-space-preflight`;
-  `implement-video-restore`; `implement-ffprobe-metadata`.
+- Dependencies: [CLI contract](records/0003-foundation-implement-cli-contract.md);
+  [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md); `implement-video-restore`;
+  `implement-ffprobe-metadata`.
 - User-visible outcome: Stage 1 is known to be coherent: WAL steps, recovery table, registry
   contracts, lock and preflight agree across scan, split and restore.
 - Scope boundary: Read all stage-1 records, code and tests; trace a video through scan, split,

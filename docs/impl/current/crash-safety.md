@@ -2,10 +2,11 @@
 
 Accepted work: [0005 Filesystem primitives](../records/0005-safety-implement-filesystem-primitives.md);
 [0006 Run lock and checkpoint](../records/0006-safety-implement-run-lock-and-checkpoint.md);
-[0007 Write-ahead log and recovery](../records/0007-safety-implement-write-ahead-log-and-recovery.md).
+[0007 Write-ahead log and recovery](../records/0007-safety-implement-write-ahead-log-and-recovery.md);
+[0009 Disk-space preflight](../records/0009-safety-implement-disk-space-preflight.md).
 Specification: [integrity](../../openspec/stage-1-core/integrity.md) and
-[contracts](../../openspec/stage-1-core/contracts.md#wal-record). Remaining work (disk-space
-preflight) is in the [plan](../plan.md#crash-safety----crash-safety).
+[contracts](../../openspec/stage-1-core/contracts.md#wal-record). The stage-1 integrity review is
+still open in the [plan](../plan.md#review-stage-1-integrity).
 
 ## Filesystem primitives (`internal/fsops`)
 
@@ -118,9 +119,48 @@ pass is a no-op. Resume skips `rel_path`s in the committed-set hash index.
 and restore operations (copy and rename) recover to the same tree as an uninterrupted run.
 `archive.Start` recovers an existing WAL when `Config.Recoverer` is set.
 
+## Disk-space preflight (`internal/archive`)
+
+`preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
+`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the stage-2 hook
+that stays zero until previews exist). `DeviceInfo` lists devices with their roles (`archive`,
+`video_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
+device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
+
+- Estimates follow the [preflight table](../../openspec/stage-1-core/integrity.md#preflight):
+  registry 256 B per row plus 512 B per media row (scan); stubs 4 KiB, video registry 1 KiB per
+  copy, WAL 2 KiB per candidate (split); all candidate bytes on another device; only the largest
+  candidate for `--transfer copy` on a shared device; nothing for same-device `restore` renames
+  except WAL, and all candidate bytes for `restore` across devices or with `copy`.
+- A device passes when required + `--min-free` <= available (caller-available bytes). A zero-total
+  device (network share) is `Known == false`: `available=unknown`, a warning, no failure.
+- Sums saturate at `MaxInt64`, negative inputs count as zero, and roles on one device merge their
+  estimates (`video_registry` twice becomes one entry).
+- `ProbeDevices(fsops.Ops, []RolePath)` groups roots with `SameDevice` and reads free space once per
+  device; missing roots use their nearest existing ancestor.
+- `Session.Preflight(ctx, Candidates)` starts phase `preflight`, probes the roots in
+  `Config` (plus `Config.Registry` for scan), logs one `preflight device` line per device and a
+  `preflight passed` / `preflight failed: insufficient free space` summary to the console and run
+  log, and returns `*InsufficientSpaceError` (`errors.Is(err, ErrInsufficientSpace)`).
+- `Finish` maps it to `StatusInsufficientSpace`; `cli` maps that to exit 4. A refused real run
+  writes no report and releases its locks, so it resumes after space is freed; a refused dry run
+  writes `report.json` with status `insufficient_space`.
+- `cli` passes `--min-free`, `--transfer` (split/restore), `--metadata` and `--registry` (scan) in
+  `Config.Preflight` / `Config.Registry`; `Config.FS` injects device and free-space queries in tests.
+
+Example on the development host (ext4 archive, tmpfs video archive, 500 videos, 40 GiB):
+
+```text
+level=INFO msg="preflight device" roles=archive path=/home/.../archive required=3.4MiB min_free=1.0GiB available=992.4GiB shortfall=0B needs="stubs=2.0MiB video_registry=500.0KiB wal=1000.0KiB" ...
+level=INFO msg="preflight device" roles=video_archive path=/dev/shm/video required=40.0GiB min_free=1.0GiB available=62.0GiB shortfall=0B needs="video_registry=500.0KiB videos=40.0GiB" ...
+level=INFO msg="preflight passed" op=split devices=2
+```
+
 ## Limits
 
 - Windows behavior is cross-compiled only; the CI Windows test job has not run it yet.
+- Preflight is not called by any operation yet: `scan`, `split` and `restore` have no candidate list
+  in this build and still exit 70. The scan and split/restore tasks call `Session.Preflight`.
 - `DurableCopy` needs the destination directory to exist and does not remove the source.
 - Remote-host lock refusal is tested with injected host names, not a live network share.
 - A `Start` that sees corrupt run state releases the lock (exit 5) so `--new-run` does not need
