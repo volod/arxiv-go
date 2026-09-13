@@ -39,7 +39,7 @@ arxgo restore --archive /data/archive --video-archive /mnt/nas/video --create-di
 ## Setup
 
 ```bash
-make setup        # build bin/arxgo, download ffmpeg/ffprobe, create bin/.env, print usage
+make setup        # build bin/arxgo and bin/arxgo.exe, download ffmpeg/ffprobe, create bin/.env
 ```
 
 Settings may come from flags, `ARXGO_*` environment variables, or the optional `bin/.env` file next
@@ -48,8 +48,8 @@ to the executable (template: [.env.example](.env.example)), in that order of pre
 ## Build
 
 ```bash
-make build        # bin/arxgo
-make build-all    # static linux/windows amd64 binaries
+make build        # bin/arxgo (static Linux amd64)
+make build-all    # bin/arxgo and bin/arxgo.exe (static Linux/Windows amd64)
 ```
 
 ## Develop

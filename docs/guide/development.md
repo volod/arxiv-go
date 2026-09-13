@@ -18,10 +18,10 @@
 make setup
 ```
 
-`make setup` builds `bin/arxgo`, downloads the pinned `ffmpeg`/`ffprobe` into `bin/` (network
-access required), creates `bin/.env` from `.env.example` if it does not exist yet (mode 0600,
-never overwritten), and prints how to configure and run. Rerunning it is safe. It needs Go on
-`PATH` and exits with install guidance if Go is missing.
+`make setup` builds `bin/arxgo` and `bin/arxgo.exe`, downloads the pinned `ffmpeg`/`ffprobe`
+into `bin/` (network access required), creates `bin/.env` from `.env.example` if it does not
+exist yet (mode 0600, never overwritten), and prints how to configure and run. Rerunning it is
+safe. It needs Go on `PATH` and exits with install guidance if Go is missing.
 
 `bin/.env` is the optional [environment file](../openspec/stage-1-core/cli.md#environment-file)
 that `arxgo` reads next to its executable. It holds `ARXGO_*` settings and, from stage 3,
@@ -35,10 +35,10 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 
 | Target | Runs | Purpose |
 | --- | --- | --- |
-| `make setup` | `build`, `ffmpeg`, `env`, then prints usage | Ready-to-run `bin/` in one command (network) |
+| `make setup` | `build-all`, `ffmpeg`, `env`, then prints usage | Ready-to-run `bin/` in one command (network) |
 | `make env` | `cp .env.example bin/.env` unless it exists | Optional settings file next to the binary; never overwrites |
-| `make build` | `go build -trimpath -o bin/arxgo ./cmd/arxgo` | Host binary with version stamp |
-| `make build-all` | `GOOS/GOARCH` loop, `CGO_ENABLED=0` | `bin/arxgo-<os>-<arch>[.exe]` for linux/windows amd64 |
+| `make build` | `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo ./cmd/arxgo` | Static Linux amd64 binary with version stamp |
+| `make build-all` | `build`, then `CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo.exe ./cmd/arxgo` | `bin/arxgo` and `bin/arxgo.exe` |
 | `make ffmpeg` | `bash tools/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |

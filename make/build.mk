@@ -3,14 +3,15 @@
 ##@ Setup
 .PHONY: setup env check-go
 setup: check-go ## One-time setup: build arxgo, download ffmpeg/ffprobe, create bin/.env, print usage
-	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory build-all
 	@$(MAKE) --no-print-directory ffmpeg
 	@$(MAKE) --no-print-directory env
 	@exe=$(BIN_DIR)/arxgo$(HOST_EXE); \
 	printf '%s\n' \
 	  '' \
 	  'arxgo is ready in $(BIN_DIR)/:' \
-	  "  $$exe, ffmpeg and ffprobe for this host, and $(BIN_DIR)/.env (optional settings)" \
+	  '  arxgo (Linux amd64), arxgo.exe (Windows amd64),' \
+	  "  ffmpeg and ffprobe for this host, and $(BIN_DIR)/.env (optional settings)" \
 	  '' \
 	  'Configure (optional; flags and environment variables override the file):' \
 	  '  1. Edit $(BIN_DIR)/.env and uncomment the settings you need, for example' \
@@ -43,15 +44,12 @@ env: ## Create bin/.env from .env.example unless it already exists (never overwr
 
 ##@ Build
 .PHONY: build build-all ffmpeg clean
-build: ## Build arxgo for the host into bin/
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/arxgo$(HOST_EXE) ./cmd/arxgo
+build: ## Build static Linux amd64 arxgo into bin/
+	@mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/arxgo ./cmd/arxgo
 
-build-all: ## Cross-compile static arxgo for Linux and Windows amd64
-	@set -e; for p in $(PLATFORMS); do \
-		os=$${p%/*}; arch=$${p#*/}; ext=$$([ "$$os" = windows ] && echo .exe || true); \
-		out=$(BIN_DIR)/arxgo-$$os-$$arch$$ext; echo "build $$out"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $$out ./cmd/arxgo; \
-	done
+build-all: build ## Build static Linux and Windows amd64 arxgo into bin/
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/arxgo.exe ./cmd/arxgo
 
 ffmpeg: ## Download pinned static ffmpeg/ffprobe (linux/windows amd64) into bin/; needs network
 	$(SHELL) $(PROJECT_ROOT)/scripts/fetch-ffmpeg.sh $(BIN_DIR) $(PLATFORMS)

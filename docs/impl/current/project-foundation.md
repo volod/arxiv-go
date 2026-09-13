@@ -4,7 +4,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 [0003 CLI contract](../records/0003-foundation-implement-cli-contract.md);
 [0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md);
 [0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md);
-[0017 Centralize test layout](../records/0017-foundation-centralize-test-layout.md).
+[0017 Centralize test layout](../records/0017-foundation-centralize-test-layout.md);
+[0024 Build artifact names](../records/0024-foundation-simplify-build-artifact-names.md).
 
 ## Identity
 
@@ -58,7 +59,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 ## Build and quality
 
 - Root `Makefile` is the developer entry point (`make help`); recipes live in `make/*.mk`.
-  It provides host and cross builds (`CGO_ENABLED=0`, linux/windows amd64), tests, vet, gofmt
+  `make build` writes static Linux amd64 `bin/arxgo`; `make build-all` reuses that recipe and
+  also writes static Windows amd64 `bin/arxgo.exe` (`CGO_ENABLED=0`). It provides tests, vet, gofmt
   check, coverage report and `make ci`; see the
   [development guide](../../guide/development.md#make-targets).
 - Root-level [`test/`](../../../test/README.md) holds integration tests, test-only helpers and
@@ -68,8 +70,9 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   `make vet-windows`. `.github/workflows/windows.yml` (manual `workflow_dispatch`: vet, tests and a
   static build on Windows) is step W1 of the deferred
   [Windows verification scenario](../../guide/windows-verification.md).
-- `HOST_EXE` in `make/config.mk` probes `go env GOOS` lazily, so `make ffmpeg` works without Go.
-- `make setup` runs `build`, `ffmpeg` and `env` (copy `.env.example` to `bin/.env` with mode 0600
+- `HOST_EXE` selects the runnable example in `make setup` lazily, so `make ffmpeg` works without Go.
+  `make build` and `make build-all` create `bin/` if needed.
+- `make setup` runs `build-all`, `ffmpeg` and `env` (copy `.env.example` to `bin/.env` with mode 0600
   unless it exists) and prints configure/run instructions; it fails early with guidance when Go is
   not on `PATH`. `make clean` keeps `bin/.env`.
 

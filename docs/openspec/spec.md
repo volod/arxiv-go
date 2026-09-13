@@ -95,6 +95,10 @@ Out of scope:
 - Go 1.27 or newer; module `github.com/volod/arxiv-go`; binary `arxgo` (`arxgo.exe`).
 - Release builds: `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ...version=..."` for
   `linux/amd64`, `windows/amd64`.
+- `make build` writes the Linux amd64 executable to `bin/arxgo`; `make build-all` writes that
+  same Linux executable to `bin/arxgo` and the Windows amd64 executable to `bin/arxgo.exe`.
+  The two targets must use the same Linux build recipe, and a clean checkout must build without
+  first creating `bin/`.
 - Platform-specific code uses build-tagged files (`*_linux.go`, `*_windows.go`, `*_unix.go`) and
   `golang.org/x/sys` only; no cgo.
 - Paths in outputs use forward slashes and are relative to the owning root. Windows long paths,
