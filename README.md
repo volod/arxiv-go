@@ -18,8 +18,8 @@ starting.
 Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
-> Status: stage 1 in progress. Operations take a run lock, write checkpoints and can recover an
-> interrupted WAL; they then exit 70 until scan, split and restore land.
+> Status: stage 1 in progress. `scan` writes the resumable file registry; `split` and `restore` take
+> the run lock and write checkpoints, then exit 70 until they land.
 
 ```bash
 arxgo --archive /data/archive
@@ -48,6 +48,12 @@ to the executable (template: [.env.example](.env.example)), in that order of pre
 ```bash
 make build        # bin/arxgo
 make build-all    # static linux/windows amd64 binaries
-make ci           # required checks
+```
+
+## Develop
+
+```bash
 make plan-status  # next eligible task
+# implement
+make ci           # required checks
 ```

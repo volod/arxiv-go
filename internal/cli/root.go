@@ -13,6 +13,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/volod/arxiv-go/internal/archive"
 )
 
 // Exit codes are part of the operator contract; see the CLI specification.
@@ -58,7 +60,7 @@ var defaultHandlers = Handlers{
 		d.Common = definingCommon(o.Common)
 		cfg := sessionConfig(OpScan, o.Common, o, d)
 		cfg.Registry, cfg.Preflight.Metadata = o.Registry, o.Metadata
-		return runSession(ctx, cfg, log, notImplemented)
+		return runSession(ctx, cfg, log, archive.ScanBody(scanConfig(o.Archive, o.ScanSettings, true)))
 	},
 	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
 		d := o

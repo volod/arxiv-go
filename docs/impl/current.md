@@ -13,11 +13,11 @@ linked here in the same change.
 
 | Area | Owns | State |
 | --- | --- | --- |
-| [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options, run the lock/checkpoint session, then exit 70 |
+| [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options and run the lock/checkpoint session; `split` and `restore` then exit 70 |
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery, disk-space preflight | Shipped; session used by every operation; preflight awaits split/restore candidates |
-| [Archive registry](current/archive-registry.md) | Directory walker: walk order, resume cursor, exclusions, symlink and unreadable-entry handling; file type detection: MIME, type and binary/media/picture/video/large flags | Partial; walker and detection available to the scan task, no registry output yet |
+| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
 
-`arxgo help [op]`, `arxgo version` and full flag validation work. `scan`, `split` and `restore`
-take the run lock, write `options.json`, `checkpoint.json`, `run.log.jsonl` and `report.json`, then
-exit 70 (operation bodies are not in this build). The next work is reported by
+`arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
+registry. `split` and `restore` take the run lock, write `options.json`, `checkpoint.json`,
+`run.log.jsonl` and `report.json`, then exit 70 (operation bodies are not in this build). The next work is reported by
 `make plan-status`.

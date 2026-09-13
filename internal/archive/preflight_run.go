@@ -70,11 +70,15 @@ func (s *Session) Preflight(ctx context.Context, c Candidates) (Requirement, err
 	if err := ctx.Err(); err != nil {
 		return Requirement{}, err
 	}
-	if err := s.Phase("preflight", Totals{Items: c.Count, Bytes: c.Bytes}); err != nil {
-		return Requirement{}, err
-	}
 	o := s.cfg.Preflight
 	o.Op = s.cfg.Op
+	totals := Totals{Items: c.Count, Bytes: c.Bytes}
+	if o.Op == opScan {
+		totals = Totals{} // registry rows are not handled items; report entries like the scan
+	}
+	if err := s.Phase("preflight", totals); err != nil {
+		return Requirement{}, err
+	}
 	paths := []RolePath{{RoleArchive, s.cfg.Archive}, {RoleVideoArchive, s.cfg.VideoArchive}}
 	if o.Op == opScan {
 		paths = append(paths, RolePath{RoleRegistry, s.cfg.Registry})

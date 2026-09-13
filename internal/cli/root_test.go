@@ -43,8 +43,8 @@ func TestRunExitCodes(t *testing.T) {
 		{"invalid flag names the operation help", []string{"restore", "--stubs", "x"}, ExitUsage, "", "Run 'arxgo help restore' for usage."},
 		{"reserved flag", append([]string{"split", "--image", "start"}, roots...), ExitUsage, "", "--image: option not available in this build"},
 		{"validation lists every error", []string{"split", "--checkpoint-every", "0"}, ExitUsage, "", "arxgo: --video-archive is required"},
-		{"default operation is scan", []string{"--archive", archive}, ExitNotImplemented, "", "op=scan"},
-		{"scan", []string{"scan", "--archive", archive}, ExitNotImplemented, "", "operation not implemented in this build"},
+		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
+		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},
 		{"split", append([]string{"split"}, roots...), ExitNotImplemented, "", "op=split"},
 		{"restore", append([]string{"restore"}, roots...), ExitNotImplemented, "", "op=restore"},
 	}

@@ -13,9 +13,9 @@ arxiv-go/
 |   |-- scanner/                 walker.go, order.go, entry.go (traversal); mimetype.go (detection and flags)
 |   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock.go, checkpoint.go, report.go, runlog.go, wal.go, recovery.go; crashtest/
-|   |-- archive/                 session.go, resume.go, finish.go, progress.go, preflight.go, preflight_run.go; split.go, restore.go
-|   |-- report/                  csv.go, markdown.go, summary
+|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go; crashtest/
+|   |-- archive/                 session.go, session_state.go, resume.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, restore.go
+|   |-- report/                  csv.go (file registry); markdown.go, summary
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
 |-- tools/plancheck/             dev-only Go command wrapping internal/devtools/planning
@@ -89,7 +89,9 @@ flowchart LR
 
 Restore uses the same phases with the roots swapped for scanning (it scans the video archive).
 `scan` runs phases 1-3 only and takes only the archive lock (exclusive, since it writes the
-registry).
+registry); its free-space preflight runs before traversal. Within phase 3 the walker feeds a
+bounded detection worker pool and a writer that takes entries back in walk order, so the registry,
+the candidate list and the checkpoint cursor never depend on detection timing.
 
 ## Transaction state machine
 

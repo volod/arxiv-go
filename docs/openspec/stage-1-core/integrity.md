@@ -104,14 +104,15 @@ instead. Recovery is idempotent: a second pass writes nothing when the first suc
 
 ## Checkpoints
 
-- Written when a run starts, every `--checkpoint-every` processed files or `--checkpoint-interval`,
+- Written when a run starts, every `--checkpoint-every` processed files (a scan counts every walked
+  entry, directories included) or `--checkpoint-interval`,
   whichever comes first, at phase boundaries, and when the run ends (including interrupt and
   failure).
 - Written atomically with `fsops.AtomicWriteFile`: `checkpoint.json.arxgo-part`, fsync, rename,
   fsync directory. A leftover part file is ignored and replaced.
 - Contents: run id, phase, scan cursor (walk order key of the last fully processed entry), registry
-  part-file byte offset, candidate index, counters (files, bytes, videos done/skipped/failed),
-  WAL byte offset, and elapsed time.
+  part-file and candidate-list byte offsets, scan statistics, candidate index, counters (files,
+  bytes, videos done/skipped/failed), WAL byte offset, and elapsed time.
 - The checkpoint is an optimization for scan resume and progress counters; WAL records remain the
   authority for file placement.
 - After a checkpoint, the WAL may be compacted by rewriting only uncommitted transactions to a new
@@ -119,11 +120,12 @@ instead. Recovery is idempotent: a second pass writes nothing when the first suc
 
 ## Preflight
 
-Preflight runs after the scan and before the first mutation, and prints its computation.
+Preflight runs after the scan and before the first mutation, and prints its computation. The
+`scan` operation, whose output is the registry itself, runs it before traversal.
 
 | Operation and placement | Required free space |
 | --- | --- |
-| `scan` | archive device (or `--registry` device): estimated registry size = rows x 256 B, plus metadata JSON estimate (512 B per media row in `media` mode) |
+| `scan` | archive device (or `--registry` device): estimated registry size = rows x 256 B, plus metadata JSON estimate (512 B per media row in `media` mode). Rows are estimated before traversal from the registry being replaced; each checkpoint re-checks `--min-free` ([registry writing](registry.md#registry-writing)) |
 | `split`, same device, `--transfer auto` | archive device: stubs (4 KiB each) + video registries (1 KiB per video, two copies) |
 | `split`, other devices | video archive device: sum of candidate sizes + registry copy; archive device: stubs + registry |
 | `split`, same device, `--transfer copy` | the shared device: stubs + both registry copies + the largest candidate. Sources are removed one by one after each copy commits, so only the largest file is ever held twice |

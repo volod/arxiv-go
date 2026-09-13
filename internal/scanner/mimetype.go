@@ -141,6 +141,11 @@ func readHead(path string, buf []byte) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("detect %s: not a regular file (%s)", path, info.Mode().Type())
 	}
+	// Reading exactly the known size avoids a second read that only reports EOF. A zero size may
+	// be unknown (some network and virtual filesystems), so it reads the whole buffer.
+	if size := info.Size(); size > 0 && size < int64(len(buf)) {
+		buf = buf[:size]
+	}
 	n, err := io.ReadFull(f, buf)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		return nil, err

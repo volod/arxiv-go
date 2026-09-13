@@ -130,10 +130,9 @@ func TestEveryFlagParses(t *testing.T) {
 		},
 		ScanSettings: ScanSettings{
 			LargeThreshold: 512 << 20, Registry: registry, Metadata: MetadataMedia,
-			Exclude: []string{"*.tmp", "cache/**"},
+			Exclude: []string{"*.tmp", "cache/**"}, VideoExtensions: []string{".mts", ".m2ts"},
 		},
 		Transfer: TransferCopy, Verify: VerifyHash, BaseURL: "https://cdn.example.com/v",
-		VideoExtensions: []string{".mts", ".m2ts"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("split options\n got %+v\nwant %+v", got, want)
@@ -256,4 +255,31 @@ func TestValueValidation(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestScanAcceptsVideoExtensions(t *testing.T) {
+	archive, _ := fixture(t)
+	env := func(name string) (string, string, bool) {
+		if name == "ARXGO_VIDEO_EXTENSIONS" {
+			return "braw, .R3D", "environment", true
+		}
+		return "", "", false
+	}
+	s, err := parseFlags(OpScan, []string{"--archive", archive}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := buildScanOptions(s, osRootFS())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(o.VideoExtensions, []string{".braw", ".r3d"}) {
+		t.Errorf("scan video extensions = %q", o.VideoExtensions)
+	}
+	if s, err = parseFlags(OpScan, []string{"--archive", archive, "--video-extensions", "a,,b"}, noEnv); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := buildScanOptions(s, osRootFS()); err == nil || !strings.Contains(err.Error(), "--video-extensions") {
+		t.Errorf("invalid list on scan: %v", err)
+	}
 }

@@ -154,7 +154,7 @@ acceptance evidence exist. Registry order is the implementation line followed by
 | --- | --- | --- | --- | --- | --- |
 | 1 | `project-foundation` | 1 | shipped | Cross-compiles for Linux/Windows, CLI contract tests, Linux CI, plan/doc lint pass | [Current](../impl/current/project-foundation.md) |
 | 2 | `crash-safety` | 1 | shipped | Crash injection at every transaction step recovers to a consistent state; preflight refuses insufficient space | [Current](../impl/current/crash-safety.md) |
-| 3 | `archive-registry` | 1 | planned | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Open work](../impl/plan.md#archive-registry----archive-registry) |
+| 3 | `archive-registry` | 1 | shipped | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Current](../impl/current/archive-registry.md) |
 | 4 | `media-metadata` | 1 | planned | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Open work](../impl/plan.md#media-metadata----media-metadata) |
 | 5 | `video-split` | 1 | planned | Byte-identical videos in mirrored tree, stubs, registries, same/cross-device paths, idempotent rerun | [Open work](../impl/plan.md#video-split----video-split) |
 | 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Open work](../impl/plan.md#video-restore----video-restore) |

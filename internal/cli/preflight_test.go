@@ -31,13 +31,14 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 		args []string
 		want archive.PreflightOptions
 		reg  string
+		code int
 	}{
 		{[]string{"split", "--archive", arc, "--video-archive", video, "--transfer", "copy", "--min-free", "2GiB"},
-			archive.PreflightOptions{Transfer: "copy", MinFree: 2 << 30}, ""},
+			archive.PreflightOptions{Transfer: "copy", MinFree: 2 << 30}, "", ExitNotImplemented},
 		{[]string{"restore", "--archive", arc, "--video-archive", video},
-			archive.PreflightOptions{Transfer: "auto", MinFree: 1 << 30}, ""},
+			archive.PreflightOptions{Transfer: "auto", MinFree: 1 << 30}, "", ExitNotImplemented},
 		{[]string{"scan", "--archive", arc, "--metadata", "media", "--registry", registry, "--min-free", "0"},
-			archive.PreflightOptions{Metadata: "media"}, registry},
+			archive.PreflightOptions{Metadata: "media"}, registry, ExitOK},
 	}
 	for _, tc := range cases {
 		t.Run(tc.args[0], func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 			lock := sessionHooks
 			sessionHooks = func(cfg *archive.Config) { lock(cfg); got = *cfg }
 			var out, errOut bytes.Buffer
-			if code := run(context.Background(), tc.args, testEnv(&out, &errOut, noProcessEnv)); code != ExitNotImplemented {
+			if code := run(context.Background(), tc.args, testEnv(&out, &errOut, noProcessEnv)); code != tc.code {
 				t.Fatalf("exit code = %d: %s", code, errOut.String())
 			}
 			if got.Preflight != tc.want || got.Registry != tc.reg {

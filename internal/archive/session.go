@@ -107,6 +107,8 @@ type Session struct {
 	phaseBase     state.Counters
 	issues        []state.Issue
 	issuesOmitted int64
+	partial       bool
+	scanSummary   *state.ScanSummary
 
 	stopProgress func()
 	progressDone chan struct{}

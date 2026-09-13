@@ -40,17 +40,21 @@ func (c Counters) Sub(o Counters) Counters {
 // Checkpoint is the content of checkpoint.json. It speeds up resume and restores progress
 // counters; the WAL stays the authority for file placement.
 type Checkpoint struct {
-	V              int       `json:"v"`
-	RunID          string    `json:"run_id"`
-	Op             string    `json:"op"`
-	Phase          string    `json:"phase"`
-	ScanCursor     []string  `json:"scan_cursor,omitempty"`
-	RegistryOffset int64     `json:"registry_offset"`
-	CandidateIndex int64     `json:"candidate_index"`
-	WALOffset      int64     `json:"wal_offset"`
-	Counters       Counters  `json:"counters"`
-	ElapsedS       float64   `json:"elapsed_s"`
-	WrittenAt      time.Time `json:"written_at"`
+	V              int      `json:"v"`
+	RunID          string   `json:"run_id"`
+	Op             string   `json:"op"`
+	Phase          string   `json:"phase"`
+	ScanCursor     []string `json:"scan_cursor,omitempty"`
+	RegistryOffset int64    `json:"registry_offset"`
+	// CandidatesOffset is the durable length of candidates.jsonl written with RegistryOffset.
+	CandidatesOffset int64    `json:"candidates_offset,omitempty"`
+	CandidateIndex   int64    `json:"candidate_index"`
+	WALOffset        int64    `json:"wal_offset"`
+	Counters         Counters `json:"counters"`
+	ElapsedS         float64  `json:"elapsed_s"`
+	// Scan holds the scan statistics matching ScanCursor and the offsets; nil before the scan.
+	Scan      *ScanStats `json:"scan,omitempty"`
+	WrittenAt time.Time  `json:"written_at"`
 }
 
 // ErrNoCheckpoint reports that a run has not written a checkpoint yet.

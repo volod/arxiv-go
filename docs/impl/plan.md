@@ -25,31 +25,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Archive registry -- `archive-registry`
-
-#### implement-scan-operation-and-csv-registry
-
-Wire the walker, detection and checkpoints into the resumable `scan` operation and CSV registry.
-
-- Serves: `archive-registry` -- [Registry writing](../openspec/stage-1-core/registry.md#registry-writing)
-- Agent status: CLEAR
-- Dependencies: [Directory walker](records/0010-registry-implement-directory-walker.md);
-  [File type detection](records/0011-registry-implement-file-type-detection.md);
-  [Run lock and checkpoint](records/0006-safety-implement-run-lock-and-checkpoint.md).
-- User-visible outcome: `arxgo scan --archive PATH` writes `arxgo-registry.csv` with the specified
-  columns and statistics, resumes after interruption, and exits 6 when entries were skipped.
-- Scope boundary: CSV writer with part file, offset checkpoints and final rename; `file`-mode
-  metadata JSON; scan statistics; candidate list output for split/restore consumers. `media`-mode
-  fields are added by `media-metadata` tasks.
-- Data and artifact paths: `internal/report/csv.go`, `internal/archive/scan.go`, `internal/cli/`.
-- Execution path: Ordered pipeline walker -> bounded detection pool -> re-order buffer -> writer;
-  checkpoint cursor and offset written together.
-- Acceptance gates: Golden CSV for the full [edge-case list](../openspec/stage-1-core/registry.md#edge-cases);
-  interrupted-then-resumed registry is byte-identical to an uninterrupted one; an existing
-  registry is replaced only on completion; scan writes nothing else inside the archive.
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-stage-1-integrity`.
-
 ### Media metadata -- `media-metadata`
 
 #### implement-tool-discovery
@@ -80,7 +55,7 @@ Read MP4/MOV/M4A container and stream metadata in pure Go.
 
 - Serves: `media-metadata` -- [ISO BMFF parser](../openspec/stage-1-core/metadata.md#iso-bmff-parser)
 - Agent status: CLEAR
-- Dependencies: `implement-scan-operation-and-csv-registry`.
+- Dependencies: [Scan operation and CSV registry](records/0012-registry-implement-scan-operation-and-csv-registry.md).
 - User-visible outcome: `arxgo scan --metadata media` fills duration, resolution, codecs, audio
   presence and tags for ISO BMFF files without any external tool, and audio-only MP4 files are not
   flagged as video.
@@ -127,7 +102,7 @@ Move every video into the mirrored video archive as a write-ahead-logged transac
 - Agent status: CLEAR
 - Dependencies: [Write-ahead log and recovery](records/0007-safety-implement-write-ahead-log-and-recovery.md);
   [Disk-space preflight](records/0009-safety-implement-disk-space-preflight.md);
-  `implement-scan-operation-and-csv-registry`.
+  [Scan operation and CSV registry](records/0012-registry-implement-scan-operation-and-csv-registry.md).
 - User-visible outcome: `arxgo split` moves videos by rename on one device or copy+verify+delete
   across devices, honors `--dry-run`, never overwrites, and resumes after any crash.
 - Scope boundary: Split phases 1-5, split recovery resolver, destination-exists and source-changed

@@ -138,13 +138,7 @@ func (s *Session) Checkpoint() error {
 // Issue records a skipped or failed item for the report and logs it.
 func (s *Session) Issue(kind, relPath, reason string) {
 	s.Log.Warn("item "+kind, "rel_path", relPath, "reason", reason)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.issues) >= maxIssues {
-		s.issuesOmitted++
-		return
-	}
-	s.issues = append(s.issues, state.Issue{Kind: kind, RelPath: relPath, Reason: reason})
+	s.RecordIssue(kind, relPath, reason)
 }
 
 // Finish ends the run with the error returned by the operation body. It writes a final
@@ -213,7 +207,7 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 	case err == nil && ctx.Err() == nil:
 		c := s.Stats.Snapshot()
 		s.mu.Lock()
-		issues := len(s.issues) > 0 || s.issuesOmitted > 0
+		issues := len(s.issues) > 0 || s.issuesOmitted > 0 || s.partial
 		s.mu.Unlock()
 		if issues || c.VideosSkipped > 0 || c.VideosFailed > 0 {
 			return StatusPartial
@@ -269,6 +263,7 @@ func (s *Session) report(res Result) state.Report {
 		Counters: c, Phases: append([]state.PhaseStats{}, s.phases...),
 		Roots:  []state.RootStats{{Root: s.cfg.Archive, BytesWritten: c.ArchiveWritten, BytesFreed: c.ArchiveFreed}},
 		Issues: append([]state.Issue(nil), s.issues...), IssuesOmitted: s.issuesOmitted,
+		Scan: s.scanSummary,
 	}
 	if s.cfg.VideoArchive != "" {
 		r.Roots = append(r.Roots, state.RootStats{Root: s.cfg.VideoArchive, BytesWritten: c.VideoWritten, BytesFreed: c.VideoFreed})

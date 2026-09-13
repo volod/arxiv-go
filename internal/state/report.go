@@ -21,6 +21,7 @@ type Report struct {
 	Counters   Counters     `json:"counters"`
 	Phases     []PhaseStats `json:"phases"`
 	Roots      []RootStats  `json:"roots"`
+	Scan       *ScanSummary `json:"scan,omitempty"` // scan and the scan phase of split and restore
 	Issues     []Issue      `json:"issues,omitempty"`
 	// IssuesOmitted counts issues beyond the in-report cap; the run log lists all of them.
 	IssuesOmitted int64 `json:"issues_omitted,omitempty"`

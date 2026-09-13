@@ -81,7 +81,7 @@ func TestStaleLockExitCodesAndForceUnlock(t *testing.T) {
 	}
 
 	errOut.Reset()
-	if code := run(context.Background(), []string{"--archive", archive, "--force-unlock"}, e); code != ExitNotImplemented {
+	if code := run(context.Background(), []string{"--archive", archive, "--force-unlock"}, e); code != ExitOK {
 		t.Fatalf("--force-unlock: exit code = %d (stderr %s)", code, errOut.String())
 	}
 	if !strings.Contains(errOut.String(), "took over stale run lock") {

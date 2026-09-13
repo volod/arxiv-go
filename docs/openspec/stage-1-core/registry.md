@@ -67,21 +67,44 @@ but never moved.
 
 ## Registry writing
 
-- Rows are written in walk order. The CSV header is written once; the writer flushes and fsyncs at
-  each checkpoint and records the byte offset in the checkpoint.
+- Rows are written in walk order while type detection runs concurrently on a bounded worker pool;
+  a re-order stage keeps the output independent of detection timing. The CSV header is written
+  once.
+- Directories, special entries and entries that cannot be read (a failed `Lstat`, or a file that
+  cannot be opened or read for detection) get no row; they are logged and counted as skipped.
 - The registry is first written to `<registry>.arxgo-part` and renamed over the final path when the
-  scan completes, so an existing registry is replaced only by a complete one.
-- On resume the part file is truncated to the checkpointed offset and traversal skips every path
-  whose walk order key is less than or equal to the checkpoint cursor.
+  scan completes, so an existing registry is replaced only by a complete one. `--dry-run` walks,
+  detects and reports statistics but writes neither file.
+- Every video row is also appended to `candidates.jsonl` in the run directory
+  ([format](contracts.md#candidate-list)), the input of split and restore.
+- Before each checkpoint the writer flushes and fsyncs the part file and the candidate list; the
+  checkpoint then stores the scan cursor, both byte offsets and the scan statistics together, so
+  it never names output that is not durable.
+- On resume both files are truncated to their checkpointed offsets and traversal skips every path
+  whose walk order key is less than or equal to the checkpoint cursor. When either file is missing
+  or shorter than its offset, the scan starts again from the beginning with a warning; scanning is
+  read-only, so repeating it is safe. A run whose registry was already renamed into place does not
+  scan again when it is resumed.
+- The cursor never moves backwards: a directory on the cursor's path that became unreadable is
+  counted when it is reported again, but the cursor stays.
+- Free space: preflight runs before traversal and estimates the registry from the size of the
+  registry file it replaces (zero for a first scan), less what the part file already holds. While
+  writing, each checkpoint reads the free space of the registry device again; below `--min-free`
+  the scan stops with exit 4 and keeps its part file and checkpoint, so the same command resumes
+  once space is freed. A device that reports no total size never stops the scan.
 - `metadata` holds compact JSON (see [contracts](contracts.md#metadata-json)). In `file` mode it
   contains modification time and permission bits; in `media` mode media rows also include the
   fields from [metadata](metadata.md).
 
 ## Statistics
 
-The scan summary logs and stores in the run report: files, directories, bytes, counts and bytes per
-flag (`binary`, `media`, `picture`, `video`, `large`), top 10 MIME types by bytes, skipped entries
-by reason, and elapsed time.
+The scan summary logs (one `scan summary` line) and stores in the `scan` section of the run report:
+files, directories, symlinks, bytes, counts and bytes per flag (`binary`, `media`, `picture`,
+`video`, `large`), top 10 MIME types by bytes (ties by rows, then name), skipped entries by reason
+(`unreadable`, `special`), and elapsed time. `files` and `bytes` count regular files with a row;
+the generic run counters `files` and `bytes` count registry rows (files and symlinks) and their
+bytes. Any skipped entry, including one skipped by an earlier process of a resumed run, ends the
+run with exit 6.
 
 ## Edge cases
 

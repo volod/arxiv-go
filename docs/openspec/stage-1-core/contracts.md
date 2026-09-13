@@ -11,7 +11,8 @@ needed). Booleans are `true`/`false`. Sizes are bytes as base-10 integers. Times
 ## File registry CSV
 
 `<archive>/arxgo-registry.csv` (or `--registry`). One row per traversed entry except directories and
-skipped special files. Column order is fixed:
+skipped entries (special files and entries that cannot be read). Symlink rows have `file_type`
+`symlink`, size 0, an empty `file_mime` and all flags `false`. Column order is fixed:
 
 | # | Column | Example | Notes |
 | --- | --- | --- | --- |
@@ -59,8 +60,22 @@ last.
 }
 ```
 
-`media` is present only in `media` mode for media files. Keys with zero/empty values are omitted.
-Symlink rows add `"link_target"`.
+`mtime` is the modification time in RFC 3339 UTC to the second; `mode` is the permission bits as
+four octal digits. `media` is present only in `media` mode for media files. Keys with zero/empty
+values are omitted. Symlink rows add `"link_target"`, the link text as read, without following it.
+The JSON is compact and does not escape `<`, `>` or `&`.
+
+## Candidate list
+
+`candidates.jsonl` in the run directory: one JSON object per line for every `is_video=true` registry
+row, in walk order. It is run state for split and restore, not an operator output.
+
+```json
+{"v":1,"rel_path":"projects/2024/interview.mp4","size":734003200,
+ "mtime":"2024-05-01T10:22:03.123456789Z","mime":"video/mp4","file_type":"mp4"}
+```
+
+`mtime` keeps full precision so a later transaction can detect a changed source.
 
 ## Video registry CSV
 
@@ -183,7 +198,10 @@ types, durations in nanoseconds and sizes in bytes. `dry_run` is present only fo
 ```
 
 `phase` is `start` until the operation enters its first phase. `scan_cursor` is omitted when
-empty. `video_bytes` (bytes of handled videos) and the per-root `*_bytes_written`/`*_bytes_freed`
+empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
+`candidates.jsonl`, omitted when zero) and `scan`: the scan statistics matching the cursor and
+offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`large`
+as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos) and the per-root `*_bytes_written`/`*_bytes_freed`
 counters are omitted when zero. `elapsed_s` accumulates across resumed processes.
 
 ## Run report
@@ -200,6 +218,9 @@ counters are omitted when zero. `elapsed_s` accumulates across resumed processes
  {"root":"/mnt/nas/video","bytes_written":30000000000,"bytes_freed":0}],
  "issues":[{"kind":"skipped","rel_path":"projects/a.mp4","reason":"destination exists"}]}
 ```
+
+Runs that scanned add `scan`: `files`, `dirs`, `symlinks`, `bytes`, the five flag totals,
+`top_mime` (up to 10 `{"mime","count","bytes"}` by bytes), `skipped` by reason and `elapsed_s`.
 
 `status` is `completed`, `partial` (skipped or failed items) or `not_implemented`; a dry run that
 was interrupted or failed also writes `interrupted` or `failed`, and one refused by preflight writes

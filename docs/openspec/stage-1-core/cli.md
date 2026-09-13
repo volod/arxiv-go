@@ -94,6 +94,7 @@ Used by `scan`, and by `split` for its scan phase.
 | `--large-threshold SIZE` | `1GiB` | Files with `file_size >= SIZE` get `is_large=true` |
 | `--registry PATH` | `<archive>/arxgo-registry.csv` | CSV registry output path |
 | `--metadata MODE` | `file` | `file`: file-system metadata only. `media`: also container/stream metadata for media files (see [metadata](metadata.md)) |
+| `--video-extensions LIST` | none | Extra comma-separated extensions treated as video when signature detection is inconclusive (`application/octet-stream`), added to the built-in list |
 | `--exclude GLOB` | none, repeatable | Relative-path glob (`path.Match` per segment, `**` for any depth) anchored at the archive root and excluded from traversal with its subtree; see [traversal](registry.md#traversal) |
 | `--follow-symlinks` | `false` | Reserved; symlinks are recorded but never followed in stage 1 |
 
@@ -104,7 +105,6 @@ Used by `scan`, and by `split` for its scan phase.
 | `--transfer MODE` | `auto` | `auto`: rename on the same device, copy+verify+delete otherwise. `copy`: always copy+verify+delete |
 | `--verify MODE` | `size` | `size` or `hash` (SHA-256 computed while copying and re-read from the destination) |
 | `--base-url URL` | none | Base URL of the cloud location the video archive will be uploaded to; stubs link to `URL/<rel_path>` |
-| `--video-extensions LIST` | none | Extra comma-separated extensions treated as video when signature detection is inconclusive |
 | `--sample MODE` | `none` | Stage 2. `none`, `start`, `middle`, `end`, `series` |
 | `--sample-duration DURATION` | `5s` | Stage 2. Clip length, or fragment length for `series` |
 | `--sample-every DURATION` | `5m` | Stage 2. Fragment/frame spacing for `series` |

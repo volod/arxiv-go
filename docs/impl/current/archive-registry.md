@@ -1,10 +1,63 @@
 # Archive Registry
 
 Accepted work: [0010 Directory walker](../records/0010-registry-implement-directory-walker.md),
-[0011 File type detection](../records/0011-registry-implement-file-type-detection.md).
-Specification: [archive registry](../../openspec/stage-1-core/registry.md). The `scan` operation
-that writes `arxgo-registry.csv` is still open in the
-[plan](../plan.md#archive-registry----archive-registry); `arxgo scan` still exits 70.
+[0011 File type detection](../records/0011-registry-implement-file-type-detection.md),
+[0012 Scan operation and CSV registry](../records/0012-registry-implement-scan-operation-and-csv-registry.md).
+Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
+[contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
+for `--metadata file`; `media`-mode fields come with the
+[media metadata](../plan.md#media-metadata----media-metadata) tasks.
+
+## Scan operation (`internal/archive`)
+
+`arxgo scan --archive PATH` (the default operation) writes `arxgo-registry.csv`, or the
+`--registry` path, and exits 0, or 6 when any entry was skipped.
+
+```text
+arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions braw,r3d
+```
+
+- Flow inside the run session: resume check, preflight, phase `scan`, rename, phase `summary`.
+  Preflight estimates the registry from the file it replaces (256 B per row, less what a resumed
+  part file holds). `Scan(ctx, session, ScanConfig)` is also the scan phase that split and restore
+  will call (`Preflight=false`, their own `SkipPaths`).
+- Pipeline: `scanner.Walk` in the calling goroutine queues every entry on a bounded order channel
+  (`Window`, default 256) and hands files and symlinks to 16 detection workers (`scanner.Detect`,
+  `os.Readlink`). A writer goroutine takes entries in order, waits for each one's detection and
+  writes the row, so output never depends on detection timing. A write error cancels the walk.
+- Rows: regular files with the detected type, symlinks as `symlink` rows with `link_target`.
+  Directories, special entries (walker `special`), `Lstat` failures and files that cannot be opened
+  or read get no row; each is logged once, counted in `skipped` by reason and listed in the
+  report's `issues`. `file`-mode metadata is `{"v":1,"mtime":...,"mode":"0644"}`. `--metadata
+  media` is accepted and currently writes the same file metadata.
+- Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
+  escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
+  `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
+  the part file is renamed over the registry with `fsops.Replace`. `--dry-run` discards rows and
+  writes neither file.
+- Checkpoints: `Session.AdvanceSync` counts every walked entry; when `--checkpoint-every` or
+  `--checkpoint-interval` is due, the writer flushes and fsyncs both outputs (skipping an output
+  with no new bytes), stores cursor, both offsets and `state.ScanStats` with `Session.Update`, then
+  checks free space on the registry device: below `--min-free` the run stops with exit 4 and
+  keeps its state. An interrupt (Ctrl+C) syncs once more before the final checkpoint and exits
+  130.
+- Resume: both files are truncated to the checkpointed offsets and the walk resumes after the
+  cursor with the checkpointed statistics; the cursor never moves backwards. A missing or shorter
+  part file restarts the scan from scratch with a warning. A run whose checkpoint says the scan is
+  `complete` (renamed, but the report was not written) does not scan again.
+- Statistics: one `scan summary` log line and the report's `scan` section (files, dirs, symlinks,
+  bytes, the five flag totals, top 10 MIME types by bytes, skipped by reason, elapsed). The run
+  counters `files`/`bytes` count rows. Skipped entries from an earlier process of the run still
+  make it partial (`Session.MarkPartial`).
+- `--video-extensions` is now a scan flag used by `scan` and `split`, so both classify the same way.
+
+Measured on the development host (i9-14900K, NVMe ext4, Go 1.27.1), binary on a 1.2 GiB copy of
+`/usr/share` (152,424 rows, 17,948 directories, 31,767 symlinks): 3.0-3.6 s with the default
+`--checkpoint-every 500` (about 340 checkpoints, 3 fsyncs each), 1.0 s with checkpoints only at
+phase boundaries; 14 MB RSS; registry 29 MB (191 B per row). Detection throughput is flat from 8
+workers up (1.0 s at 8, 16 and 32 workers; 3.3 s at 1). For very large local archives a larger
+`--checkpoint-every` trades resume granularity for speed.
+
 
 ## Directory walker (`internal/scanner`)
 

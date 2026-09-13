@@ -52,6 +52,9 @@ type ScanSettings struct {
 	Registry       string // absolute path
 	Metadata       string // MetadataFile or MetadataMedia
 	Exclude        []string
+	// VideoExtensions are extra extensions (lower case, with a leading dot) that mark a file with
+	// an ambiguous signature as video.
+	VideoExtensions []string
 }
 
 // ScanOptions configures the scan operation.
@@ -64,10 +67,9 @@ type ScanOptions struct {
 type SplitOptions struct {
 	Common
 	ScanSettings
-	Transfer        string // TransferAuto or TransferCopy
-	Verify          string // VerifySize or VerifyHash
-	BaseURL         string // empty, or absolute http(s) URL without a trailing slash
-	VideoExtensions []string
+	Transfer string // TransferAuto or TransferCopy
+	Verify   string // VerifySize or VerifyHash
+	BaseURL  string // empty, or absolute http(s) URL without a trailing slash
 	// CreateVideoArchive is true when the video archive root does not exist yet; its parent does,
 	// and the split operation creates it after taking the lock.
 	CreateVideoArchive bool
@@ -135,6 +137,11 @@ func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSetti
 			v.addf("--exclude %q: %v", g, err)
 		}
 	}
+	exts, err := parseExtensions(s.videoExtensions)
+	if err != nil {
+		v.addf("--video-extensions %q: %v", s.videoExtensions, err)
+	}
+	sc.VideoExtensions = exts
 	sc.Registry = s.registry
 	if sc.Registry == "" && archive != "" {
 		sc.Registry = filepath.Join(archive, DefaultRegistryName)
@@ -176,11 +183,6 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 		}
 		o.BaseURL = u
 	}
-	exts, err := parseExtensions(s.videoExtensions)
-	if err != nil {
-		v.addf("--video-extensions %q: %v", s.videoExtensions, err)
-	}
-	o.VideoExtensions = exts
 	return o, v.err()
 }
 

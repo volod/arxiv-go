@@ -29,6 +29,7 @@ var flagTable = []flagDef{
 	{name: "large-threshold", ops: scanSplitOps, group: groupScan, stage: 1, arg: "SIZE", usage: "Files at least this large get is_large=true", bind: size(defaultLarge, func(s *settings) *Size { return &s.largeThreshold })},
 	{name: "registry", ops: scanSplitOps, group: groupScan, stage: 1, arg: "PATH", usage: "CSV registry output path (default <archive>/arxgo-registry.csv)", bind: str("")},
 	{name: "metadata", ops: scanSplitOps, group: groupScan, stage: 1, arg: "MODE", usage: "file: file-system metadata only; media: also container and stream metadata", bind: enum(MetadataFile, metadataModes)},
+	{name: "video-extensions", ops: scanSplitOps, group: groupScan, stage: 1, arg: "LIST", usage: "Extra comma-separated video extensions used when signature detection is inconclusive", bind: str("")},
 	{name: "exclude", ops: scanSplitOps, group: groupScan, stage: 1, arg: "GLOB", usage: "Relative-path glob excluded from traversal (repeatable; ** for any depth)", bind: func(fs *flag.FlagSet, s *settings, name, usage string) {
 		fs.Var(&listValue{target: &s.exclude}, name, usage)
 	}},
@@ -38,7 +39,6 @@ var flagTable = []flagDef{
 	{name: "transfer", ops: splitOnly, group: groupSplit, stage: 1, arg: "MODE", usage: "auto: rename on the same device, copy+verify+delete otherwise; copy: always copy+verify+delete", bind: enum(TransferAuto, transferModes)},
 	{name: "verify", ops: splitOnly, group: groupSplit, stage: 1, arg: "MODE", usage: "size or hash (SHA-256 while copying and re-read from the destination)", bind: enum(VerifySize, verifyModes)},
 	{name: "base-url", ops: splitOnly, group: groupSplit, stage: 1, arg: "URL", usage: "Absolute http(s) URL of the uploaded video archive; stubs link to URL/<rel_path>", bind: str("")},
-	{name: "video-extensions", ops: splitOnly, group: groupSplit, stage: 1, arg: "LIST", usage: "Extra comma-separated video extensions used when signature detection is inconclusive", bind: str("")},
 	{name: "sample", ops: splitOnly, group: groupSplit, stage: 2, arg: "MODE", usage: "Sample clips: none, start, middle, end, series", bind: reserved(false)},
 	{name: "sample-duration", ops: splitOnly, group: groupSplit, stage: 2, arg: "DURATION", usage: "Clip length, or fragment length for series", bind: reserved(false)},
 	{name: "sample-every", ops: splitOnly, group: groupSplit, stage: 2, arg: "DURATION", usage: "Fragment spacing for series", bind: reserved(false)},

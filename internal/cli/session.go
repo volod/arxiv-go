@@ -31,6 +31,14 @@ func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 	return cfg
 }
 
+// scanConfig maps the scan settings onto the registry scan of root.
+func scanConfig(root string, sc ScanSettings, preflight bool) archive.ScanConfig {
+	return archive.ScanConfig{
+		Root: root, Registry: sc.Registry, Metadata: sc.Metadata, LargeThreshold: int64(sc.LargeThreshold),
+		VideoExtensions: sc.VideoExtensions, Exclude: sc.Exclude, Preflight: preflight,
+	}
+}
+
 // definingCommon keeps only the common options that define a run's output: the roots. Logging,
 // progress, checkpoint cadence, --min-free, --dry-run, --new-run and --force-unlock may change
 // between the interrupted process and the one resuming it.
