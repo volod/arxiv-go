@@ -1,6 +1,6 @@
 # Pinned ffmpeg/ffprobe builds approved for use and redistribution with arxgo.
 # Decision and evidence: docs/impl/records/0002-preview-approve-ffmpeg-distribution.md
-# Read by tools/fetch-ffmpeg.sh (`make ffmpeg`). Format: key=value, no spaces, no quoting.
+# Read by scripts/fetch-ffmpeg.sh (`make ffmpeg`). Format: key=value, no spaces, no quoting.
 
 version=6.1.1
 license=GPL-3.0-or-later

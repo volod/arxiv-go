@@ -41,6 +41,10 @@ Human tasks use:
 - Unblocks: Backticked task ids that wait for it.
 ```
 
+Acceptance gates, execution paths and declared runs name Linux checks only. Windows support is
+gated by `make build-all` and `make vet-windows`; Windows host checks go to the deferred
+[Windows verification scenario](windows-verification.md), never into a task's gates.
+
 Multi-line fields continue on indented lines. `make lint-spec-plan` parses these fields, so keep
 the `- Field name:` prefix exact.
 

@@ -70,7 +70,8 @@ the last server-acknowledged offset; an expired session restarts the upload.
 
 ## Security
 
-- Secrets come from files or environment variables and are redacted in logs (`slog` handler
+- Secrets come from files, environment variables or the [environment file](../stage-1-core/cli.md#environment-file)
+  `bin/.env`, and are redacted in logs (`slog` handler
   redaction for known keys and bearer tokens).
 - Token caches and session state are 0600 on Linux and user-only ACL on Windows.
 - No telemetry; only the configured endpoints are contacted.

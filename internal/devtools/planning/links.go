@@ -15,11 +15,14 @@ var (
 	headingRe = regexp.MustCompile(`^#{1,6}\s+(.+?)\s*#*\s*$`)
 )
 
-// skippedDirs are never scanned for Markdown files.
-var skippedDirs = map[string]bool{".git": true, "dist": true, "bin": true, "vendor": true, "node_modules": true}
+// skippedDirs are never scanned for Markdown files. testdata holds golden
+// product output whose links are archive paths, not repository documentation.
+var skippedDirs = map[string]bool{
+	".git": true, "dist": true, "bin": true, "vendor": true, "node_modules": true, "testdata": true,
+}
 
-// CheckLinks verifies that relative Markdown links in every .md file of fsys
-// resolve to existing files and, when an anchor is given, to a heading.
+// CheckLinks verifies that relative Markdown links in documentation .md files
+// of fsys resolve to existing files and, when an anchor is given, to a heading.
 func CheckLinks(fsys fs.FS) ([]string, error) {
 	docs := map[string]string{}
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {

@@ -129,9 +129,10 @@ func TestStatusReportsEligibleWork(t *testing.T) {
 
 func TestCheckLinks(t *testing.T) {
 	fsys := fstest.MapFS{
-		"README.md":      {Data: []byte("[ok](docs/a.md#stage-1----core) [web](https://x.y) [self](#top)\n# Top\n")},
-		"docs/a.md":      {Data: []byte("# A\n## Stage 1 -- `core`\n[bad](missing.md)\n[anchor](#nope)\n```\n[fenced](ignored.md)\n```\n")},
-		".git/config.md": {Data: []byte("[x](nowhere.md)")},
+		"README.md":                    {Data: []byte("[ok](docs/a.md#stage-1----core) [web](https://x.y) [self](#top)\n# Top\n")},
+		"docs/a.md":                    {Data: []byte("# A\n## Stage 1 -- `core`\n[bad](missing.md)\n[anchor](#nope)\n```\n[fenced](ignored.md)\n```\n")},
+		".git/config.md":               {Data: []byte("[x](nowhere.md)")},
+		"test/testdata/report/stub.md": {Data: []byte("[video](../../../../mnt/nas/video/clip.mp4)\n")},
 	}
 	errs, err := CheckLinks(fsys)
 	if err != nil {

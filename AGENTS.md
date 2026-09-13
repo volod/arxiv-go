@@ -44,8 +44,11 @@ the [specification](docs/openspec/spec.md) and the [architecture](docs/openspec/
    path, the main corner cases, and a failing regression for every bug fixed. Tests are
    deterministic, network-free, build fixtures in `t.TempDir()`, and never snapshot incidental
    implementation details. Tests that need ffmpeg skip with a reason when it is missing.
-4. Verify: relevant tests and `make ci` are required. Record failures and unrun checks honestly
-   (for example Windows-only behavior not run locally). Fix causes; never weaken a gate silently.
+4. Verify: relevant tests and `make ci` are required. Gates run on Linux only; Windows specifics
+   must still be implemented and pass `make build-all` and `make vet-windows`. Record
+   Windows-only behavior as cross-compiled only and route Windows-only notes to the deferred
+   [Windows verification scenario](docs/guide/windows-verification.md). Record failures and unrun
+   checks honestly. Fix causes; never weaken a gate silently.
    Coverage is diagnostic, never a gate. Failed acceptance keeps the task open.
 5. Before stopping, update the record with evidence, decisions, audit notes and the next action.
    On acceptance: update or create the narrow `docs/impl/current/` page and link the record;

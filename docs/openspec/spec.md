@@ -53,7 +53,8 @@ docs/openspec/
 
 In scope:
 
-- Local and network-mounted filesystems on Linux and Windows (amd64).
+- Local and network-mounted filesystems on Linux and Windows (amd64). Both are implemented;
+  only Linux is tested as a gate (see [development integrity](#development-integrity)).
 - One archive root and one video archive root per run.
 - File-level and media-level metadata for the registry and the video stubs.
 - Crash-safe, resumable, idempotent split and restore of arbitrarily large archives.
@@ -94,6 +95,10 @@ Out of scope:
 - Go 1.27 or newer; module `github.com/volod/arxiv-go`; binary `arxgo` (`arxgo.exe`).
 - Release builds: `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ...version=..."` for
   `linux/amd64`, `windows/amd64`.
+- `make build` writes the Linux amd64 executable to `bin/arxgo`; `make build-all` writes that
+  same Linux executable to `bin/arxgo` and the Windows amd64 executable to `bin/arxgo.exe`.
+  The two targets must use the same Linux build recipe, and a clean checkout must build without
+  first creating `bin/`.
 - Platform-specific code uses build-tagged files (`*_linux.go`, `*_windows.go`, `*_unix.go`) and
   `golang.org/x/sys` only; no cgo.
 - Paths in outputs use forward slashes and are relative to the owning root. Windows long paths,
@@ -107,13 +112,16 @@ Runtime dependencies must be pure Go and statically linkable. Approved candidate
 | --- | --- | --- |
 | [`github.com/gabriel-vasile/mimetype`](https://github.com/gabriel-vasile/mimetype) | Signature-based MIME detection with text/binary hierarchy | 1 |
 | [`github.com/abema/go-mp4`](https://github.com/abema/go-mp4) | ISO BMFF (MP4, M4A, M4V, MOV, 3GP) box parsing | 1 |
+| [`github.com/google/uuid`](https://github.com/google/uuid) | Pure-Go indirect dependency of `go-mp4` | 1 |
 | [`golang.org/x/sys`](https://pkg.go.dev/golang.org/x/sys) | Free-space and device identity syscalls | 1 |
+| [`github.com/joho/godotenv`](https://github.com/joho/godotenv) | Parse the optional `.env` file next to the executable ([environment file](stage-1-core/cli.md#environment-file)) | 1 |
 | `golang.org/x/oauth2` | OAuth 2.0 token flows for cloud targets | 3 |
 
 [`github.com/h2non/filetype`](https://github.com/h2non/filetype) was considered; `mimetype` is
 preferred because it exposes a MIME parent hierarchy that answers `is_binary` without a second
 table. Adding any other dependency requires a spec amendment. CLI parsing uses the standard `flag`
-package; logging uses `log/slog`.
+package, and `.env` parsing uses `godotenv` (read-only; it never changes the process environment).
+Logging uses `log/slog`.
 
 ### External tools
 
@@ -149,12 +157,12 @@ acceptance evidence exist. Registry order is the implementation line followed by
 
 | # | Capability | Stage | Status | How it is evaluated | Implementation |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `project-foundation` | 1 | planned | Cross-compiles for Linux/Windows, CLI contract tests, CI matrix, plan/doc lint pass | [Current](../impl/current/project-foundation.md); [Open work](../impl/plan.md#project-foundation----project-foundation) |
-| 2 | `crash-safety` | 1 | planned | Crash injection at every transaction step recovers to a consistent state; preflight refuses insufficient space | [Open work](../impl/plan.md#crash-safety----crash-safety) |
-| 3 | `archive-registry` | 1 | planned | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Open work](../impl/plan.md#archive-registry----archive-registry) |
-| 4 | `media-metadata` | 1 | planned | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Open work](../impl/plan.md#media-metadata----media-metadata) |
-| 5 | `video-split` | 1 | planned | Byte-identical videos in mirrored tree, stubs, registries, same/cross-device paths, idempotent rerun | [Open work](../impl/plan.md#video-split----video-split) |
-| 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Open work](../impl/plan.md#video-restore----video-restore) |
+| 1 | `project-foundation` | 1 | shipped | Cross-compiles for Linux/Windows, CLI contract tests, Linux CI, plan/doc lint pass | [Current](../impl/current/project-foundation.md) |
+| 2 | `crash-safety` | 1 | shipped | Crash injection at every transaction step recovers to a consistent state; preflight refuses insufficient space | [Current](../impl/current/crash-safety.md) |
+| 3 | `archive-registry` | 1 | shipped | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output | [Current](../impl/current/archive-registry.md) |
+| 4 | `media-metadata` | 1 | shipped | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Current](../impl/current/media-metadata.md) |
+| 5 | `video-split` | 1 | shipped | Byte-identical videos in mirrored tree, stubs, registries, same/cross-device paths, idempotent rerun | [Current](../impl/current/video-split.md) |
+| 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Current](../impl/current/video-restore.md) |
 | 7 | `media-previews` | 2 | planned | Sample/frame count, duration, resolution clamp, naming and restore cleanup on generated fixtures | [Open work](../impl/plan.md#media-previews----media-previews) |
 | 8 | `cloud-publishing` | 3 | planned | Resumable upload, link rewrite and idempotent re-publish against recorded API fixtures and a test tenant | [Open work](../impl/plan.md#cloud-publishing----cloud-publishing) |
 
@@ -172,6 +180,18 @@ acceptance evidence exist. Registry order is the implementation line followed by
   media fixtures are generated by test helpers (hand-built ISO BMFF boxes) or, for ffmpeg-backed
   tests, skipped with a logged reason when the tool is absent. GitHub CI does not install
   ffmpeg; live ffmpeg/ffprobe tests run only locally.
+- Keep package unit and white-box component tests beside their Go code as `*_test.go`. Put
+  cross-package integration tests, end-to-end tests, external test applications, reusable test
+  helpers and committed mock or golden data under root-level `test/`. Use `test/testdata/` for
+  static data, which Go ignores as a package. A test that needs private package hooks stays local;
+  a new black-box integration proof belongs under `test/integration/`. See the
+  [test layout](../../test/README.md) for paths and commands.
+- Test gates run on Linux (amd64) only: unit tests, integration proofs, declared runs and CI.
+  Windows support is still implemented and must cross-compile and type-check on Linux
+  (`make build-all`, `make vet-windows`, both in `make ci`). Windows-only tests skip elsewhere and
+  are never acceptance evidence. Runtime checks on a Windows host form the deferred
+  [Windows verification scenario](../guide/windows-verification.md), outside the current
+  development scope.
 - A numeric coverage percentage is diagnostic, never a gate.
 - Each stage ends with a checkpoint task that reviews the stage's cross-module invariants before
   the next stage starts, and an end-to-end proof on a generated archive.
@@ -181,7 +201,7 @@ acceptance evidence exist. Registry order is the implementation line followed by
 
 | Gate | Evidence |
 | --- | --- |
-| Build | `make ci` passes on Linux; CI matrix passes on `ubuntu-latest` and `windows-latest` |
+| Build | `make ci` passes on Linux, including the Windows cross-build and Windows vet; CI passes on `ubuntu-latest` |
 | Registry correctness | Golden rows for a generated tree covering every flag combination and edge case in [registry](stage-1-core/registry.md#edge-cases) |
 | Transaction safety | Crash injection after every WAL step, followed by resume, yields no lost, duplicated or partial files |
 | Round trip | `split` then `restore` on a generated archive reproduces every original path, size and SHA-256 |

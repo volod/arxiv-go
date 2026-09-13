@@ -1,4 +1,4 @@
-# [arxiv-go](https://github.com/volod/arxiv-go]
+# [arxiv-go](https://github.com/volod/arxiv-go)
 
 Organize videos in a large archive of files in order to separate video and text data for convenient
 storage.
@@ -18,7 +18,10 @@ starting.
 Stage 2 adds video samples and PNG frames through `ffmpeg`;
 Stage 3 adds Google Drive and SharePoint publishing.
 
-> Status: repository scaffold. Operations are specified and planned but not implemented yet.
+> Status: stage 1 in progress. `scan` writes the resumable file registry (`--metadata media` checks
+> for `ffprobe` and exits 3 with download links without it); `split` moves videos transactionally,
+> writes Markdown stubs and video registries; `restore` returns videos from the video archive. The
+> stage-1 integrity checkpoint is accepted; the end-to-end stage-1 proof remains.
 
 ```bash
 arxgo --archive /data/archive
@@ -33,11 +36,26 @@ arxgo restore --archive /data/archive --video-archive /mnt/nas/video --create-di
 - [Development guide](docs/guide/development.md)
 - [Agent and contributor rules](AGENTS.md)
 
+## Setup
+
+```bash
+make setup        # build bin/arxgo and bin/arxgo.exe, download ffmpeg/ffprobe, create bin/.env
+```
+
+Settings may come from flags, `ARXGO_*` environment variables, or the optional `bin/.env` file next
+to the executable (template: [.env.example](.env.example)), in that order of precedence.
+
 ## Build
 
 ```bash
-make build        # bin/arxgo
-make build-all    # static linux/windows amd64 binaries
-make ci           # required checks
+make build        # bin/arxgo (static Linux amd64)
+make build-all    # bin/arxgo and bin/arxgo.exe (static Linux/Windows amd64)
+```
+
+## Develop
+
+```bash
 make plan-status  # next eligible task
+# implement
+make ci           # required checks
 ```

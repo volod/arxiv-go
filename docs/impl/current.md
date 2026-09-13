@@ -13,7 +13,16 @@ linked here in the same change.
 
 | Area | Owns | State |
 | --- | --- | --- |
-| [Project foundation](current/project-foundation.md) | Module, `arxgo` scaffold, Make targets, CI, planning tooling | Scaffold only; operations exit 70 |
+| [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options and run the lock/checkpoint session |
+| [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery (including a run that a new run replaces), disk-space preflight | Shipped; session used by scan, split and restore |
+| [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
+| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped for `--metadata file`; media fields come with media metadata |
+| [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, Markdown stubs, `arxgo-videos.csv` and `arxgo-videos.md` | Shipped |
+| [Video restore](current/video-restore.md) | Restore videos with directory, conflict, stub and registry policies; crash recovery; the stage-1 end-to-end proof | Available; stage-1 checkpoint and proof accepted (proof runs in CI); operator trial on an archive copy pending |
 
-No operation (`scan`, `split`, `restore`) is implemented yet. The next work is reported by
-`make plan-status`.
+`arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
+registry; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).
+`split` moves videos transactionally, writes Markdown stubs and regenerates `arxgo-videos.csv`
+and `arxgo-videos.md` in both roots. `restore` returns videos from the video archive. Stage 1 is proven end to end by
+`make test-integration` (kills, resume, restore, round trip through the built binary). The next
+work is reported by `make plan-status`.

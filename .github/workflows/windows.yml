@@ -1,0 +1,28 @@
+name: windows
+
+# Deferred Windows verification scenario, step W1 (docs/guide/windows-verification.md).
+# Manual only; never a gate for tasks, pushes or pull requests.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+      - name: Build
+        run: |
+          $env:CGO_ENABLED = "0"
+          go build -trimpath -o bin/arxgo.exe ./cmd/arxgo
+          bin/arxgo.exe version

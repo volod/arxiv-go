@@ -10,20 +10,23 @@ arxiv-go/
 |-- cmd/arxgo/main.go            entry point: os.Exit(cli.Run(...)); nothing else
 |-- internal/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
-|   |-- scanner/                 walker.go (traversal), mimetype.go (detection and flags)
-|   |-- media/                   tools.go, metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
-|   |-- fsops/                   device/space syscalls, durable copy/rename, path helpers
-|   |-- state/                   lock.go, checkpoint.go, wal.go, recovery
-|   |-- archive/                 split.go, restore.go, preflight.go, progress.go
-|   |-- report/                  csv.go, markdown.go, summary
+|   |-- scanner/                 walker.go, order.go, entry.go, relpath.go (traversal, reserved and local paths); mimetype.go (detection and flags)
+|   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
+|   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
+|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go
+|   |-- archive/                 session.go, session_state.go, resume.go, resume_replaced.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
+|   |-- report/                  csv.go, csv_read.go (file registry); markdown.go, frontmatter.go, names.go, videos.go, summary.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
-|-- tools/plancheck/             dev-only command wrapping internal/devtools/planning
+|-- tools/plancheck/             dev-only Go command wrapping internal/devtools/planning
+|-- test/                        integration/end-to-end tests, test-only helpers and testdata
+|-- scripts/                     shell helpers (pinned ffmpeg fetch)
+|-- make/                        Makefile fragments included by the root Makefile
 |-- docs/openspec/               specification tree (this directory)
 |-- docs/impl/                   plan.md, current.md, current/, records/
 |-- docs/guide/                  planning workflow, development guide
 |-- AGENTS.md                    canonical agent rules; CLAUDE.md/GEMINI.md link to it
-`-- Makefile                     build, cross-compile, test, lint, ci
+`-- Makefile                     entry point: help and includes of make/*.mk
 ```
 
 ## Dependency direction
@@ -33,6 +36,7 @@ flowchart TD
     main[cmd/arxgo] --> cli
     cli --> archive
     cli --> scanner
+    cli --> media
     archive --> scanner
     archive --> media
     archive --> state
@@ -46,11 +50,16 @@ flowchart TD
 
 Rules:
 
-- `cli` is the only package that reads flags or environment; it passes a validated, typed
+- `cli` is the only package that reads flags, the environment or the optional `.env` file; it
+  passes a validated, typed
   `Options` value down. Domain packages never call `os.Exit` or print to stdout.
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
-- `media` is the only package that runs external processes.
-- `fsops` is the only package with build-tagged platform files.
+- `media` is the only package that runs external processes. `cli` calls `media` only for tool
+  discovery, which must finish before the run session starts.
+- `fsops` is the only package with build-tagged platform files; it also holds the process liveness
+  check used by the run lock.
+- `cli` maps validated options onto `archive.Config` and exit codes onto `archive.Status`; it does
+  not import `state` directly.
 - All long-running functions accept a `context.Context`; cancellation (Ctrl+C) stops at the next
   transaction boundary after writing a checkpoint.
 
@@ -74,15 +83,20 @@ flowchart LR
 
 | Phase | Reads | Writes | Resumable by |
 | --- | --- | --- | --- |
-| 1. Validate | flags, roots | nothing | rerun |
+| 1. Validate | flags, roots, required tools | nothing | rerun |
 | 2. Lock and recover | `.arxgo/lock`, last run WAL | recovered WAL, checkpoint | lock ownership rules |
 | 3. Scan | archive tree | `arxgo-registry.csv`, candidate list in run dir | checkpoint cursor |
 | 4. Preflight | candidate list, statfs | preflight report in run log | rerun (read-only) |
 | 5. Execute | candidate list | videos, stubs, WAL | committed transaction set |
 | 6. Report | WAL, candidate list | `arxgo-videos.csv`, `arxgo-videos.md` | regenerate from WAL |
 
-Restore uses the same phases with the roots swapped for scanning (it scans the video archive).
-`scan` runs phases 1-3 only and takes a shared read lock.
+Restore uses the same phases with the roots swapped for scanning (it scans the video archive;
+the file registry for that scan stays in the run directory). Phase 5 uses `stub_removed` instead
+of `stubbed`. Phase 6 marks matching video-registry rows `restored`.
+`scan` runs phases 1-3 only and takes only the archive lock (exclusive, since it writes the
+registry); its free-space preflight runs before traversal. Within phase 3 the walker feeds a
+bounded detection worker pool and a writer that takes entries back in walk order, so the registry,
+the candidate list and the checkpoint cursor never depend on detection timing.
 
 ## Transaction state machine
 
@@ -121,10 +135,14 @@ Recovery rules for a transaction without `commit` (full table in
 
 ## Cross-platform notes
 
+Both columns are implemented. Linux behavior is tested as a gate; the Windows column is gated only
+by cross-compilation and `make vet-windows`, and its runtime checks are listed in the deferred
+[Windows verification scenario](../guide/windows-verification.md).
+
 | Concern | Linux | Windows |
 | --- | --- | --- |
-| Same device | `stat.Dev` equality of source file and destination parent | Volume serial of `GetVolumePathName` roots; UNC shares compared by normalized server/share |
-| Free space | `unix.Statfs` `Bavail * Bsize` | `windows.GetDiskFreeSpaceEx` caller-available bytes |
+| Same device | `stat.Dev` equality; missing paths use the nearest existing ancestor | Volume serial (`GetVolumePathName` + `GetVolumeInformation`); serial 0 also requires equal mount-point strings |
+| Free space | `unix.Statfs` `Bavail` times `Frsize` on Linux (`Bsize` on other Unix) | `windows.GetDiskFreeSpaceEx` caller-available bytes |
 | Rename across devices | `EXDEV` -> copy path | `ERROR_NOT_SAME_DEVICE` -> copy path |
 | Directory fsync | `fsync` on the parent directory | not supported; skipped, rely on `MoveFileEx` write-through |
 | Case sensitivity | sensitive | insensitive; collisions detected by case-folded key |
