@@ -10,6 +10,9 @@ Download the `arxgo-<version>-windows-amd64.zip` bundle for Windows amd64. It co
 `arxgo.exe`, `ffmpeg.exe`, `ffprobe.exe`, `.env.example`, this manual, `LICENSES/` and
 `SHA256SUMS`. The tools are already beside `arxgo.exe`; no separate installation or Go
 toolchain is needed. The bundle never contains a configured `.env` file.
+`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence,
+`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 6.1.1 source link, and
+`LICENSES/arxgo-MIT.txt` covers arxgo itself.
 
 In PowerShell, open the directory containing the downloaded ZIP, then extract and inspect it:
 

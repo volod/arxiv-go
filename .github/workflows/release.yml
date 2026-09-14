@@ -1,0 +1,30 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.mod
+      - name: Required checks
+        run: make ci
+      - name: Build and verify release bundles
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          make dist VERSION="$VERSION"
+          (cd dist && sha256sum -c SHA256SUMS)
+      - name: Publish tag release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/arxgo-*.tar.gz dist/arxgo-*.zip dist/SHA256SUMS --generate-notes

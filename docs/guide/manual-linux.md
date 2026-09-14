@@ -10,6 +10,9 @@ Download the `arxgo-<version>-linux-amd64.tar.gz` bundle for Linux amd64. It con
 `ffmpeg`, `ffprobe`, `.env.example`, this manual, `LICENSES/` and `SHA256SUMS`. The tools are
 already beside `arxgo`; no separate installation or Go toolchain is needed. The bundle never
 contains a configured `.env` file.
+`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence,
+`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 6.1.1 source link, and
+`LICENSES/arxgo-MIT.txt` covers arxgo itself.
 
 From the directory containing the downloaded archive, extract and verify it:
 

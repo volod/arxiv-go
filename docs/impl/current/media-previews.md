@@ -4,7 +4,8 @@ Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-run
 [0027 preview planning](../records/0027-preview-implement-preview-planning.md),
 [0028 video samples](../records/0028-preview-implement-video-samples.md),
 [0029 frame images](../records/0029-preview-implement-frame-images.md), and
-[0030 split/restore integration](../records/0030-preview-integrate-previews-into-split-and-restore.md).
+[0030 split/restore integration](../records/0030-preview-integrate-previews-into-split-and-restore.md),
+and [0032 release bundle](../records/0032-preview-implement-release-bundle-with-ffmpeg.md).
 Specification: [previews](../../openspec/stage-2-previews/previews.md). Active `split --sample`
 and `--image` modes generate previews; `restore --previews delete` removes recorded previews of
 restored videos when their byte size still matches.
@@ -128,3 +129,16 @@ crash, size-checked deletion, and preservation of unrecorded and changed files. 
 integration test exercises `split --sample start --image start` and `restore --previews delete`.
 Windows behavior is cross-compiled and vetted; runtime checks remain in
 [W7a](../../guide/windows-verification.md#scenario).
+
+## Release bundles
+
+`make dist` builds both static arxgo executables, fetches the pinned FFmpeg 6.1.1 GPL v3
+tools when needed, and verifies the tool hashes before packaging. It writes a Linux `.tar.gz`
+and Windows `.zip` to `dist/`. Each archive contains its platform's executable and tools,
+`.env.example`, the matching practical manual, GPL v3 text, FFmpeg build/source notice,
+arxgo's MIT licence and `SHA256SUMS`. The packager copies only these named files, so a
+build-host `bin/.env` is excluded. `dist/SHA256SUMS` covers both archives. The tag release
+workflow runs the required checks, builds and verifies these artifacts, then publishes them.
+Linux bundle extraction, checksums and preview generation were exercised on a generated
+video; the Windows bundle was inspected and cross-built on Linux. Windows runtime verification
+remains [W8](../../guide/windows-verification.md#scenario).

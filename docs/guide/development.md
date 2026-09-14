@@ -39,7 +39,8 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make env` | `cp .env.example bin/.env` unless it exists | Optional settings file next to the binary; never overwrites |
 | `make build` | `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo ./cmd/arxgo` | Static Linux amd64 binary with version stamp |
 | `make build-all` | `build`, then `CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo.exe ./cmd/arxgo` | `bin/arxgo` and `bin/arxgo.exe` |
-| `make ffmpeg` | `bash tools/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
+| `make ffmpeg` | `bash scripts/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
+| `make dist` | `build-all`, `ffmpeg`, then `scripts/package-dist.sh` | Linux `.tar.gz` and Windows `.zip` in `dist/`, each with checksums, matching manual, `.env.example`, GPL v3 text and FFmpeg source notice; also writes archive checksums to `dist/SHA256SUMS` (network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |
 | `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the stage-1 proof (`TestStage1GeneratedArchive`); a CI step after `make ci` |
@@ -83,3 +84,11 @@ tools skip in CI and run only on a local machine that has them on `PATH`.
 `.github/workflows/windows.yml` runs vet, tests and a static build on `windows-latest` only when
 started manually (`workflow_dispatch`). It is step W1 of the deferred
 [Windows verification scenario](windows-verification.md) and never gates a task.
+
+`.github/workflows/release.yml` runs `make ci` and `make dist` on Linux for `v*` tags, verifies
+`dist/SHA256SUMS`, and creates a GitHub release containing both bundles and their archive
+checksums. `make dist` uses the version from `git describe` unless `VERSION` is set. The
+packager verifies the tool pins even when `make ffmpeg` reuses existing files, then copies an
+explicit file list; it never copies `bin/.env`. It needs `zip` and `sha256sum` in addition to the
+`make ffmpeg` tools. The Windows bundle is cross-built and checked on Linux; its runtime smoke
+test is [W8](windows-verification.md#scenario).

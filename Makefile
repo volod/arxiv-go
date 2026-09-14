@@ -4,6 +4,7 @@ PROJECT_ROOT := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 include $(PROJECT_ROOT)/make/config.mk
 include $(PROJECT_ROOT)/make/build.mk
+include $(PROJECT_ROOT)/make/dist.mk
 include $(PROJECT_ROOT)/make/quality.mk
 
 .DEFAULT_GOAL := help
