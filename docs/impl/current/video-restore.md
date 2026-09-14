@@ -4,13 +4,12 @@ Accepted work: [0020 Video restore](../records/0020-restore-implement-video-rest
 [0021 Stage-1 integrity review](../records/0021-restore-review-stage-1-integrity.md);
 [0022 Recover an incomplete run before replacing it](../records/0022-restore-recover-incomplete-run-before-replacing-it.md);
 [0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md);
-[0025 Stage-1 proof on a generated archive](../records/0025-restore-prove-stage-1-on-generated-archive.md).
+[0025 Stage-1 proof on a generated archive](../records/0025-restore-prove-stage-1-on-generated-archive.md);
+[0042 Operator archive-copy trial](../records/0042-restore-approve-stage-1-on-operator-archive-copy.md).
 Specification: [restore](../../openspec/stage-1-core/split-restore.md#restore),
 [recovery](../../openspec/stage-1-core/integrity.md#recovery).
-The stage-1 checkpoint and the archive round-trip proof are accepted, so stage 2 may start. The capability
-stays planned until the operator trial on an archive copy
-(`approve-stage-1-on-operator-archive-copy` in the [plan](../plan.md#human-assisted-tasks)) is
-decided.
+The capability is shipped. The stage-1 checkpoint, the generated-archive proof and the operator
+trial on an archive copy are accepted.
 
 `arxgo restore` takes locks on both roots and recovers an incomplete run: the current restore run
 when it resumes, or an interrupted split or restore that this run replaces (with that run's own
@@ -64,6 +63,17 @@ and unrelated directories, a replaced interrupted restore, and a second run. The
 declared run on a generated 805 MiB archive (kill -9 during split and restore, reruns with other
 options and `--new-run`, same-device and tmpfs video archives) reproduced every path, size, mtime
 and SHA-256. Restoring 4000 videos took 38 s (97 s before description hints were cached).
+
+## Operator archive-copy trial
+
+The operator ran scan and split on a disposable copy of a representative archive and accepted
+stage 1 for real use ([0042](../records/0042-restore-approve-stage-1-on-operator-archive-copy.md)).
+CSV format and default ISO BMFF collection defects from that trial are
+[0040](../records/0040-split-flatten-operator-csv-outputs.md) and
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md). Interrupt, resume and restore
+on that copy were not rerun; those gates stay with the generated-archive proof below. Restore
+still treats `conflict` and `skipped` video-archive files as candidates. `--checkpoint-every`
+stays 500.
 
 ## Stage-1 proof
 

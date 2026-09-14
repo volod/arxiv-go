@@ -144,25 +144,6 @@ Review cloud publishing security, resume and link invariants.
 
 ## Human-Assisted Tasks
 
-### Video restore -- `video-restore`
-
-#### approve-stage-1-on-operator-archive-copy
-
-Decide whether stage 1 is fit for use on real archives after a trial on a copy of operator data.
-
-- Serves: `video-restore` -- [Success criteria](../openspec/spec.md#success-criteria)
-- Human status: HUMAN-GATED
-- Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
-- Requested input or decision: Run scan, split, interrupt, resume and restore on a disposable copy
-  of a representative archive; review registry, descriptions, logs and timings; accept, or file defects.
-  Where available, put one root on a CIFS/NFS share and start a second `arxgo` from another host
-  against its lock; note scan throughput at the default `--checkpoint-every`; decide whether
-  restore should skip video-archive files whose registry row is `conflict` or `skipped`. These are
-  the routed notes `AUD-implement-filesystem-primitives-2`, `AUD-implement-run-lock-and-checkpoint-3`,
-  `AUD-implement-scan-operation-and-csv-registry-3` and `AUD-review-stage-1-integrity-2` of
-  [the stage-1 integrity review](records/0021-restore-review-stage-1-integrity.md#audit-handoff).
-- Unblocks: Production use of stage 1. Stage-2 development does not wait for this decision.
-
 ### Cloud publishing -- `cloud-publishing`
 
 #### provide-google-drive-test-account
