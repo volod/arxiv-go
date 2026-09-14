@@ -129,8 +129,8 @@ For preflight: sample bytes = total sample seconds x bitrate estimate (`sd` 1 Mb
 `make dist` produces per-platform archives:
 
 ```text
-arxgo-<version>-linux-amd64.tar.gz    arxgo, ffmpeg, ffprobe, LICENSES/, SHA256SUMS
-arxgo-<version>-windows-amd64.zip     arxgo.exe, ffmpeg.exe, ffprobe.exe, LICENSES\, SHA256SUMS
+arxgo-<version>-linux-amd64.tar.gz    arxgo, ffmpeg, ffprobe, .env.example, manual-linux.md, LICENSES/, SHA256SUMS
+arxgo-<version>-windows-amd64.zip     arxgo.exe, ffmpeg.exe, ffprobe.exe, .env.example, manual-windows.md, LICENSES\, SHA256SUMS
 ```
 
 - ffmpeg builds are downloaded from pinned sources with pinned SHA-256 values in
@@ -146,6 +146,9 @@ arxgo-<version>-windows-amd64.zip     arxgo.exe, ffmpeg.exe, ffprobe.exe, LICENS
 
 - Every bundle includes the GPL v3 licence text, the build's provenance (source commit or recipe)
   and a written offer or link to the corresponding FFmpeg 6.1.1 source.
+- The Linux and Windows bundles include the matching practical operator manual from
+  [docs/guide/](../../guide/README.md) next to the executable. They include the environment
+  template but never an operator's `.env` file.
 - `arxgo` never downloads tools at runtime.
 
 ## Acceptance

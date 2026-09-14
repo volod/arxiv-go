@@ -5,7 +5,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 [0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md);
 [0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md);
 [0017 Centralize test layout](../records/0017-foundation-centralize-test-layout.md);
-[0024 Build artifact names](../records/0024-foundation-simplify-build-artifact-names.md).
+[0024 Build artifact names](../records/0024-foundation-simplify-build-artifact-names.md);
+[0031 Operator documentation](../records/0031-foundation-document-operator-use.md).
 
 ## Identity
 
@@ -38,10 +39,11 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - Root checks are read-only. Roots must be existing directories. A missing split video archive
   with an existing parent sets `SplitOptions.CreateVideoArchive`. Roots must be neither equal nor
   nested after `Abs`, `EvalSymlinks` and, on Windows, case folding.
-- Stage-2/3 flags (`--sample*`, `--image*`, `--preview-max-items`, `--publish*`, `--gdrive-*`,
-  `--share`, restore `--previews`), `--follow-symlinks=true` and the `publish` operation exit 2
-  with `option not available in this build`. This applies to the command line and the environment.
-- After validation, options that need an external tool (`--metadata media`) run
+- Split preview flags (`--sample*`, `--image*`, `--preview-max-items`) and restore `--previews`
+  are active. Cloud publishing flags (`--publish*`, `--gdrive-*`, `--share`),
+  `--follow-symlinks=true` and the `publish` operation exit 2 with
+  `option not available in this build`. This applies to the command line and the environment.
+- After validation, options that need an external tool (`--metadata media` or active previews) run
   [tool discovery](media-metadata.md#cli-integration-internalcli) before the session; a missing
   tool exits 3 with download links.
 - Optional environment file: `.env` next to the executable (symlinks resolved; `bin/.env` after

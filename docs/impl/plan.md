@@ -38,20 +38,24 @@ Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
   installation.
 - Scope boundary: `make dist` packaging on top of the approved pins in `packaging/ffmpeg.lock` and
   the verified download in `scripts/fetch-ffmpeg.sh` (`make ffmpeg`), `SHA256SUMS`, GPLv3 licence
-  text and source offer per bundle, CI release job on tags. Each bundle ships `.env.example` next
-  to `arxgo` (operators copy it to `.env`) and never a `.env`. Binaries never committed. Correct the
-  `make ffmpeg` row of the development guide, which still names `tools/fetch-ffmpeg.sh`
-  (`AUD-refactor-repository-layout-1`).
+  text and source offer per bundle, CI release job on tags. Each bundle ships `.env.example`
+  (operators copy it to `.env`) and the matching practical manual (`docs/guide/manual-linux.md`
+  or `docs/guide/manual-windows.md`) next to the executable, and never a `.env`. Binaries never
+  committed. Correct the `make ffmpeg` row of the development guide, which still names
+  `tools/fetch-ffmpeg.sh` (`AUD-refactor-repository-layout-1`).
 - Data and artifact paths: `packaging/`, `scripts/fetch-ffmpeg.sh`, `make/`, `Makefile`,
-  `.github/workflows/release.yml`, `dist/` (ignored).
+  `.github/workflows/release.yml`, `docs/guide/manual-linux.md`,
+  `docs/guide/manual-windows.md`, `dist/` (ignored).
 - Execution path: Declared run on Linux: `make dist` for linux/amd64 and windows/amd64 with network
   access, then smoke-test the Linux bundle (`arxgo split --image start` on a generated video). The
   Windows bundle smoke test is step W8 of the Windows scenario.
-- Acceptance gates: Checksums verified before packaging; Linux bundle smoke test passes; Windows
-  bundle is built and its file list (`arxgo.exe`, `ffmpeg.exe`, `ffprobe.exe`, licences,
-  `SHA256SUMS`) is checked on Linux; licence files match the approved variant; checksum mismatch
-  fails the build; no bundle contains a `.env` file, even when `bin/.env` exists on the build host.
-- Documentation target: `docs/guide/development.md`
+- Acceptance gates: Checksums verified before packaging; Linux bundle smoke test passes; both
+  bundle file lists (`arxgo`/`arxgo.exe`, `ffmpeg`/`ffmpeg.exe`, `ffprobe`/`ffprobe.exe`, licences,
+  `SHA256SUMS`, `.env.example`, and the matching platform manual) are checked on Linux; licence
+  files match the approved variant; checksum mismatch fails the build; no bundle contains a `.env`
+  file, even when `bin/.env` exists on the build host.
+- Documentation target: `docs/guide/development.md`, `docs/guide/manual-linux.md`,
+  `docs/guide/manual-windows.md`
 - Review checkpoint: `review-stage-2-previews`.
 
 #### review-stage-2-previews

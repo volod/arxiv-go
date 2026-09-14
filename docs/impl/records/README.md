@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0030`.
+Next unused sequence: `0032`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -39,3 +39,4 @@ Next unused sequence: `0030`.
 | [0028 Video samples](0028-preview-implement-video-samples.md) | Sample encoding, series chunking, encoder and muxer fallback, ffprobe validation | Accepted; `make ci` and local media tests pass on Linux; Windows cross-compiled |
 | [0029 Frame images](0029-preview-implement-frame-images.md) | PNG frame extraction, compression mapping and decoded-image validation | Accepted; `make ci` and local media tests pass on Linux; Windows cross-compiled |
 | [0030 Preview integration](0030-preview-integrate-previews-into-split-and-restore.md) | Split and restore preview WAL, registry, stub and cleanup integration | Accepted; live FFmpeg tests and `make ci` pass on Linux; Windows cross-compiled |
+| [0031 Document operator use](0031-foundation-document-operator-use.md) | README, Linux and Windows practical manuals, environment template, release bundle documentation scope | Accepted; `make ci` passes on Linux, Windows cross-compiled |

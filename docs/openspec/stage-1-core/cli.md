@@ -1,8 +1,8 @@
 # CLI contract
 
-Owner: `project-foundation`. Stage-2 and stage-3 flags are listed so the parser recognizes their
-names. Split preview settings are validated; active modes exit 70 until generation is integrated.
-Unshipped restore and stage-3 flags exit 2 with `option not available in this build`.
+Owner: `project-foundation`. Split preview settings and restore preview cleanup are active.
+Cloud publishing flags are listed so the parser recognizes their names; using them exits 2 with
+`option not available in this build`.
 
 ## Synopsis
 
