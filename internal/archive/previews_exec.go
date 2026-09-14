@@ -91,9 +91,9 @@ func (e previewExecutor) run(ctx context.Context, item *videoPreviews) error {
 			return err
 		}
 	}
-	// Refreshing after every run, not only after new outputs, repairs a stub written by a later
+	// Refreshing after every run, not only after new outputs, repairs a description written by a later
 	// move or left stale by a crash after the last preview_done.
-	return refreshPreviewStub(e.s, e.idx, item.video)
+	return refreshPreviewDescription(e.s, e.idx, item.video)
 }
 
 func (e previewExecutor) generate(ctx context.Context, video, source string, job media.PreviewJob) error {
@@ -163,32 +163,32 @@ func (e previewExecutor) fail(video, reason string) {
 	e.s.Stats.PreviewsFailed.Add(1)
 }
 
-// refreshPreviewStub rewrites the preview section of the owned stub of video when it differs from
-// the recorded previews. A foreign or missing stub is left alone.
-func refreshPreviewStub(s *Session, idx *previewIndex, video string) error {
+// refreshPreviewDescription rewrites the preview section of the owned description of video when it differs from
+// the recorded previews. A foreign or missing description is left alone.
+func refreshPreviewDescription(s *Session, idx *previewIndex, video string) error {
 	base := filepath.Join(s.cfg.Archive, filepath.FromSlash(video))
-	for _, stub := range []string{base + ".md", base + ".arxgo.md"} {
-		owner, err := report.InspectStub(stub, video)
+	for _, description := range []string{base + ".md", base + ".arxgo.md"} {
+		owner, err := report.InspectDescription(description, video)
 		if err != nil {
 			return err
 		}
-		if owner != report.StubOwned {
+		if owner != report.DescriptionOwned {
 			continue
 		}
-		data, err := os.ReadFile(stub)
+		data, err := os.ReadFile(description)
 		if err != nil {
 			return err
 		}
 		var links []report.PreviewLink
 		for _, preview := range idx.owned.sorted(video) {
 			links = append(links, report.PreviewLink{Name: path.Base(preview),
-				URL: report.RelativeLink(filepath.Dir(stub), idx.abs(preview))})
+				URL: report.RelativeLink(filepath.Dir(description), idx.abs(preview))})
 		}
-		out := report.ReplacePreviewSection(data, links)
+		out := report.ReplacePreviewLinks(data, links)
 		if bytes.Equal(out, data) {
 			return nil
 		}
-		if err := s.cfg.FS.AtomicWriteFile(stub, out, 0o644); err != nil {
+		if err := s.cfg.FS.AtomicWriteFile(description, out, 0o644); err != nil {
 			return err
 		}
 		s.Stats.ArchiveWritten.Add(int64(len(out)))

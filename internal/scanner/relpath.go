@@ -8,7 +8,7 @@ import (
 // reservedName reports the names arxgo owns directly under a walked root.
 func reservedName(name string) bool {
 	switch name {
-	case StateDirName, RegistryName, VideoRegistryName, VideoSummaryName:
+	case StateDirName, RegistryName, VideoRegistryName:
 		return true
 	}
 	return false

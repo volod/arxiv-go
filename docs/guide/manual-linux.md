@@ -61,9 +61,10 @@ The examples below run from the extracted bundle directory. If you move the exec
 per readable regular file and symlink. It marks binary, media, picture, video and large files.
 Directories and unreadable or special entries are reported as skipped rather than registered.
 Symlinks are recorded, never followed. `--metadata file` (the default) records filesystem
-metadata and needs no external tool. `--metadata media` also records container, duration and
-stream information for media files and requires `ffprobe` at startup. An unreadable or malformed
-media file can still have a row with a media error. Use `--registry PATH` to write the file
+metadata and, for MP4, MOV, M4A, M4V and 3GP files, container duration, size and codecs,
+without an external tool. `--metadata media` also records those fields for other audio and
+video files and requires `ffprobe` at startup. An unreadable or malformed media file can
+still have a row with a media error. Use `--registry PATH` to write the file
 elsewhere and `--video-extensions braw,r3d` when a format lacks a recognizable signature.
 `--exclude` globs are relative to the archive root; repeat the flag for multiple patterns.
 
@@ -79,17 +80,17 @@ Check the plan first, then run the transfer:
 
 `split` scans the main archive and moves video candidates to matching relative paths under
 `/mnt/video`. A source such as `/data/archive/projects/demo.mp4` becomes
-`/mnt/video/projects/demo.mp4`. In the main archive, an arxgo-owned Markdown stub such as
-`projects/demo.mp4.md` points to it. Existing unrelated files are preserved; if the usual stub
+`/mnt/video/projects/demo.mp4`. In the main archive, an arxgo-owned video description such as
+`projects/demo.mp4.md` points to it. Existing unrelated files are preserved; if the usual description
 name is occupied, arxgo chooses an alternate name. The main archive retains non-video files and
-optional previews. Both roots get `arxgo-videos.csv` and `arxgo-videos.md`. `split` never
+optional previews. Both roots get `arxgo-videos.csv`. `split` never
 overwrites a different video already at the destination: it reports a conflict and exits 6.
 
 With the default `--transfer auto`, roots on the same filesystem/device use a no-replace
 rename. That is a move of the directory entry, so no second full video copy is needed. Two
 paths on the same physical disk can still be on different partitions or filesystems; they then
 use the copy path. A different disk or network share also uses the copy path: arxgo writes a
-temporary destination file, verifies it, places it without replacement, writes the stub, then
+temporary destination file, verifies it, places it without replacement, writes the description, then
 removes the source. `--transfer copy` forces this path even on one device. During that path,
 space for a temporary second copy is needed. `--verify size` compares sizes; `--verify hash`
 also verifies SHA-256 and reads more data.
@@ -97,11 +98,11 @@ also verifies SHA-256 and reads more data.
 `--min-free 1GiB` is the default: estimated writes must leave at least that much free on each
 write device. Exit 4 means the preflight refused the operation; free space or adjust this
 threshold and rerun. Some network shares report unknown space, in which case arxgo warns and
-continues. `--dry-run` scans and estimates without moving videos or writing registries, stubs
+continues. `--dry-run` scans and estimates without moving videos or writing registries, descriptions
 or previews, but it can write run state, a log and report under `/data/archive/.arxgo`.
 
 If the video archive has a separately hosted HTTP(S) address, add for example
-`--base-url https://storage.example.com/video`. Each stub then includes that URL plus the
+`--base-url https://storage.example.com/video`. Each description then includes that URL plus the
 escaped video-relative path. `arxgo` does not upload files or test that the URL works; set it
 only when the same tree is actually reachable at that address.
 
@@ -112,7 +113,7 @@ only when the same tree is actually reachable at that address.
   --sample middle --sample-duration 8s --image series --image-every 5m
 ```
 
-Samples are short video clips; images are PNG frames. Both are stored beside the stub in the
+Samples are short video clips; images are PNG frames. Both are stored beside the description in the
 main archive and linked from it. Each option accepts `none` (default), `start`, `middle`, `end`
 or `series`. `series` makes one combined sample from spaced fragments or multiple frames;
 `--preview-max-items` caps each series at 100 by default. `--sample-every` controls fragment
@@ -133,8 +134,8 @@ decodable audio gets a silent sample and a warning. A source without a video str
 previews and a warning.
 
 Previews are generated from the moved video after its transfer commits. A failed preview leaves the
-video moved, is counted as `previews_failed` in `report.json`, listed under "Preview failures" in
-`arxgo-videos.md`, and makes the run exit 6; rerun `split` with the same preview options to create
+video moved, is counted as `previews_failed` in `report.json` and makes the run exit 6; rerun
+`split` with the same preview options to create
 the missing ones. A rerun never regenerates a preview that still has its recorded size, and it
 keeps an existing preview name even when you change modes or quality; delete a preview file to
 have the next split regenerate it with the new options. Recorded previews and their
@@ -152,11 +153,11 @@ sidecar files are recognized as metadata, not videos.
 `restore` scans the video archive and returns videos to their original relative paths. If a
 parent directory in the main archive was removed, the default skips that video (exit 6);
 `--create-dirs` recreates it. A different file already at the destination is skipped unless
-you explicitly use `--overwrite`. The default `--stubs delete` removes only matching
-arxgo-owned stubs; `--stubs keep` preserves them. The default `--previews keep` leaves
+you explicitly use `--overwrite`. The default `--descriptions delete` removes only matching
+arxgo-owned descriptions; `--descriptions keep` preserves them. The default `--previews keep` leaves
 previews; `--previews delete` removes only recorded previews whose sizes still match, preserving
 changed or unrelated files. If a restore with `--previews delete` is interrupted, rerunning the same
-command also deletes the previews of videos it had already restored. A kept stub (`--stubs keep`)
+command also deletes the previews of videos it had already restored. A kept description (`--descriptions keep`)
 loses the links of deleted previews. The default updates both video registries to show restored rows;
 completed registries may be renamed with `.restored-<run-id>` rather than deleted.
 
@@ -169,7 +170,7 @@ directories stay.
 ## Interruptions, locks and reports
 
 Each real transfer takes locks in both roots and writes a durable transaction log under
-`<archive>/.arxgo/runs/<run-id>/`. A transaction records placement and stub/source changes
+`<archive>/.arxgo/runs/<run-id>/`. A transaction records placement and description/source changes
 before it is considered complete. If power loss or Ctrl+C interrupts a run, rerun the same
 command to recover unfinished transfers and resume at its checkpoint. `--new-run` recovers
 unfinished transfers first, then scans anew. Do not edit the WAL or remove a video that recovery

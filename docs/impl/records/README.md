@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0038`.
+Next unused sequence: `0042`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -46,3 +46,7 @@ Next unused sequence: `0038`.
 | [0035 Approve FFmpeg 9.0.1](0035-preview-approve-ffmpeg-9-distribution.md) | Operator decision to bundle FFmpeg 9.0.1 from the approved publishers; version comparison for mono MP2 and Apple positional audio | Accepted by the operator: FFmpeg 9.0.1 GPL v3 static builds for linux/windows amd64 |
 | [0036 Upgrade bundled FFmpeg to 9.0.1](0036-preview-upgrade-bundled-ffmpeg-to-9.md) | New pins and source notices, live tests on the pinned tools, mono MP2 series regression, bundle and docs | Accepted; `make ffmpeg`, live, integration, race, `make dist` and real-media run pass on Linux; Windows inspected |
 | [0037 Undecodable sample audio](0037-preview-handle-undecodable-sample-audio.md) | Samples use the first decodable audio stream or are silent, for Apple positional audio | Accepted; live regression and real iPhone files pass on Linux; Windows cross-compiled |
+| [0038 Version from a SemVer file](0038-foundation-version-from-semver-file.md) | Hand-edited `VERSION` file (0.1.0) stamped by make; SemVer test; release tag must match | Accepted; `make ci` passes on Linux |
+| [0039 Compact Markdown stub](0039-split-compact-markdown-stub.md) | One-block stub: `arxgo: <rel_path>` marker line, sizes with units, media and time fields, preview link lines | Accepted; `make ci` and integration pass on Linux |
+| [0040 Flat operator CSV outputs](0040-split-flatten-operator-csv-outputs.md) | Operator-reported CSV format, local URLs, summary removal and domain naming | Accepted; `make ci` and integration pass on Linux |
+| [0041 Default ISO BMFF metadata](0041-metadata-collect-iso-metadata-by-default.md) | Default scan/split fill MP4/MOV media columns without ffprobe | Accepted; `make ci` passes on Linux |

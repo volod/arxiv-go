@@ -10,15 +10,15 @@ import (
 
 // RestoreConfig contains the restore flags needed by the archive executor.
 type RestoreConfig struct {
-	Scan           ScanConfig
-	Transfer       string
-	Verify         fsops.VerifyMode
-	CreateDirs     bool
-	Overwrite      bool
-	RegistryUpdate bool
-	KeepStubs      bool // --stubs keep
-	KeepSource     bool // --transfer copy
-	DeletePreviews bool // --previews delete
+	Scan             ScanConfig
+	Transfer         string
+	Verify           fsops.VerifyMode
+	CreateDirs       bool
+	Overwrite        bool
+	RegistryUpdate   bool
+	KeepDescriptions bool // --descriptions keep
+	KeepSource       bool // --transfer copy
+	DeletePreviews   bool // --previews delete
 	// StageCopy is a test seam. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 }
@@ -144,13 +144,13 @@ func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, d
 }
 
 // restoreResolverOf returns the resolver installed for recovery, so execution and recovery share
-// its stub hints, with the run's policies. Without one it builds a new resolver.
+// its description hints, with the run's policies. Without one it builds a new resolver.
 func restoreResolverOf(s *Session, c RestoreConfig) *RestoreResolver {
 	r, ok := s.cfg.Recoverer.(RestoreResolver)
 	if !ok {
 		r = NewRestoreResolver(RestoreResolver{Verify: c.Verify})
 	}
-	r.KeepStubs, r.KeepSource, r.Archive = c.KeepStubs, c.KeepSource, s.cfg.Archive
+	r.KeepDescriptions, r.KeepSource, r.Archive = c.KeepDescriptions, c.KeepSource, s.cfg.Archive
 	if s.cfg.Crash != nil {
 		r.Crash = s.cfg.Crash
 	}

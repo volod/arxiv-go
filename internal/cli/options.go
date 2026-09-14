@@ -22,7 +22,7 @@ const (
 	TransferCopy  = "copy"
 	VerifySize    = "size"
 	VerifyHash    = "hash"
-	PolicyDelete  = "delete" // --stubs and --previews
+	PolicyDelete  = "delete" // --descriptions and --previews
 	PolicyKeep    = "keep"
 	LogText       = "text"
 	LogJSON       = "json"
@@ -85,7 +85,7 @@ type RestoreOptions struct {
 	Common
 	Transfer       string
 	Verify         string
-	Stubs          string // PolicyDelete or PolicyKeep
+	Descriptions   string // PolicyDelete or PolicyKeep
 	CreateDirs     bool
 	Overwrite      bool
 	RegistryUpdate bool
@@ -215,7 +215,7 @@ func buildRestoreOptions(s *settings, fsys rootFS) (RestoreOptions, error) {
 		Common:         common,
 		Transfer:       s.transfer,
 		Verify:         s.verify,
-		Stubs:          s.stubs,
+		Descriptions:   s.descriptions,
 		CreateDirs:     s.createDirs,
 		Overwrite:      s.overwrite,
 		RegistryUpdate: s.registryUpdate,
@@ -231,7 +231,7 @@ func parseLevel(s string) slog.Level {
 }
 
 // validateBaseURL requires an absolute http or https URL with a host and no credentials, query
-// or fragment, because stubs append /<rel_path> to it. It returns the URL without trailing slashes.
+// or fragment, because descriptions append /<rel_path> to it. It returns the URL without trailing slashes.
 func validateBaseURL(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {

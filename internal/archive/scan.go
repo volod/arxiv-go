@@ -24,7 +24,7 @@ const (
 type ScanConfig struct {
 	Root            string   // tree to scan
 	Registry        string   // final registry path; the part file is Registry + ".arxgo-part"
-	Metadata        string   // file or media; media fields are added by the metadata tasks
+	Metadata        string   // file (ISO BMFF) or media (ISO BMFF plus ffprobe)
 	FFprobePath     string   // validated ffprobe path for media mode; not persisted in options
 	LargeThreshold  int64    // --large-threshold
 	VideoExtensions []string // --video-extensions
@@ -101,6 +101,9 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 		return nil, err
 	}
 	if !s.cfg.DryRun {
+		if err := report.DropEmptyCSVColumns(run.part, report.FileRegistryKeep); err != nil {
+			return nil, fmt.Errorf("compact registry: %w", err)
+		}
 		if err := fsops.Replace(run.part, c.Registry); err != nil {
 			return nil, fmt.Errorf("place registry: %w", err)
 		}

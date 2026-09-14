@@ -14,7 +14,7 @@ import (
 )
 
 // splitCandidate moves one video in a transaction: begin, place (rename, or copy and verify),
-// placed, stub, stubbed, remove the source after a copy, commit. A destination with the same
+// placed, description, described, remove the source after a copy, commit. A destination with the same
 // content is adopted; a different one is a conflict and the video is skipped.
 func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolver, v Candidate, c *SplitConfig, list string) error {
 	src := filepath.Join(s.cfg.Archive, filepath.FromSlash(v.RelPath))
@@ -77,24 +77,24 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 	}
 }
 
-// finishSplit logs placed, writes the stub, removes the source of a copy and commits.
+// finishSplit logs placed, writes the description, removes the source of a copy and commits.
 func finishSplit(s *Session, w *state.WAL, r SplitResolver, rec state.Record, sum string, largeThreshold int64) error {
 	tx := state.Tx{Begin: rec, Last: rec}
 	if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
 		return err
 	}
-	r.Stubs.RememberSHA256(rec.RelPath, sum)
-	if err := r.WriteStub(tx); err != nil {
+	r.Descriptions.RememberSHA256(rec.RelPath, sum)
+	if err := r.WriteDescription(tx); err != nil {
 		return err
 	}
-	stub := r.StubPath(tx)
-	if stub == "" {
-		return fmt.Errorf("stub path for %s", rec.RelPath)
+	description := r.DescriptionPath(tx)
+	if description == "" {
+		return fmt.Errorf("description path for %s", rec.RelPath)
 	}
-	if stub != rec.Src+".md" {
-		s.Log.Warn("stub collision; wrote fallback", "rel_path", rec.RelPath, "stub", stub)
+	if description != rec.Src+".md" {
+		s.Log.Warn("description collision; wrote fallback", "rel_path", rec.RelPath, "description", description)
 	}
-	if _, err := w.Append(rec.TxID, state.StepStubbed, state.Record{Stub: stub}); err != nil {
+	if _, err := w.Append(rec.TxID, state.StepDescribed, state.Record{Description: description}); err != nil {
 		return err
 	}
 	if rec.Transfer == state.TransferCopy {
@@ -112,7 +112,7 @@ func finishSplit(s *Session, w *state.WAL, r SplitResolver, rec state.Record, su
 	s.Stats.VideoBytes.Add(rec.Size)
 	s.Stats.VideoArchiveWritten.Add(rec.Size)
 	s.Stats.ArchiveFreed.Add(rec.Size)
-	if info, err := os.Stat(stub); err == nil {
+	if info, err := os.Stat(description); err == nil {
 		s.Stats.ArchiveWritten.Add(info.Size())
 	}
 	logMoved(s, "video moved", rec, largeThreshold)

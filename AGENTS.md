@@ -7,7 +7,7 @@ current-state sections. Load other guidance when the condition under "Read when 
 ## Project
 
 `arxgo` is a single static Go executable that builds a CSV registry of a file archive, moves video
-files into a mirrored video archive with Markdown metadata stubs, and restores them (stage 1); adds
+files into a mirrored video archive with video description files, and restores them (stage 1); adds
 ffmpeg-based previews (stage 2); and publishes to Google Drive or SharePoint (stage 3). Start with
 the [specification](docs/openspec/spec.md) and the [architecture](docs/openspec/architecture.md).
 

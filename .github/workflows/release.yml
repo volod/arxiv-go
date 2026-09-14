@@ -18,11 +18,16 @@ jobs:
           cache-dependency-path: go.mod
       - name: Required checks
         run: make ci
-      - name: Build and verify release bundles
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Check the tag names the VERSION file
         run: |
-          make dist VERSION="$VERSION"
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match VERSION $version (expected v$version)" >&2
+            exit 1
+          fi
+      - name: Build and verify release bundles
+        run: |
+          make dist
           (cd dist && sha256sum -c SHA256SUMS)
       - name: Publish tag release
         env:

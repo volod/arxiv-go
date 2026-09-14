@@ -7,44 +7,44 @@ import (
 	"unicode/utf8"
 )
 
-const maxStubIndex = 10000
+const maxDescriptionIndex = 10000
 
-// ChooseStubPath picks an absolute stub path next to the original video at srcAbs.
+// ChooseDescriptionPath picks an absolute description path next to the original video at srcAbs.
 // Preference: <name>.<ext>.md, then <name>.<ext>.arxgo.md, then <prefix>-<idx>.<ext>.md
 // with truncation so the filename and full path stay within OS limits. An existing
-// stub whose front matter names relPath is reused and overwritten.
-func ChooseStubPath(srcAbs, relPath string) (string, error) {
+// description whose front matter names relPath is reused and overwritten.
+func ChooseDescriptionPath(srcAbs, relPath string) (string, error) {
 	dir := filepath.Dir(srcAbs)
 	videoName := filepath.Base(srcAbs)
-	if p, ok, err := tryStubName(dir, videoName+".md", relPath); ok || err != nil {
+	if p, ok, err := tryDescriptionName(dir, videoName+".md", relPath); ok || err != nil {
 		return p, err
 	}
-	if p, ok, err := tryStubName(dir, videoName+".arxgo.md", relPath); ok || err != nil {
+	if p, ok, err := tryDescriptionName(dir, videoName+".arxgo.md", relPath); ok || err != nil {
 		return p, err
 	}
-	for i := 1; i <= maxStubIndex; i++ {
-		name, ok := indexedStubName(videoName, i, dir)
+	for i := 1; i <= maxDescriptionIndex; i++ {
+		name, ok := indexedDescriptionName(videoName, i, dir)
 		if !ok {
 			continue
 		}
-		if p, done, err := tryStubName(dir, name, relPath); done || err != nil {
+		if p, done, err := tryDescriptionName(dir, name, relPath); done || err != nil {
 			return p, err
 		}
 	}
-	return "", fmt.Errorf("stub conflict near %s: no available filename", srcAbs)
+	return "", fmt.Errorf("description conflict near %s: no available filename", srcAbs)
 }
 
-func tryStubName(dir, name, relPath string) (string, bool, error) {
+func tryDescriptionName(dir, name, relPath string) (string, bool, error) {
 	if name == "" || !fitsName(dir, name) {
 		return "", false, nil
 	}
 	p := filepath.Join(dir, name)
-	occ, err := InspectStub(p, relPath)
+	occ, err := InspectDescription(p, relPath)
 	if err != nil {
 		return "", false, err
 	}
 	switch occ {
-	case StubAbsent, StubOwned:
+	case DescriptionAbsent, DescriptionOwned:
 		return p, true, nil
 	default:
 		return "", false, nil
@@ -58,9 +58,9 @@ func fitsName(dir, name string) bool {
 	return pathUnitLen(filepath.Join(dir, name)) <= pathMax
 }
 
-// indexedStubName builds <prefix>-<idx>.<ext>.md, shortening prefix until the name
+// indexedDescriptionName builds <prefix>-<idx>.<ext>.md, shortening prefix until the name
 // and the joined path fit the platform limits.
-func indexedStubName(videoName string, idx int, dir string) (string, bool) {
+func indexedDescriptionName(videoName string, idx int, dir string) (string, bool) {
 	stem, ext := splitVideoName(videoName)
 	suffix := fmt.Sprintf("-%d%s.md", idx, ext)
 	prefix := truncateUnits(stem, nameMax-pathUnitLen(suffix))

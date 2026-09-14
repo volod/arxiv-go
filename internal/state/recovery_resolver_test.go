@@ -45,9 +45,9 @@ func (r fsResolver) DeletePart(tx Tx) error {
 	return r.hit("fs:delete_part")
 }
 
-// WriteStub writes or removes the Markdown stub for the operation.
-func (r fsResolver) WriteStub(tx Tx) error {
-	path := stubPath(tx.Begin)
+// WriteDescription writes or removes the video description for the operation.
+func (r fsResolver) WriteDescription(tx Tx) error {
+	path := descriptionPath(tx.Begin)
 	var err error
 	if tx.Begin.Op == "restore" {
 		err = removeIfPresent(path)
@@ -57,7 +57,7 @@ func (r fsResolver) WriteStub(tx Tx) error {
 	if err != nil {
 		return err
 	}
-	return r.hit("fs:stub")
+	return r.hit("fs:description")
 }
 
 // RemoveSource deletes the source file if it is still present.

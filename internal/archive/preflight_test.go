@@ -54,21 +54,21 @@ func TestPlanPreflightTable(t *testing.T) {
 			devices(dev(gib, "/a", RoleArchive), dev(gib, "/r", RoleRegistry)),
 			[]wantDevice{{"/r", []Need{{"registry", 2560}}}}},
 		{"split same device auto renames", videos3, PreflightOptions{Op: "split", Transfer: "auto"}, shared,
-			[]wantDevice{{"/a", []Need{{"stubs", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}}}}},
+			[]wantDevice{{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}}}}},
 		{"split other device auto copies all", videos3, PreflightOptions{Op: "split", Transfer: "auto"}, separate,
 			[]wantDevice{
-				{"/a", []Need{{"stubs", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
+				{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
 				{"/v", []Need{{"video_registry", 3 * kib}, {"videos", 30 * gib}}}}},
 		{"split other device copy", videos3, PreflightOptions{Op: "split", Transfer: "copy"}, separate,
 			[]wantDevice{
-				{"/a", []Need{{"stubs", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
+				{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
 				{"/v", []Need{{"video_registry", 3 * kib}, {"videos", 30 * gib}}}}},
 		{"split same device copy needs largest twice", videos3, PreflightOptions{Op: "split", Transfer: "copy"}, shared,
-			[]wantDevice{{"/a", []Need{{"stubs", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}, {"largest_video", 20 * gib}}}}},
+			[]wantDevice{{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}, {"largest_video", 20 * gib}}}}},
 		{"split previews hook on archive device", Candidates{Count: 1, Bytes: gib, Largest: gib, PreviewBytes: 5 * kib},
 			PreflightOptions{Op: "split"}, separate,
 			[]wantDevice{
-				{"/a", []Need{{"stubs", 4 * kib}, {"video_registry", kib}, {"wal", 2 * kib}, {"previews", 5 * kib}}},
+				{"/a", []Need{{"descriptions", 4 * kib}, {"video_registry", kib}, {"wal", 2 * kib}, {"previews", 5 * kib}}},
 				{"/v", []Need{{"video_registry", kib}, {"videos", gib}}}}},
 		{"restore same device auto is negligible", videos3, PreflightOptions{Op: "restore", Transfer: "auto"}, shared,
 			[]wantDevice{{"/a", []Need{{"wal", 6 * kib}}}}},
@@ -140,7 +140,7 @@ func TestPlanSharedDeviceSumsRequirementsOnce(t *testing.T) {
 		t.Fatalf("separate devices: %+v", req)
 	}
 	// ... while one device holding both roots is checked once against the summed requirement:
-	// stubs 4KiB + two registry copies 2KiB + wal 2KiB + the largest video once.
+	// descriptions 4KiB + two registry copies 2KiB + wal 2KiB + the largest video once.
 	req := Plan(c, o, devices(dev(avail, "/a", RoleArchive, RoleVideoArchive)))
 	if len(req.Devices) != 1 || req.Devices[0].Required != 10*gib+8*kib || req.Devices[0].Shortfall != 4*kib {
 		t.Fatalf("shared device: %+v", req)
@@ -193,7 +193,7 @@ func TestPreflightReportFormatIsStable(t *testing.T) {
 		return a
 	}
 	LogRequirement(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{ReplaceAttr: noTime})), req)
-	want := `level=INFO msg="preflight device" roles=archive path=/data/archive required=14.0KiB min_free=1.0GiB available=5.0GiB shortfall=0B needs="stubs=8.0KiB video_registry=2.0KiB wal=4.0KiB" required_bytes=14336 min_free_bytes=1073741824 available_bytes=5368709120 shortfall_bytes=0
+	want := `level=INFO msg="preflight device" roles=archive path=/data/archive required=14.0KiB min_free=1.0GiB available=5.0GiB shortfall=0B needs="descriptions=8.0KiB video_registry=2.0KiB wal=4.0KiB" required_bytes=14336 min_free_bytes=1073741824 available_bytes=5368709120 shortfall_bytes=0
 level=INFO msg="preflight device" roles=video_archive path=/mnt/video required=31.0GiB min_free=1.0GiB available=30.0GiB shortfall=2.0GiB needs="video_registry=2.0KiB videos=31.0GiB" required_bytes=33285998592 min_free_bytes=1073741824 available_bytes=32212254720 shortfall_bytes=2147485696
 level=ERROR msg="preflight failed: insufficient free space" op=split devices=2 shortfall=2.0GiB shortfall_bytes=2147485696
 `

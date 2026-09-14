@@ -17,7 +17,6 @@ func TestLocalRelPath(t *testing.T) {
 		"a/":                           false,
 		".arxgo/lock":                  false,
 		"arxgo-registry.csv":           false,
-		"arxgo-videos.md":              false,
 		"a/clip.mp4.arxgo-part":        false,
 		"a/clip-smpl01.arxgo-part.mp4": false, // preview part
 		"a/clip.arxgo-part.x.mp4":      true,

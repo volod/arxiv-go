@@ -99,7 +99,7 @@ func TestDefaults(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferAuto, Verify: VerifySize,
-		Stubs: PolicyDelete, RegistryUpdate: true, Previews: PolicyKeep,
+		Descriptions: PolicyDelete, RegistryUpdate: true, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore defaults\n got %+v\nwant %+v", restore, wantRestore)
@@ -144,7 +144,7 @@ func TestEveryFlagParses(t *testing.T) {
 
 	s, err = parseFlags(OpRestore, []string{
 		"--archive", archive, "--video-archive", video, "--transfer", "copy", "--verify", "hash",
-		"--stubs", "keep", "--create-dirs", "--overwrite", "--registry-update=false",
+		"--descriptions", "keep", "--create-dirs", "--overwrite", "--registry-update=false",
 	}, noEnv)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestEveryFlagParses(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferCopy, Verify: VerifyHash,
-		Stubs: PolicyKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false, Previews: PolicyKeep,
+		Descriptions: PolicyKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore options\n got %+v\nwant %+v", restore, wantRestore)
@@ -174,13 +174,13 @@ func TestParseErrors(t *testing.T) {
 		{OpScan, []string{"--metadata", "full"}, "--metadata"},
 		{OpSplit, []string{"--transfer", "move"}, "--transfer"},
 		{OpSplit, []string{"--verify", "md5"}, "--verify"},
-		{OpRestore, []string{"--stubs", "archive"}, "--stubs"},
+		{OpRestore, []string{"--descriptions", "archive"}, "--descriptions"},
 		{OpScan, []string{"--min-free", "1XB"}, "--min-free"},
 		{OpScan, []string{"--large-threshold", "-1"}, "--large-threshold"},
 		{OpScan, []string{"--progress-interval", "10"}, "--progress-interval"},
 		{OpScan, []string{"--checkpoint-every", "many"}, "--checkpoint-every"},
 		{OpScan, []string{"--no-such-flag"}, "flag provided but not defined: --no-such-flag"},
-		{OpScan, []string{"--stubs", "keep"}, "not defined: --stubs"},
+		{OpScan, []string{"--descriptions", "keep"}, "not defined: --descriptions"},
 		{OpRestore, []string{"--metadata", "file"}, "not defined: --metadata"},
 		{OpScan, []string{"--archive"}, "flag needs an argument"},
 		{OpScan, []string{"--archive", archive, "extra"}, `unexpected argument "extra"`},

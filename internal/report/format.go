@@ -9,14 +9,6 @@ import (
 	"github.com/volod/arxiv-go/internal/media"
 )
 
-// Resolution bands used in arxgo-videos.md.
-const (
-	BandBelowSD = "<SD"
-	BandSD      = "SD"
-	BandHD      = "HD"
-	Band4K      = "4K+"
-)
-
 // FormatSize formats a byte count with a space before the binary unit, for example "700.0 MiB".
 func FormatSize(n int64) string {
 	const units = "KMGTPE"
@@ -44,7 +36,7 @@ func FormatClock(seconds float64) string {
 	return fmt.Sprintf("%d:%02d", m, sec)
 }
 
-// MediaLine is the stub duration bullet, omitting missing pieces.
+// MediaLine is the video field of a description: duration, size, codecs and frame rate, omitting missing pieces.
 func MediaLine(m *media.MediaInfo) string {
 	if m == nil || m.Error != "" {
 		return ""
@@ -85,25 +77,4 @@ func formatFPS(rate string) string {
 	}
 	// People read 29.97 fps, not the 30000/1001 rational or a variable-rate phone's 12690000/422899.
 	return strconv.FormatFloat(math.Round(num/den*100)/100, 'f', -1, 64)
-}
-
-// ResolutionBand classifies a frame size by its short side: <SD, SD, HD, 4K+.
-func ResolutionBand(width, height int) string {
-	if width <= 0 || height <= 0 {
-		return ""
-	}
-	short := width
-	if height < width {
-		short = height
-	}
-	switch {
-	case short < 480:
-		return BandBelowSD
-	case short < 720:
-		return BandSD
-	case short < 2160:
-		return BandHD
-	default:
-		return Band4K
-	}
 }

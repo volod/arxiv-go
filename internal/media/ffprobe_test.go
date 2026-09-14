@@ -51,7 +51,7 @@ func TestFFprobeCapturedFormats(t *testing.T) {
 }
 
 func TestFFprobeNormalizationCorners(t *testing.T) {
-	tags := map[string]string{"TITLE": strings.Repeat("a", 255) + "\u00e9", "creation_time": "2024-05-01T12:51:00+03:00"}
+	tags := map[string]string{"TITLE": strings.Repeat("a", 255) + "\u00e9", "creation_time": "2024-05-01T12:51:00+03:00", "vendor_key": "ignored"}
 	doc := probeDocument{Format: probeFormat{Name: "matroska,webm", Duration: "N/A", BitRate: "N/A", Tags: tags}}
 	doc.Streams = []probeStream{{CodecType: "video", CodecName: "h264", AvgFrameRate: "0/0", RFrameRate: "30000/1001", Duration: "2.5555"}, {CodecType: "subtitle", CodecName: "subrip"}}
 	cover := probeStream{CodecType: "video", CodecName: "mjpeg"}
@@ -66,7 +66,7 @@ func TestFFprobeNormalizationCorners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.DurationS != 2.556 || m.FrameRate != "30000/1001" || m.Rotation != 270 || m.VideoStreams != 1 || m.SubtitleStreams != 1 || m.BitRate != 0 || m.CreationTime != "2024-05-01T09:51:00Z" || len(m.Tags["title"]) != 255 {
+	if m.DurationS != 2.556 || m.FrameRate != "30000/1001" || m.Rotation != 270 || m.VideoStreams != 1 || m.SubtitleStreams != 1 || m.BitRate != 0 || m.CreationTime != "2024-05-01T09:51:00Z" || len(m.Tags["title"]) != 255 || len(m.Tags) != 1 {
 		t.Fatalf("normalized: %+v", m)
 	}
 	for _, raw := range []string{"{}", "{", `{"format":{"format_name":"avi"}}`, `{"format":{"format_name":"avi"},"streams":[{"codec_type":"audio"}]} {}`} {

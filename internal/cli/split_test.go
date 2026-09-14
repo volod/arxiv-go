@@ -33,9 +33,9 @@ func TestSplitCommandMovesVideo(t *testing.T) {
 	if _, err := os.Stat(src); !os.IsNotExist(err) {
 		t.Fatalf("source still exists: %v", err)
 	}
-	stub, err := os.ReadFile(src + ".md")
-	if err != nil || !bytes.Contains(stub, []byte("arxgo_stub: 1")) || !bytes.Contains(stub, []byte("rel_path: clip.mp4")) {
-		t.Fatalf("stub: %s, %v", stub, err)
+	description, err := os.ReadFile(src + ".md")
+	if err != nil || !bytes.HasPrefix(description, []byte("arxgo: clip.mp4\n")) {
+		t.Fatalf("description: %s, %v", description, err)
 	}
 	for _, root := range []string{archive, video} {
 		if _, err := os.Stat(filepath.Join(root, "arxgo-videos.csv")); err != nil {
@@ -72,7 +72,7 @@ func TestRestoreCommandRoundTrip(t *testing.T) {
 		t.Fatalf("video archive copy remains: %v", err)
 	}
 	if _, err := os.Stat(src + ".md"); !os.IsNotExist(err) {
-		t.Fatalf("stub remains: %v", err)
+		t.Fatalf("description remains: %v", err)
 	}
 }
 
@@ -102,7 +102,7 @@ func TestNewRunRecoversInterruptedSplitFromItsOptions(t *testing.T) {
 		t.Fatalf("crashed split exit %d: %s", code, errOut.String())
 	}
 	if _, err := os.Stat(src + ".md"); !os.IsNotExist(err) {
-		t.Fatalf("stub before recovery: %v", err)
+		t.Fatalf("description before recovery: %v", err)
 	}
 	sessionHooks = identity
 	errOut.Reset()
@@ -112,9 +112,9 @@ func TestNewRunRecoversInterruptedSplitFromItsOptions(t *testing.T) {
 	if code := run(context.Background(), next, e); code != ExitOK {
 		t.Fatalf("new run exit %d: %s", code, errOut.String())
 	}
-	stub, err := os.ReadFile(src + ".md")
-	if err != nil || !bytes.Contains(stub, []byte("https://cdn.example.com/v/clip.mp4")) {
-		t.Fatalf("recovered stub lacks the interrupted run's base URL: %s, %v", stub, err)
+	description, err := os.ReadFile(src + ".md")
+	if err != nil || !bytes.Contains(description, []byte("https://cdn.example.com/v/clip.mp4")) {
+		t.Fatalf("recovered description lacks the interrupted run's base URL: %s, %v", description, err)
 	}
 	if got, err := os.ReadFile(dst); err != nil || !bytes.Equal(got, body) {
 		t.Fatalf("video at mirror: %v", err)

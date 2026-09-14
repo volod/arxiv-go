@@ -80,8 +80,8 @@ func TestRestoreCrashAfterCommitDeletesPreviewsLive(t *testing.T) {
 	}
 }
 
-// Split, restore keeping previews, then split again: the new stub lists the kept previews
-// (regression: every preview was already recorded, so the new stub was never updated).
+// Split, restore keeping previews, then split again: the new description lists the kept previews
+// (regression: every preview was already recorded, so the new description was never updated).
 func TestResplitAfterRestoreLinksKeptPreviewsLive(t *testing.T) {
 	cfg, c, r, src := previewFixture(t)
 	if got := runSplit(t, cfg, c); got.Status != StatusCompleted {
@@ -96,25 +96,25 @@ func TestResplitAfterRestoreLinksKeptPreviewsLive(t *testing.T) {
 	if got := runSplit(t, cfg2, c2); got.Status != StatusCompleted {
 		t.Fatalf("second split: %+v", got)
 	}
-	stub := mustRead(t, src+".md")
-	if !bytes.Contains(stub, []byte("clip-img01.png")) || !bytes.Contains(stub, []byte("clip-smpl01.mp4")) {
-		t.Fatalf("stub lacks the kept previews:\n%s", stub)
+	description := mustRead(t, src+".md")
+	if !bytes.Contains(description, []byte("clip-img01.png")) || !bytes.Contains(description, []byte("clip-smpl01.mp4")) {
+		t.Fatalf("description lacks the kept previews:\n%s", description)
 	}
 }
 
-// A kept stub loses its preview section when restore deletes the previews.
-func TestRestoreKeptStubDropsDeletedPreviewsLive(t *testing.T) {
+// A kept description loses its preview section when restore deletes the previews.
+func TestRestoreKeptDescriptionDropsDeletedPreviewsLive(t *testing.T) {
 	cfg, c, r, src := previewFixture(t)
 	if got := runSplit(t, cfg, c); got.Status != StatusCompleted {
 		t.Fatalf("split: %+v", got)
 	}
 	rcfg, rc := restoreConfig(r, "copy")
-	rc.DeletePreviews, rc.KeepStubs = true, true
+	rc.DeletePreviews, rc.KeepDescriptions = true, true
 	attachRestoreRecoverer(&rcfg, &rc, nil)
 	if got := runRestore(t, rcfg, rc); got.Status != StatusCompleted {
 		t.Fatalf("restore: %+v", got)
 	}
-	if stub := mustRead(t, src+".md"); bytes.Contains(stub, []byte("## Previews")) || !bytes.Contains(stub, []byte("arxgo_stub: 1")) {
-		t.Fatalf("kept stub:\n%s", stub)
+	if description := mustRead(t, src+".md"); bytes.Contains(description, []byte("clip-img01.png")) || !bytes.HasPrefix(description, []byte("arxgo: clip.mp4\n")) {
+		t.Fatalf("kept description:\n%s", description)
 	}
 }

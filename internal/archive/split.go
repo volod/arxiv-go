@@ -14,13 +14,13 @@ import (
 
 // SplitConfig contains the split flags needed by the archive executor.
 type SplitConfig struct {
-	Scan     ScanConfig
-	Transfer string
-	Verify   fsops.VerifyMode
-	Stubs    SplitStubWriter // nil uses MarkdownStub; recovery must receive the same writer
-	BaseURL  string
-	Preview  media.PreviewOptions
-	Tools    media.Toolset
+	Scan         ScanConfig
+	Transfer     string
+	Verify       fsops.VerifyMode
+	Descriptions SplitDescriptionWriter // nil uses MarkdownDescription; recovery must receive the same writer
+	BaseURL      string
+	Preview      media.PreviewOptions
+	Tools        media.Toolset
 	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 }
@@ -80,7 +80,7 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		s.Log.Info("dry run: split plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
-	c.Stubs = splitStubs(s, c)
+	c.Descriptions = splitDescriptions(s, c)
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		return previews.stop(err)
 	}
 	resolver := NewSplitResolver(s.cfg.FS, c.Verify, s.cfg.Crash)
-	resolver.Stubs = c.Stubs
+	resolver.Descriptions = c.Descriptions
 	var index int64
 	folded := caseFoldGuard{}
 	err = ReadCandidates(list, func(v Candidate) error {
@@ -142,17 +142,17 @@ func countRemaining(list string, w *state.WAL) (Candidates, error) {
 	return remaining, err
 }
 
-// splitStubs returns the configured stub writer with the session's crash hook and clock, or the
+// splitDescriptions returns the configured description writer with the session's crash hook and clock, or the
 // Markdown writer when none is configured.
-func splitStubs(s *Session, c SplitConfig) SplitStubWriter {
-	if c.Stubs == nil {
-		return NewMarkdownStub(StubConfig{
+func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
+	if c.Descriptions == nil {
+		return NewMarkdownDescription(DescriptionConfig{
 			Archive: s.cfg.Archive, VideoArchive: s.cfg.VideoArchive, BaseURL: c.BaseURL,
 			Registry: c.Scan.Registry, Version: s.cfg.Version, Verify: c.Verify,
 			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now,
 		})
 	}
-	if m, ok := c.Stubs.(*MarkdownStub); ok {
+	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
 		if s.cfg.Crash != nil {
 			m.cfg.Crash = s.cfg.Crash
 		}
@@ -160,7 +160,7 @@ func splitStubs(s *Session, c SplitConfig) SplitStubWriter {
 			m.cfg.Now = s.cfg.Now
 		}
 	}
-	return c.Stubs
+	return c.Descriptions
 }
 
 // splitPreviews submits the preview plans of committed videos to the preview queue.

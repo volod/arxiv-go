@@ -129,10 +129,10 @@ func TestStatusReportsEligibleWork(t *testing.T) {
 
 func TestCheckLinks(t *testing.T) {
 	fsys := fstest.MapFS{
-		"README.md":                    {Data: []byte("[ok](docs/a.md#stage-1----core) [web](https://x.y) [self](#top)\n# Top\n")},
-		"docs/a.md":                    {Data: []byte("# A\n## Stage 1 -- `core`\n[bad](missing.md)\n[anchor](#nope)\n```\n[fenced](ignored.md)\n```\n")},
-		".git/config.md":               {Data: []byte("[x](nowhere.md)")},
-		"test/testdata/report/stub.md": {Data: []byte("[video](../../../../mnt/nas/video/clip.mp4)\n")},
+		"README.md":                           {Data: []byte("[ok](docs/a.md#archive----core) [web](https://x.y) [self](#top)\n# Top\n")},
+		"docs/a.md":                           {Data: []byte("# A\n## Archive -- `core`\n[bad](missing.md)\n[anchor](#nope)\n```\n[fenced](ignored.md)\n```\n")},
+		".git/config.md":                      {Data: []byte("[x](nowhere.md)")},
+		"test/testdata/report/description.md": {Data: []byte("[video](../../../../mnt/nas/video/clip.mp4)\n")},
 	}
 	errs, err := CheckLinks(fsys)
 	if err != nil {
@@ -152,9 +152,9 @@ func TestCheckLinks(t *testing.T) {
 func TestSlugMatchesGitHub(t *testing.T) {
 	cases := map[string]string{
 		"Project foundation -- `project-foundation`": "project-foundation----project-foundation",
-		"Run lock":                    "run-lock",
-		"File registry CSV":           "file-registry-csv",
-		"Stage 2 -- Previews (v2.0)!": "stage-2----previews-v20",
+		"Run lock":                  "run-lock",
+		"File registry CSV":         "file-registry-csv",
+		"Video -- Previews (v2.0)!": "video----previews-v20",
 	}
 	for in, want := range cases {
 		if got := Slug(in); got != want {

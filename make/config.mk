@@ -2,7 +2,8 @@
 GO        ?= go
 BIN_DIR   := bin
 PKG       := github.com/volod/arxiv-go
-VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Semantic version of the build, edited by hand in the VERSION file; never derived from git.
+VERSION   := $(strip $(shell cat $(PROJECT_ROOT)/VERSION))
 LDFLAGS   := -s -w -X $(PKG)/internal/cli.version=$(VERSION)
 PLATFORMS := linux/amd64 windows/amd64
 # Select the runnable setup example without affecting build artifact names.

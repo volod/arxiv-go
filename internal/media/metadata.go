@@ -8,6 +8,12 @@ import (
 	"syscall"
 )
 
+// TagKeys is the fixed set of container text tags exposed in the CSV registries.
+var TagKeys = []string{
+	"title", "comment", "encoder", "artist", "album", "date", "genre",
+	"composer", "grouping", "description", "copyright",
+}
+
 // MediaInfo is the shared metadata.media representation for the pure-Go and ffprobe parsers.
 type MediaInfo struct {
 	Container       string            `json:"container,omitempty"`

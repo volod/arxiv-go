@@ -14,17 +14,17 @@ import (
 )
 
 // SplitResolver rolls an interrupted split transaction forward or lets state.Recover abort its
-// unplaced part. Execute and recovery share the same stub writer.
+// unplaced part. Execute and recovery share the same description writer.
 type SplitResolver struct {
-	FS     fsops.Ops
-	Verify fsops.VerifyMode
-	Crash  state.CrashHook
-	Stubs  SplitStubWriter
+	FS           fsops.Ops
+	Verify       fsops.VerifyMode
+	Crash        state.CrashHook
+	Descriptions SplitDescriptionWriter
 }
 
-// SplitStubWriter is the Markdown renderer used by execute and recovery. Path and Write must
+// SplitDescriptionWriter is the Markdown renderer used by execute and recovery. Path and Write must
 // make the same collision decision.
-type SplitStubWriter interface {
+type SplitDescriptionWriter interface {
 	Path(state.Tx) string
 	Write(state.Tx) error
 	RememberSHA256(rel, sum string)
@@ -35,7 +35,7 @@ func NewSplitResolver(ops fsops.Ops, verify fsops.VerifyMode, crash state.CrashH
 		ops = fsops.System{}
 	}
 	return SplitResolver{FS: ops, Verify: verify, Crash: crash,
-		Stubs: NewMarkdownStub(StubConfig{FS: ops, Crash: crash, Verify: verify})}
+		Descriptions: NewMarkdownDescription(DescriptionConfig{FS: ops, Crash: crash, Verify: verify})}
 }
 
 func (r SplitResolver) Inspect(tx state.Tx) (state.Observation, error) {
@@ -75,14 +75,14 @@ func (r SplitResolver) DeletePart(tx state.Tx) error {
 	return hitCrash(r.Crash, "fs:delete_part")
 }
 
-// StubPath chooses the owned primary path, or the collision fallback when the primary file is
+// DescriptionPath chooses the owned primary path, or the collision fallback when the primary file is
 // foreign. A foreign fallback is an error: split must not overwrite it.
-func (r SplitResolver) StubPath(tx state.Tx) string {
-	return r.Stubs.Path(tx)
+func (r SplitResolver) DescriptionPath(tx state.Tx) string {
+	return r.Descriptions.Path(tx)
 }
 
-func (r SplitResolver) WriteStub(tx state.Tx) error {
-	return r.Stubs.Write(tx)
+func (r SplitResolver) WriteDescription(tx state.Tx) error {
+	return r.Descriptions.Write(tx)
 }
 
 func (r SplitResolver) RemoveSource(tx state.Tx) error {

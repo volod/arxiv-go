@@ -13,7 +13,7 @@ import (
 	"github.com/volod/arxiv-go/test/fixtures/crashtest"
 )
 
-func TestSplitDirectoryAtStubPathUsesFallback(t *testing.T) {
+func TestSplitDirectoryAtDescriptionPathUsesFallback(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	if err := os.Mkdir(src+".md", 0o755); err != nil {
 		t.Fatal(err)
@@ -23,10 +23,10 @@ func TestSplitDirectoryAtStubPathUsesFallback(t *testing.T) {
 		t.Fatalf("split = %+v", res)
 	}
 	if fi, err := os.Stat(src + ".md"); err != nil || !fi.IsDir() {
-		t.Fatalf("directory at the stub path changed: %v", err)
+		t.Fatalf("directory at the description path changed: %v", err)
 	}
-	if got := string(mustRead(t, src+".arxgo.md")); !strings.Contains(got, "rel_path: nested/clip.mp4") {
-		t.Fatalf("fallback stub:\n%s", got)
+	if got := string(mustRead(t, src+".arxgo.md")); !strings.HasPrefix(got, "arxgo: nested/clip.mp4\n") {
+		t.Fatalf("fallback description:\n%s", got)
 	}
 	if exists(src) || !exists(dst) {
 		t.Fatal("video not moved")
@@ -62,7 +62,7 @@ func TestConflictAbortIsDurableBeforePartRemoval(t *testing.T) {
 		t.Fatal("source or foreign destination changed")
 	}
 	if exists(src+".md") || exists(fsops.PartPath(dst)) {
-		t.Fatalf("stub %v or stale part %v remains", exists(src+".md"), exists(fsops.PartPath(dst)))
+		t.Fatalf("description %v or stale part %v remains", exists(src+".md"), exists(fsops.PartPath(dst)))
 	}
 }
 

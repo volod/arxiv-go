@@ -11,26 +11,26 @@ import (
 
 // settings holds raw flag values before they are validated into per-operation Options.
 type settings struct {
-	archive, videoArchive                 string
-	logLevel, logFormat                   string
-	progressInterval, checkpointInterval  time.Duration
-	checkpointEvery                       int
-	dryRun, newRun, forceUnlock           bool
-	minFree, largeThreshold               Size
-	registry, metadata                    string
-	exclude                               []string
-	followSymlinks                        bool
-	transfer, verify, stubs, previews     string
-	baseURL, videoExtensions              string
-	createDirs, overwrite, registryUpdate bool
-	sampleMode, imageMode                 string
-	sampleResolution, imageResolution     string
-	sampleQuality, imageQuality           string
-	sampleDuration, sampleEvery           time.Duration
-	imageEvery                            time.Duration
-	previewMaxItems                       int
+	archive, videoArchive                    string
+	logLevel, logFormat                      string
+	progressInterval, checkpointInterval     time.Duration
+	checkpointEvery                          int
+	dryRun, newRun, forceUnlock              bool
+	minFree, largeThreshold                  Size
+	registry, metadata                       string
+	exclude                                  []string
+	followSymlinks                           bool
+	transfer, verify, descriptions, previews string
+	baseURL, videoExtensions                 string
+	createDirs, overwrite, registryUpdate    bool
+	sampleMode, imageMode                    string
+	sampleResolution, imageResolution        string
+	sampleQuality, imageQuality              string
+	sampleDuration, sampleEvery              time.Duration
+	imageEvery                               time.Duration
+	previewMaxItems                          int
 
-	// reserved maps a later-stage flag name to its value, which records whether it was given.
+	// reserved maps an unavailable feature flag name to its value, recording whether it was given.
 	reserved map[string]*reservedValue
 	// explicit maps every flag given on the command line or environment to its source.
 	explicit map[string]string
@@ -48,13 +48,13 @@ const (
 // flagDef is one row of the shared flag table. A name may appear in several rows when its
 // meaning differs per operation.
 type flagDef struct {
-	name  string
-	ops   []string
-	group group
-	stage int // 1 = available; 2 or 3 = reserved for that stage
-	arg   string
-	usage string
-	bind  func(fs *flag.FlagSet, s *settings, name, usage string)
+	name           string
+	ops            []string
+	group          group
+	plannedFeature string // nonempty for flags reserved by a planned feature
+	arg            string
+	usage          string
+	bind           func(fs *flag.FlagSet, s *settings, name, usage string)
 }
 
 var (
@@ -124,7 +124,7 @@ func stringField(s *settings, name string) *string {
 	fields := map[string]*string{
 		"archive": &s.archive, "video-archive": &s.videoArchive, "log-level": &s.logLevel,
 		"log-format": &s.logFormat, "registry": &s.registry, "metadata": &s.metadata,
-		"transfer": &s.transfer, "verify": &s.verify, "stubs": &s.stubs, "previews": &s.previews,
+		"transfer": &s.transfer, "verify": &s.verify, "descriptions": &s.descriptions, "previews": &s.previews,
 		"base-url": &s.baseURL, "video-extensions": &s.videoExtensions,
 		"sample": &s.sampleMode, "image": &s.imageMode,
 		"sample-resolution": &s.sampleResolution, "image-resolution": &s.imageResolution,

@@ -1,7 +1,7 @@
 # [arxiv-go](https://github.com/volod/arxiv-go)
 
 `arxgo` is a static Linux and Windows command-line tool for cataloging a file archive, moving
-videos to a mirrored archive with Markdown stubs and optional FFmpeg previews, and restoring
+videos to a mirrored archive with video descriptions and optional FFmpeg previews, and restoring
 them. Runs can recover after interruption. Cloud publishing is not available in current builds.
 
 ## Quick start
@@ -15,8 +15,8 @@ make setup
 ```
 
 `make setup` builds `bin/arxgo` and `bin/arxgo.exe`, fetches the pinned FFmpeg tools, and
-creates an optional `bin/.env` from [.env.example](.env.example). `make build-all` builds just
-the two static executables.
+creates an optional `bin/.env` from [.env.example](.env.example). `make build-all` builds 
+the two static executables for amd64 Linux and Windows.
 
 To create distribution bundles, run `make dist`. It writes a Linux tarball and a Windows ZIP to
 `dist/`, each containing the static executable, the matching pinned FFmpeg 9.0.1 tools,

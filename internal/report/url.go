@@ -43,3 +43,18 @@ func RelativeLink(fromDir, toAbs string) string {
 	}
 	return EscapePath(slash)
 }
+
+// FileURL is the file URL of an absolute slash path, with escaped segments: /mnt/v/a.mp4 ->
+// file:///mnt/v/a.mp4, D:/v/a.mp4 -> file:///D:/v/a.mp4, UNC //nas/v/a.mp4 -> file://nas/v/a.mp4.
+// It is empty for a relative path.
+func FileURL(slashPath string) string {
+	switch {
+	case strings.HasPrefix(slashPath, "//"):
+		return "file:" + EscapePath(slashPath)
+	case strings.HasPrefix(slashPath, "/"):
+		return "file://" + EscapePath(slashPath)
+	case len(slashPath) > 2 && slashPath[1] == ':' && slashPath[2] == '/':
+		return "file:///" + slashPath[:2] + EscapePath(slashPath[2:])
+	}
+	return ""
+}

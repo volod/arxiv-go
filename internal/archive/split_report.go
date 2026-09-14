@@ -13,10 +13,10 @@ import (
 const phaseReport = "report"
 
 type walAcc struct {
-	begin  state.Record
-	stub   string // archive-relative stub path
-	sha    string
-	status string
+	begin       state.Record
+	description string // archive-relative description path
+	sha         string
+	status      string
 }
 
 func writeVideoOutputs(s *Session, c SplitConfig) error {
@@ -32,19 +32,6 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 		return err
 	}
 	csvBuf := []byte(b.String())
-	mdBuf, err := report.RenderSummary(report.SummaryInput{
-		Generated:       s.cfg.Now().UTC(),
-		Version:         s.cfg.Version,
-		RunIDs:          report.UniqueRunIDs(rows),
-		Archive:         s.cfg.Archive,
-		VideoArchive:    s.cfg.VideoArchive,
-		BaseURL:         c.BaseURL,
-		Rows:            rows,
-		PreviewFailures: previewFailures(s.Issues()),
-	})
-	if err != nil {
-		return err
-	}
 	for _, root := range []string{s.cfg.Archive, s.cfg.VideoArchive} {
 		if root == "" {
 			continue
@@ -52,23 +39,9 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 		if err := s.cfg.FS.AtomicWriteFile(filepath.Join(root, scanner.VideoRegistryName), csvBuf, 0o644); err != nil {
 			return err
 		}
-		if err := s.cfg.FS.AtomicWriteFile(filepath.Join(root, scanner.VideoSummaryName), mdBuf, 0o644); err != nil {
-			return err
-		}
 	}
-	s.Log.Info("wrote video registry", "videos", len(rows),
-		"csv", scanner.VideoRegistryName, "summary", scanner.VideoSummaryName)
+	s.Log.Info("wrote video registry", "videos", len(rows), "csv", scanner.VideoRegistryName)
 	return nil
-}
-
-func previewFailures(issues []state.Issue) []string {
-	var out []string
-	for _, issue := range issues {
-		if issue.Kind == state.IssueFailed && strings.HasPrefix(issue.Reason, "preview") {
-			out = append(out, issue.RelPath+": "+issue.Reason)
-		}
-	}
-	return out
 }
 
 func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
@@ -96,6 +69,18 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 			if merged[i].Status == report.StatusMoved {
 				merged[i].URL = report.ComposeURL(c.BaseURL, merged[i].RelPath)
 			}
+		}
+	}
+	for i := range merged {
+		if !scanner.LocalRelPath(merged[i].RelPath) {
+			continue
+		}
+		if merged[i].URL == "" || (merged[i].Status == report.StatusRestored && strings.HasPrefix(merged[i].URL, "file:")) {
+			root := s.cfg.Archive
+			if merged[i].Status == report.StatusMoved {
+				root = s.cfg.VideoArchive
+			}
+			merged[i].URL = report.FileURL(filepath.ToSlash(filepath.Join(root, filepath.FromSlash(merged[i].RelPath))))
 		}
 	}
 	return merged, nil
@@ -153,8 +138,8 @@ func videoEvents(run runHistory) ([]report.VideoRow, map[string]struct{}) {
 			}
 		case rec.Step == state.StepVerified && rec.SHA256 != "":
 			a.sha = rec.SHA256
-		case rec.Step == state.StepStubbed && rec.Stub != "":
-			a.stub, _ = run.archiveRel(rec.Stub)
+		case rec.Step == state.StepDescribed && rec.Description != "":
+			a.description, _ = run.archiveRel(rec.Description)
 		case rec.Step == state.StepCommit:
 			a.status = report.StatusMoved
 			byRel[a.begin.RelPath] = a.row()
@@ -176,7 +161,7 @@ func videoEvents(run runHistory) ([]report.VideoRow, map[string]struct{}) {
 func (a *walAcc) row() report.VideoRow {
 	rel := a.begin.RelPath
 	return report.VideoRow{
-		RelPath: rel, VideoRelPath: rel, StubRelPath: a.stub,
+		RelPath: rel, DescriptionRelPath: a.description,
 		FileName: path.Base(rel), FileSize: a.begin.Size, SHA256: a.sha,
 		Transfer: a.begin.Transfer, Status: a.status, RunID: runIDFromTxID(a.begin.TxID),
 	}
@@ -197,7 +182,7 @@ func rowsFromIssues(issues []state.Issue) []report.VideoRow {
 			st = report.StatusConflict
 		}
 		out = append(out, report.VideoRow{
-			RelPath: is.RelPath, VideoRelPath: is.RelPath, FileName: path.Base(is.RelPath), Status: st,
+			RelPath: is.RelPath, FileName: path.Base(is.RelPath), Status: st,
 		})
 	}
 	return out
@@ -214,7 +199,7 @@ func fillVideoRow(row *report.VideoRow, byReg map[string]report.RegistryRow, bas
 		if row.FileMIME == "" {
 			row.FileMIME = r.FileMIME
 		}
-		if row.Metadata.V == 0 {
+		if !report.HasMetadata(row.Metadata) {
 			row.Metadata = r.Metadata
 		}
 	}

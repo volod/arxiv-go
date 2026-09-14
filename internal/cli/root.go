@@ -35,11 +35,12 @@ const (
 	OpScan    = "scan"
 	OpSplit   = "split"
 	OpRestore = "restore"
-	// OpPublish is reserved for stage 3.
+	// OpPublish is reserved for cloud publishing.
 	OpPublish = "publish"
 )
 
-// version is overridden at build time with -ldflags "-X .../internal/cli.version=...".
+// version is the VERSION file, stamped by make with -ldflags "-X .../internal/cli.version=...";
+// a plain go build reports dev.
 var version = "dev"
 
 // Handlers execute validated operations and return an exit code. Handlers must return promptly
@@ -70,7 +71,7 @@ var defaultHandlers = Handlers{
 		resolver := splitResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
-			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Stubs: resolver.Stubs,
+			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Descriptions: resolver.Descriptions,
 			Preview: o.Preview, Tools: o.Tools,
 		}))
 	},
@@ -88,7 +89,7 @@ var defaultHandlers = Handlers{
 			},
 			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
-			KeepStubs: resolver.KeepStubs, KeepSource: resolver.KeepSource,
+			KeepDescriptions: resolver.KeepDescriptions, KeepSource: resolver.KeepSource,
 			DeletePreviews: o.Previews == PolicyDelete,
 		}))
 	},

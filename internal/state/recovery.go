@@ -31,7 +31,7 @@ func (o Observation) DstMatches(begin Record) bool {
 type Resolver interface {
 	Inspect(tx Tx) (Observation, error)
 	DeletePart(tx Tx) error
-	WriteStub(tx Tx) error
+	WriteDescription(tx Tx) error
 	RemoveSource(tx Tx) error
 }
 
@@ -74,8 +74,8 @@ func recoverOne(w *WAL, res Resolver, log *slog.Logger, tx Tx) (Recovery, error)
 		return recoverUnplaced(w, res, log, tx, obs)
 	case StepPlaced:
 		return recoverPlaced(w, res, log, tx, obs)
-	case StepStubbed, StepStubRemoved:
-		return recoverStubbed(w, res, log, tx)
+	case StepDescribed, StepDescriptionRemoved:
+		return recoverDescribed(w, res, log, tx)
 	case StepSourceRemoved:
 		return commitTx(w, log, tx)
 	default:
@@ -128,26 +128,26 @@ func recoverPlaced(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observatio
 		return Recovery{}, fmt.Errorf("%w: destination missing or wrong size after placed in %s (size %d, want %d, exists %v)",
 			ErrStateCorrupt, tx.Begin.TxID, obs.DstSize, tx.Begin.Size, obs.DstExists)
 	}
-	step := StepStubbed
+	step := StepDescribed
 	if tx.Begin.Op == "restore" {
-		step = StepStubRemoved
+		step = StepDescriptionRemoved
 	}
-	// The path is chosen before the effect: a removed stub can no longer be found afterwards.
-	path := stubPath(tx.Begin)
-	if namer, ok := res.(interface{ StubPath(Tx) string }); ok {
-		path = namer.StubPath(tx)
+	// The path is chosen before the effect: a removed description can no longer be found afterwards.
+	path := descriptionPath(tx.Begin)
+	if namer, ok := res.(interface{ DescriptionPath(Tx) string }); ok {
+		path = namer.DescriptionPath(tx)
 	}
-	if err := res.WriteStub(tx); err != nil {
+	if err := res.WriteDescription(tx); err != nil {
 		return Recovery{}, err
 	}
-	if _, err := w.Append(tx.Begin.TxID, step, Record{Stub: path}); err != nil {
+	if _, err := w.Append(tx.Begin.TxID, step, Record{Description: path}); err != nil {
 		return Recovery{}, err
 	}
 	tx.Last.Step = step
-	return recoverStubbed(w, res, log, tx)
+	return recoverDescribed(w, res, log, tx)
 }
 
-func recoverStubbed(w *WAL, res Resolver, log *slog.Logger, tx Tx) (Recovery, error) {
+func recoverDescribed(w *WAL, res Resolver, log *slog.Logger, tx Tx) (Recovery, error) {
 	obs, err := res.Inspect(tx)
 	if err != nil {
 		return Recovery{}, err
@@ -182,7 +182,7 @@ func commitTx(w *WAL, log *slog.Logger, tx Tx) (Recovery, error) {
 	return Recovery{Committed: 1}, nil
 }
 
-func stubPath(b Record) string {
+func descriptionPath(b Record) string {
 	if b.Op == "restore" {
 		return b.Dst + ".md"
 	}

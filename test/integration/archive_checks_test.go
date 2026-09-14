@@ -5,6 +5,7 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -47,10 +48,8 @@ func checkFileRegistry(t *testing.T, g *genArchive, before manifest) map[string]
 			t.Errorf("%s: file_name %q", rel, row.FileName)
 		case row.FileSize != e.Size:
 			t.Errorf("%s: file_size %d, want %d", rel, row.FileSize, e.Size)
-		case row.Metadata.V != report.MetadataVersion || row.Metadata.MTime != wantMTime:
-			t.Errorf("%s: metadata %+v, want v=1 mtime=%s", rel, row.Metadata, wantMTime)
-		case len(row.Metadata.Mode) != 4:
-			t.Errorf("%s: mode %q is not four octal digits", rel, row.Metadata.Mode)
+		case row.Metadata.MTime != wantMTime:
+			t.Errorf("%s: metadata %+v, want mtime=%s", rel, row.Metadata, wantMTime)
 		case row.IsVideo != g.videos[rel]:
 			t.Errorf("%s: is_video=%v, want %v", rel, row.IsVideo, g.videos[rel])
 		case row.IsVideo && !row.IsMedia:
@@ -63,7 +62,7 @@ func checkFileRegistry(t *testing.T, g *genArchive, before manifest) map[string]
 }
 
 // checkSplitOutputs validates the state after a completed split: videos only in the video archive
-// with their original bytes, one owned stub per video, identical video registries in both roots.
+// with their original bytes, one owned description per video, identical video registries in both roots.
 func checkSplitOutputs(t *testing.T, g *genArchive, video string, before manifest) {
 	t.Helper()
 	archiveCSV := readFile(t, filepath.Join(g.root, "arxgo-videos.csv"))
@@ -71,8 +70,8 @@ func checkSplitOutputs(t *testing.T, g *genArchive, video string, before manifes
 		t.Error("arxgo-videos.csv differs between the archive and the video archive")
 	}
 	for _, root := range []string{g.root, video} {
-		if _, err := os.Stat(filepath.Join(root, "arxgo-videos.md")); err != nil {
-			t.Errorf("summary: %v", err)
+		if _, err := os.Stat(filepath.Join(root, "arxgo-videos.md")); !os.IsNotExist(err) {
+			t.Errorf("unexpected Markdown summary: %v", err)
 		}
 	}
 	rows, err := report.LoadVideoCSV(bytes.NewReader(archiveCSV))
@@ -87,8 +86,8 @@ func checkSplitOutputs(t *testing.T, g *genArchive, video string, before manifes
 		case !g.videos[rel]:
 			t.Errorf("video registry row for non-video %s", rel)
 			continue
-		case row.Status != report.StatusMoved || row.VideoRelPath != rel || row.Transfer != "copy":
-			t.Errorf("%s: status=%s video_rel_path=%s transfer=%s", rel, row.Status, row.VideoRelPath, row.Transfer)
+		case row.Status != report.StatusMoved || row.Transfer != "copy":
+			t.Errorf("%s: status=%s transfer=%s", rel, row.Status, row.Transfer)
 		case row.FileSize != want.Size || row.SHA256 != want.SHA256:
 			t.Errorf("%s: size=%d sha256=%s, want %d %s", rel, row.FileSize, row.SHA256, want.Size, want.SHA256)
 		case !runIDPattern.MatchString(row.RunID):
@@ -101,7 +100,7 @@ func checkSplitOutputs(t *testing.T, g *genArchive, video string, before manifes
 		if err != nil || got != want.SHA256 {
 			t.Errorf("%s in the video archive: sha256 %s (%v), want %s", rel, got, err, want.SHA256)
 		}
-		checkStub(t, g, row)
+		checkDescription(t, g, row)
 	}
 	if got := readFile(t, filepath.Join(g.root, filepath.FromSlash(g.foreignMD))); string(got) != "human notes about clip 00\n" {
 		t.Errorf("foreign %s was changed: %q", g.foreignMD, got)
@@ -125,31 +124,23 @@ func checkRowSet(t *testing.T, name string, g *genArchive, rows []report.VideoRo
 	}
 }
 
-func checkStub(t *testing.T, g *genArchive, row report.VideoRow) {
+func checkDescription(t *testing.T, g *genArchive, row report.VideoRow) {
 	t.Helper()
-	wantStub := row.RelPath + ".md"
-	if row.RelPath+".md" == g.foreignMD || row.RelPath+".md" == g.dirAtStub {
-		wantStub = row.RelPath + ".arxgo.md"
+	wantDescription := row.RelPath + ".md"
+	if row.RelPath+".md" == g.foreignMD || row.RelPath+".md" == g.dirAtDescription {
+		wantDescription = row.RelPath + ".arxgo.md"
 	}
-	if row.StubRelPath != wantStub {
-		t.Errorf("%s: stub_rel_path %q, want %q", row.RelPath, row.StubRelPath, wantStub)
+	if row.DescriptionRelPath != wantDescription {
+		t.Errorf("%s: description_rel_path %q, want %q", row.RelPath, row.DescriptionRelPath, wantDescription)
 	}
-	fm, err := report.ReadFrontMatterFile(filepath.Join(g.root, filepath.FromSlash(row.StubRelPath)))
+	description, err := report.ReadDescriptionFile(filepath.Join(g.root, filepath.FromSlash(row.DescriptionRelPath)))
 	if err != nil {
-		t.Errorf("%s: stub: %v", row.RelPath, err)
+		t.Errorf("%s: description: %v", row.RelPath, err)
 		return
 	}
-	checks := map[string]string{
-		report.StubMarker: report.StubMarkerValue, "rel_path": row.RelPath, "sha256": row.SHA256,
-		"run_id": row.RunID,
-	}
-	for k, v := range checks {
-		if fm[k] != v {
-			t.Errorf("%s: stub %s=%q, want %q", row.RelPath, k, fm[k], v)
-		}
-	}
-	if fm["file_size"] == "" || !strings.HasSuffix(filepath.ToSlash(fm["video_archive_path"]), "/"+row.RelPath) {
-		t.Errorf("%s: stub front matter %v", row.RelPath, fm)
+	if description[report.DescriptionMarker] != row.RelPath || description["sha256"] != row.SHA256 ||
+		!strings.HasPrefix(description["file_size"], fmt.Sprintf("%d (", row.FileSize)) || description["modified"] == "" {
+		t.Errorf("%s: description fields %v", row.RelPath, description)
 	}
 }
 

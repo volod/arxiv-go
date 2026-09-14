@@ -228,8 +228,8 @@ func TestSplitMirrorsNestedAndUnicodePaths(t *testing.T) {
 	if got := mustRead(t, dst); !bytes.Equal(got, videoFixture) {
 		t.Error("destination bytes differ")
 	}
-	if !strings.Contains(string(mustRead(t, src+".md")), "rel_path: "+rel) {
-		t.Error("stub missing")
+	if !strings.HasPrefix(string(mustRead(t, src+".md")), "arxgo: "+rel+"\n") {
+		t.Error("description missing")
 	}
 	for _, dir := range []string{"deep", "deep/a", "deep/a/b"} {
 		fi, err := os.Stat(filepath.Join(r.video, filepath.FromSlash(dir)))

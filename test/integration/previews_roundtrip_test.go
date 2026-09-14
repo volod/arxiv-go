@@ -15,8 +15,8 @@ import (
 	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
-// TestStage2Previews extends the binary-level split/restore proof with real generated media.
-func TestStage2Previews(t *testing.T) {
+// TestPreviewSplitRestoreRoundTrip extends the binary-level split/restore proof with real generated media.
+func TestPreviewSplitRestoreRoundTrip(t *testing.T) {
 	ffmpeg := tooltest.LookPath(t, "ffmpeg")
 	_ = tooltest.LookPath(t, "ffprobe")
 	bin := buildArxgo(t)
@@ -43,9 +43,9 @@ func TestStage2Previews(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	stub, err := os.ReadFile(src + ".md")
-	if err != nil || !bytes.Contains(stub, []byte("![clip-img01.png]")) {
-		t.Fatalf("stub: %v: %s", err, stub)
+	description, err := os.ReadFile(src + ".md")
+	if err != nil || !bytes.Contains(description, []byte("![clip-img01.png]")) {
+		t.Fatalf("description: %v: %s", err, description)
 	}
 	rows, err := report.LoadVideoFile(filepath.Join(archive, "arxgo-videos.csv"))
 	if err != nil || len(rows) != 1 || !strings.Contains(rows[0].Previews, "clip-smpl01.mp4") {

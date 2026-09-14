@@ -159,7 +159,7 @@ func TestWALCopiedAndVerifiedSkipFsyncPolicy(t *testing.T) {
 	if stepNeedsFsync(StepCopied) || stepNeedsFsync(StepVerified) {
 		t.Fatal("copied/verified must not require fsync")
 	}
-	for _, s := range []Step{StepBegin, StepPlaced, StepStubbed, StepStubRemoved, StepSourceRemoved, StepCommit, StepAborted} {
+	for _, s := range []Step{StepBegin, StepPlaced, StepDescribed, StepDescriptionRemoved, StepSourceRemoved, StepCommit, StepAborted} {
 		if !stepNeedsFsync(s) {
 			t.Errorf("%s should fsync", s)
 		}

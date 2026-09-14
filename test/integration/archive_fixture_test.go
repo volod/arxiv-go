@@ -23,15 +23,15 @@ import (
 	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
-// genArchive describes the generated stage-1 archive: which relative paths must become split
+// genArchive describes the generated archive: which relative paths must become split
 // candidates, which must stay, and whether ffmpeg clips were added.
 type genArchive struct {
-	root      string
-	videos    map[string]bool // rel_path of every file split must move
-	nonVideos []string        // media-like files that must stay in the archive
-	foreignMD string          // a non-stub <video>.md that split must not overwrite
-	dirAtStub string          // a directory named <video>.md
-	ffmpeg    bool
+	root             string
+	videos           map[string]bool // rel_path of every file split must move
+	nonVideos        []string        // media-like files that must stay in the archive
+	foreignMD        string          // a non-description <video>.md that split must not overwrite
+	dirAtDescription string          // a directory named <video>.md
+	ffmpeg           bool
 }
 
 const customVideoExt = "bik"
@@ -59,8 +59,8 @@ func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	}
 	g.write(t, "projects/2024/clip-00.mp4.md", []byte("human notes about clip 00\n"))
 	g.foreignMD = "projects/2024/clip-00.mp4.md"
-	g.dirAtStub = "top.avi.md"
-	mkdirAll(t, filepath.Join(root, filepath.FromSlash(g.dirAtStub)))
+	g.dirAtDescription = "top.avi.md"
+	mkdirAll(t, filepath.Join(root, filepath.FromSlash(g.dirAtDescription)))
 	mkdirAll(t, filepath.Join(root, "empty", "nested"))
 
 	docDirs := []string{"docs", "docs/a", "docs/a/x", "docs/a/x/y/z", "docs/b", "docs/with space", "docs/кирилиця"}

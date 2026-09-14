@@ -25,7 +25,7 @@ exist yet (mode 0600, never overwritten), and prints how to configure and run. R
 safe. It needs Go on `PATH` and exits with install guidance if Go is missing.
 
 `bin/.env` is the optional [environment file](../openspec/stage-1-core/cli.md#environment-file)
-that `arxgo` reads next to its executable. It holds `ARXGO_*` settings and, from stage 3,
+that `arxgo` reads next to its executable. It holds `ARXGO_*` settings and, with cloud publishing,
 credentials. Flags and process environment variables override it. Declared runs (`RUN NEEDED`
 tasks) keep their settings and credentials there instead of in shell history. Unit tests never
 read it: the test binary lives in a temporary build directory, and tests inject their own file.
@@ -44,7 +44,7 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make dist` | `build-all`, `ffmpeg`, then `scripts/package-dist.sh` | Linux `.tar.gz` and Windows `.zip` in `dist/`, each with checksums, matching manual, `.env.example`, GPL v3 text and FFmpeg source notice; also writes archive checksums to `dist/SHA256SUMS` (network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |
-| `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the stage-1 proof (`TestStage1GeneratedArchive`); a CI step after `make ci` |
+| `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the archive round-trip proof (`TestArchiveSplitRestoreRoundTrip`); a CI step after `make ci` |
 | `make fmt` | `gofmt -w` | Format |
 | `make fmt-check` | `gofmt -l` | Fail on unformatted files |
 | `make vet` | `go vet ./...`, also with `-tags integration` for `./test/integration/...` | Static checks |
@@ -76,6 +76,16 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
   be pure Go; commit `go.mod` and `go.sum` together.
 - ASCII in code, logs and docs unless a test needs Unicode input.
 
+## Versioning
+
+The version is the hand-edited `VERSION` file at the repository root, one
+[Semantic Versioning](https://semver.org) line such as `0.1.0`. `make build`, `make build-all` and
+`make dist` stamp it into `arxgo version` and the bundle names (`arxgo-0.1.0-linux-amd64.tar.gz`); a
+plain `go build` reports `dev`. Builds never change it: a developer bumps it in the change that
+prepares a release (MAJOR for incompatible CLI or file-format changes, MINOR for new behavior, PATCH
+for fixes; `0.y.z` while the project is pre-1.0). `TestVersionFileIsSemver` rejects any other
+content. A release is the tag `v<VERSION>`; the release workflow fails when the tag differs.
+
 ## CI
 
 `.github/workflows/ci.yml` runs `make ci` on `ubuntu-latest` for pushes to `main` and pull
@@ -88,7 +98,7 @@ started manually (`workflow_dispatch`). It is step W1 of the deferred
 
 `.github/workflows/release.yml` runs `make ci` and `make dist` on Linux for `v*` tags, verifies
 `dist/SHA256SUMS`, and creates a GitHub release containing both bundles and their archive
-checksums. `make dist` uses the version from `git describe` unless `VERSION` is set. The
+checksums. It first checks that the tag is `v` plus the `VERSION` file. The
 packager verifies the tool pins even when `make ffmpeg` reuses existing files, then copies an
 explicit file list; it never copies `bin/.env`. It needs `zip` and `sha256sum` in addition to the
 `make ffmpeg` tools. The Windows bundle is cross-built and checked on Linux; its runtime smoke

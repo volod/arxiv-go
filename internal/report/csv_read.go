@@ -1,9 +1,7 @@
 package report
 
 import (
-	"bytes"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -23,10 +21,10 @@ func LoadRegistry(path string) ([]RegistryRow, error) {
 	return ReadRegistry(f)
 }
 
-// ReadRegistry parses a file registry from r.
+// ReadRegistry parses a file registry from r. Metadata columns that were omitted because they
+// were empty in every row are treated as empty.
 func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 	cr := csv.NewReader(r)
-	cr.FieldsPerRecord = len(RegistryHeader)
 	records, err := cr.ReadAll()
 	if err != nil {
 		return nil, err
@@ -34,12 +32,16 @@ func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("file registry: empty file")
 	}
-	if !equalStrings(records[0], RegistryHeader) {
-		return nil, fmt.Errorf("file registry: unexpected header %q", records[0])
+	keep, err := checkRequiredHeader(records[0], RegistryHeader, FileRegistryKeep)
+	if err != nil {
+		return nil, fmt.Errorf("file registry: %w", err)
 	}
 	out := make([]RegistryRow, 0, len(records)-1)
 	for i, rec := range records[1:] {
-		row, err := parseRegistryRow(rec)
+		if len(rec) != len(records[0]) {
+			return nil, fmt.Errorf("file registry: row %d: got %d fields, want %d", i+2, len(rec), len(records[0]))
+		}
+		row, err := parseRegistryRow(rec, records[0], keep)
 		if err != nil {
 			return nil, fmt.Errorf("file registry: row %d: %w", i+2, err)
 		}
@@ -48,17 +50,14 @@ func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 	return out, nil
 }
 
-func parseRegistryRow(rec []string) (RegistryRow, error) {
+func parseRegistryRow(rec, header []string, keep int) (RegistryRow, error) {
 	size, err := strconv.ParseInt(rec[2], 10, 64)
 	if err != nil {
 		return RegistryRow{}, fmt.Errorf("file_size: %w", err)
 	}
-	var meta Metadata
-	if rec[10] != "" {
-		dec := json.NewDecoder(bytes.NewReader([]byte(rec[10])))
-		if err := dec.Decode(&meta); err != nil {
-			return RegistryRow{}, fmt.Errorf("metadata: %w", err)
-		}
+	meta, err := parseMetadataHeader(header[keep:], rec[keep:])
+	if err != nil {
+		return RegistryRow{}, err
 	}
 	return RegistryRow{
 		RelPath: rec[0], FileName: rec[1], FileSize: size, FileType: rec[3], FileMIME: rec[4],

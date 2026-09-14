@@ -52,7 +52,7 @@ func nextSplit(r roots, c SplitConfig) (Config, SplitConfig) {
 	return cfg, next
 }
 
-func TestSplitPreviewsRegistryStubAndRerunLive(t *testing.T) {
+func TestSplitPreviewsRegistryDescriptionAndRerunLive(t *testing.T) {
 	cfg, c, r, _ := previewFixture(t)
 	if got := runSplit(t, cfg, c); got.Status != StatusCompleted {
 		t.Fatalf("split: %+v", got)
@@ -62,12 +62,12 @@ func TestSplitPreviewsRegistryStubAndRerunLive(t *testing.T) {
 		t.Fatalf("counters = %+v", rep.Counters)
 	}
 	rows := readVideoCSV(t, filepath.Join(r.archive, scanner.VideoRegistryName))
-	if len(rows) != 2 || rows[1][11] != "clip-img01.png;clip-smpl01.mp4" {
+	if len(rows) != 2 || rows[1][10] != "clip-img01.png;clip-smpl01.mp4" {
 		t.Fatalf("registry previews: %v", rows)
 	}
-	stub := mustRead(t, filepath.Join(r.archive, "clip.mp4.md"))
-	if !bytes.Contains(stub, []byte("- [clip-smpl01.mp4](clip-smpl01.mp4)")) || !bytes.Contains(stub, []byte("- ![clip-img01.png](clip-img01.png)")) {
-		t.Fatalf("stub previews: %s", stub)
+	description := mustRead(t, filepath.Join(r.archive, "clip.mp4.md"))
+	if !bytes.Contains(description, []byte("- [clip-smpl01.mp4](clip-smpl01.mp4)")) || !bytes.Contains(description, []byte("- ![clip-img01.png](clip-img01.png)")) {
+		t.Fatalf("description previews: %s", description)
 	}
 	sample := filepath.Join(r.archive, "clip-smpl01.mp4")
 	before, _ := os.Stat(sample)
@@ -81,8 +81,8 @@ func TestSplitPreviewsRegistryStubAndRerunLive(t *testing.T) {
 	if exists(filepath.Join(r.video, "clip-smpl01.mp4")) || !before.ModTime().Equal(after.ModTime()) {
 		t.Fatal("rerun moved or regenerated the preview")
 	}
-	if !bytes.Equal(stub, mustRead(t, filepath.Join(r.archive, "clip.mp4.md"))) {
-		t.Fatal("rerun rewrote the stub")
+	if !bytes.Equal(description, mustRead(t, filepath.Join(r.archive, "clip.mp4.md"))) {
+		t.Fatal("rerun rewrote the description")
 	}
 }
 
@@ -124,8 +124,8 @@ func TestPreviewFailureIsCountedAndCaughtUpLive(t *testing.T) {
 	if !exists(filepath.Join(r.video, "clip.mp4")) || exists(filepath.Join(r.archive, "clip-smpl01.mp4")) {
 		t.Fatal("failed preview affected the committed move")
 	}
-	if !bytes.Contains(mustRead(t, filepath.Join(r.archive, scanner.VideoSummaryName)), []byte("## Preview failures")) {
-		t.Fatal("preview failure missing from summary")
+	if exists(filepath.Join(r.archive, "arxgo-videos.md")) {
+		t.Fatal("unexpected Markdown summary")
 	}
 	cfg2, c2 := nextSplit(r, c)
 	c2.Tools = media.Toolset{media.FFmpeg: ffmpeg, media.FFprobe: c.Tools[media.FFprobe]}
@@ -251,7 +251,7 @@ func TestPreviewNamesAcrossVideosLive(t *testing.T) {
 }
 
 // Registry paths come from the WAL relative to the root each run recorded, so renaming the archive
-// root keeps preview and stub paths local (regression: exit 5 on every later run).
+// root keeps preview and description paths local (regression: exit 5 on every later run).
 func TestRelocatedArchiveKeepsRegistryPathsLive(t *testing.T) {
 	cfg, c, r, _ := previewFixture(t)
 	if got := runSplit(t, cfg, c); got.Status != StatusCompleted {
@@ -267,7 +267,7 @@ func TestRelocatedArchiveKeepsRegistryPathsLive(t *testing.T) {
 		t.Fatalf("split after relocation: %+v", got)
 	}
 	rows, err := loadVideoRegistry(r.archive, "")
-	if err != nil || len(rows) != 1 || rows[0].StubRelPath != "clip.mp4.md" || !strings.Contains(rows[0].Previews, "clip-img01.png") {
+	if err != nil || len(rows) != 1 || rows[0].DescriptionRelPath != "clip.mp4.md" || !strings.Contains(rows[0].Previews, "clip-img01.png") {
 		t.Fatalf("registry after relocation: %+v, %v", rows, err)
 	}
 }

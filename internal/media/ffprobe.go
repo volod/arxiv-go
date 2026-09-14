@@ -11,6 +11,7 @@ import (
 	"math"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -243,7 +244,7 @@ func cleanTags(tags map[string]string) map[string]string {
 	out := make(map[string]string, len(tags))
 	for k, v := range tags {
 		k = strings.ToLower(strings.TrimSpace(k))
-		if k == "" {
+		if !slices.Contains(TagKeys, k) {
 			continue
 		}
 		if len(v) > 256 {

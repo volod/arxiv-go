@@ -17,21 +17,21 @@ func resumePreviewDeletes(s *Session, w *state.WAL, idx *previewIndex) error {
 				return err
 			}
 		}
-		if err := refreshPreviewStub(s, idx, video); err != nil {
+		if err := refreshPreviewDescription(s, idx, video); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// deletePreviews removes the recorded previews of a restored video, then updates a kept stub.
+// deletePreviews removes the recorded previews of a restored video, then updates a kept description.
 func deletePreviews(s *Session, w *state.WAL, idx *previewIndex, video string) error {
 	for _, preview := range idx.owned.sorted(video) {
 		if err := deletePreview(s, w, idx, video, preview); err != nil {
 			return err
 		}
 	}
-	return refreshPreviewStub(s, idx, video)
+	return refreshPreviewDescription(s, idx, video)
 }
 
 // deletePreview removes one preview only when it is still a regular file with the recorded size;

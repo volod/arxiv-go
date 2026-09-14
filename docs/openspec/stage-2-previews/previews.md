@@ -4,12 +4,12 @@ Owner: `media-previews`. Flags: [CLI split flags](../stage-1-core/cli.md#split-f
 
 ## Operator problem
 
-A Markdown stub says a video existed, but not what it shows. Short samples and a few frames stored
-next to the stub make the document archive browsable while the full video lives elsewhere.
+A video description says a video existed, but not what it shows. Short samples and a few frames stored
+next to the description make the document archive browsable while the full video lives elsewhere.
 
 ## Placement and naming
 
-Previews are written into the **main archive**, next to the stub, because they exist for quick
+Previews are written into the **main archive**, next to the description, because they exist for quick
 local viewing. For `projects/2024/interview.mp4`:
 
 | Kind | Name | Example |
@@ -28,11 +28,11 @@ local viewing. For `projects/2024/interview.mp4`:
 - Every preview path is recorded by the preview events of the WAL and listed in the `previews`
   column of the video registry. Split excludes the WAL-recorded paths from later scans and restore
   deletes only WAL-recorded previews; an edited registry column changes neither.
-- The owned stub gets a `## Previews` section between `<!-- arxgo-previews-begin -->` and
-  `<!-- arxgo-previews-end -->` comments listing the completed previews (PNG frames embedded,
-  samples linked). Split refreshes it for every video it plans previews for, and restore updates it
-  in a kept stub; text outside the comments is never changed. Without previews the section is
-  absent.
+- The video description describes the original video; previews only add lines to it. The owned
+  description lists the completed previews as `- ` link lines after its fields (PNG frames
+  embedded, samples linked; [description contract](../stage-1-core/contracts.md#video-description)). Split
+  refreshes them for every video it plans previews for, and restore updates them in a kept description;
+  other text is never changed.
 
 ## Position modes
 
@@ -150,7 +150,7 @@ For preflight: sample bytes = total sample seconds x bitrate estimate (`sd` 1 Mb
   size; unrecorded files are never deleted. The WAL logs `preview_delete` before removal and
   `preview_deleted` after it; an interrupted delete is finished by the next restore. A changed file
   is kept and reported as a skipped item (exit 6).
-- The stub is updated or deleted according to `--stubs`.
+- The description is updated or deleted according to `--descriptions`.
 
 ## Release bundle
 
@@ -193,4 +193,4 @@ arxgo-<version>-windows-amd64.zip     arxgo.exe, ffmpeg.exe, ffprobe.exe, .env.e
 - Failure injection: ffmpeg exits non-zero -> no preview file, video still moved, exit 6.
 - Restore `--previews delete` removes recorded previews only, also after a crash between the restore
   commit and the deletion.
-- A split, restore with kept previews, split sequence links the kept previews in the new stub.
+- A split, restore with kept previews, split sequence links the kept previews in the new description.

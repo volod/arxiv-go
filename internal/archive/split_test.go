@@ -42,7 +42,7 @@ func splitConfig(r roots, mode string) (Config, SplitConfig) {
 			SkipPaths: []string{r.video}},
 		Transfer: mode, Verify: fsops.VerifyHash,
 	}
-	c.Stubs = NewMarkdownStub(StubConfig{
+	c.Descriptions = NewMarkdownDescription(DescriptionConfig{
 		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
 		Version: "test", Verify: c.Verify,
 	})
@@ -52,8 +52,8 @@ func splitConfig(r roots, mode string) (Config, SplitConfig) {
 
 func attachRecoverer(cfg *Config, c SplitConfig, crash state.CrashHook) {
 	r := NewSplitResolver(cfg.FS, c.Verify, crash)
-	r.Stubs = c.Stubs
-	if m, ok := c.Stubs.(*MarkdownStub); ok && crash != nil {
+	r.Descriptions = c.Descriptions
+	if m, ok := c.Descriptions.(*MarkdownDescription); ok && crash != nil {
 		m.cfg.Crash = crash
 	}
 	cfg.Recoverer = r
@@ -77,8 +77,8 @@ func checkSplit(t *testing.T, src, dst string) {
 	if got := mustRead(t, dst); !bytes.Equal(got, videoFixture) {
 		t.Error("destination bytes differ")
 	}
-	if got := string(mustRead(t, src+".md")); !strings.Contains(got, "rel_path: nested/clip.mp4") || !strings.Contains(got, "arxgo_stub: 1") {
-		t.Error("stub missing marker or rel_path")
+	if got := string(mustRead(t, src+".md")); !strings.HasPrefix(got, "arxgo: nested/clip.mp4\n") {
+		t.Error("description missing marker or rel_path")
 	}
 	if exists(fsops.PartPath(dst)) {
 		t.Error("part file remains")
@@ -191,7 +191,7 @@ func TestSplitSizeVerifyAdoptsSameSizeDifferentBytes(t *testing.T) {
 	}
 	cfg, c := splitConfig(r, "copy")
 	c.Verify = fsops.VerifySize
-	c.Stubs = NewMarkdownStub(StubConfig{
+	c.Descriptions = NewMarkdownDescription(DescriptionConfig{
 		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
 		Version: "test", Verify: c.Verify,
 	})
@@ -207,7 +207,7 @@ func TestSplitSizeVerifyAdoptsSameSizeDifferentBytes(t *testing.T) {
 	}
 }
 
-func TestSplitDryRunLeavesVideoAndStubUntouched(t *testing.T) {
+func TestSplitDryRunLeavesVideoAndDescriptionUntouched(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	cfg, c := splitConfig(r, "auto")
 	cfg.DryRun = true
@@ -222,7 +222,7 @@ func TestSplitDryRunLeavesVideoAndStubUntouched(t *testing.T) {
 	}
 }
 
-func TestSplitStubCollisionUsesFallback(t *testing.T) {
+func TestSplitDescriptionCollisionUsesFallback(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	if err := os.WriteFile(src+".md", []byte("user notes"), 0o644); err != nil {
 		t.Fatal(err)
@@ -232,9 +232,9 @@ func TestSplitStubCollisionUsesFallback(t *testing.T) {
 		t.Fatalf("split = %+v", res)
 	}
 	if got := string(mustRead(t, src+".md")); got != "user notes" {
-		t.Errorf("foreign stub changed: %q", got)
+		t.Errorf("foreign description changed: %q", got)
 	}
 	if !exists(src+".arxgo.md") || !exists(dst) {
-		t.Error("fallback stub or video missing")
+		t.Error("fallback description or video missing")
 	}
 }

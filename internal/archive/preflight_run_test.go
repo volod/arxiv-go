@@ -60,7 +60,7 @@ func preflightConfig(t *testing.T, avail int64) (roots, Config, *recorder) {
 	return r, cfg, rec
 }
 
-// One 10GiB video copied on a shared device: stubs 4KiB + registries 2KiB + wal 2KiB + largest.
+// One 10GiB video copied on a shared device: descriptions 4KiB + registries 2KiB + wal 2KiB + largest.
 var (
 	oneVideo       = Candidates{Count: 1, Bytes: 10 * gib, Largest: 10 * gib}
 	oneVideoNeeded = 10*gib + 8*kib + gib

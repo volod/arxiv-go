@@ -3,7 +3,7 @@
 ## Goal
 
 Deliver a single `arxgo` executable that builds the CSV file registry, moves video files into a
-mirrored video archive with Markdown metadata stubs and a video registry, and restores them. No
+mirrored video archive with video description files and a video registry, and restores them. No
 previews are generated. The stage is safe to run on a multi-terabyte archive: it is crash-safe,
 resumable and refuses to start without enough free space.
 
@@ -15,8 +15,8 @@ resumable and refuses to start without enough free space.
 | `crash-safety` | [Integrity](integrity.md) | Filesystem primitives, lock, WAL, checkpoints, recovery, preflight, progress |
 | `archive-registry` | [Registry](registry.md) | Deterministic traversal, type detection, CSV registry |
 | `media-metadata` | [Metadata](metadata.md) | Tool discovery, ISO BMFF parsing, ffprobe JSON |
-| `video-split` | [Split and restore](split-restore.md#split) | Move videos, stubs, video registry, summary |
-| `video-restore` | [Split and restore](split-restore.md#restore) | Move videos back, stub/preview cleanup, missing directories |
+| `video-split` | [Split and restore](split-restore.md#split) | Move videos, descriptions, video registry, summary |
+| `video-restore` | [Split and restore](split-restore.md#restore) | Move videos back, description/preview cleanup, missing directories |
 
 Shared file formats are fixed in [contracts](contracts.md).
 

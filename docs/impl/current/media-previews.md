@@ -12,7 +12,7 @@ Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-run
 [0036 FFmpeg 9.0.1 upgrade](../records/0036-preview-upgrade-bundled-ffmpeg-to-9.md) and
 [0037 undecodable sample audio](../records/0037-preview-handle-undecodable-sample-audio.md).
 Specification: [previews](../../openspec/stage-2-previews/previews.md). The capability is shipped:
-`split --sample` and `--image` generate previews next to the stubs, and `restore --previews
+`split --sample` and `--image` generate previews next to the descriptions, and `restore --previews
 delete` removes the recorded previews of restored videos.
 
 ## Planning (`internal/media`)
@@ -68,10 +68,10 @@ from the video archive. Each output is logged as `preview_begin`, then `preview_
 or `preview_failed` with the reason. A published preview with its recorded size is skipped, so a
 rerun after success generates nothing. A file left at a planned path by an unfinished generation is
 adopted only after the normal content checks; any other existing file is a failed preview. After
-its jobs the worker refreshes the marked preview section of the owned stub, writing only when it
+its jobs the worker refreshes the marked preview section of the owned description, writing only when it
 changed. Cancellation leaves the event unfinished and exits 130. A failed preview is an issue,
-counted in `previews_done`/`previews_failed` (never `videos_failed`), listed under "Preview
-failures" in `arxgo-videos.md`, and makes the run exit 6; the move stays committed. A fatal error
+counted in `previews_done`/`previews_failed` (never `videos_failed`), recorded as a run issue,
+and makes the run exit 6; the move stays committed. A fatal error
 (for example a WAL write) stops the worker and then the split loop at the next transaction.
 
 Previews are identified by name. A later split with other modes keeps existing previews of the
@@ -86,7 +86,7 @@ recorded previews of each video it restores, and first those of videos an interr
 the same run already restored. A preview is deleted only when it is still a regular file with the
 recorded size, below real directories of the archive; `preview_delete` is durable before the
 removal and `preview_deleted` after it. A changed file is kept and reported as skipped (exit 6);
-unrecorded files are never touched. A kept stub loses the deleted links, and its section when none
+unrecorded files are never touched. A kept description loses the deleted links, and its section when none
 remain.
 
 ## Real media support
@@ -129,8 +129,8 @@ without ffmpeg, mandatory with `ARXGO_TEST_REQUIRE_TOOLS=1`) generate media at r
 every mode, MOV/MKV/WebM/M4V/3GP/AVI and substituted MPG/VOB/OGV containers (with mono MP2), a
 52-range series, rotation, encoder fallback, an undecodable first or only audio stream, and
 invalid-output rejection. They use the pinned tools in `bin/` when present. Archive tests cover split, registry and
-stub links, rerun without regeneration, substituted containers across reruns, failure counters and
+description links, rerun without regeneration, substituted containers across reruns, failure counters and
 catch-up, crash and cancellation during a preview, adoption checks, name collisions, archive
 relocation, restore deletion with changed and unrecorded files, crashes around the restore commit
-and deletion events, a kept stub, and split-restore-split stub links. `TestStage2Previews` drives
+and deletion events, a kept description, and split-restore-split description links. `TestPreviewSplitRestoreRoundTrip` drives
 the built binary through split and restore.

@@ -19,7 +19,7 @@ func restoreDestRel(v Candidate, byVideo map[string]report.VideoRow) string {
 }
 
 // restoreCandidate moves one video back in a transaction: begin, place, placed, remove or keep the
-// stub, stub_removed, remove the source after a copy unless it is kept, commit.
+// description, description_removed, remove the source after a copy unless it is kept, commit.
 func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreResolver, v Candidate, destRel string, byVideo map[string]report.VideoRow, c *RestoreConfig, list string) error {
 	src := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(v.RelPath))
 	dst := filepath.Join(s.cfg.Archive, filepath.FromSlash(destRel))
@@ -89,18 +89,18 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 	}
 }
 
-// finishRestore logs placed, removes or keeps the stub, removes the source of a copy unless it is
+// finishRestore logs placed, removes or keeps the description, removes the source of a copy unless it is
 // kept and commits.
 func finishRestore(s *Session, w *state.WAL, r *RestoreResolver, rec state.Record, c *RestoreConfig) error {
 	tx := state.Tx{Begin: rec, Last: rec}
 	if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
 		return err
 	}
-	stub := r.StubPath(tx)
-	if err := r.WriteStub(tx); err != nil {
+	description := r.DescriptionPath(tx)
+	if err := r.WriteDescription(tx); err != nil {
 		return err
 	}
-	if _, err := w.Append(rec.TxID, state.StepStubRemoved, state.Record{Stub: stub}); err != nil {
+	if _, err := w.Append(rec.TxID, state.StepDescriptionRemoved, state.Record{Description: description}); err != nil {
 		return err
 	}
 	if rec.Transfer == state.TransferCopy && !c.KeepSource {
@@ -124,20 +124,17 @@ func finishRestore(s *Session, w *state.WAL, r *RestoreResolver, rec state.Recor
 	return nil
 }
 
-// videoRowsByVideoPath indexes registry rows by video_rel_path. The registry lives in a root that
+// videoRowsByVideoPath indexes registry rows by rel_path. The registry lives in a root that
 // may be shared, so a row whose paths would leave a root or name a reserved path is ignored and
 // its video, if any, is restored as unregistered to its own relative path.
 func videoRowsByVideoPath(s *Session, rows []report.VideoRow) map[string]report.VideoRow {
 	out := make(map[string]report.VideoRow, len(rows))
 	for _, r := range rows {
-		key := r.VideoRelPath
-		if key == "" {
-			key = r.RelPath
-		}
+		key := r.RelPath
 		if !scanner.LocalRelPath(key) || !scanner.LocalRelPath(r.RelPath) ||
-			(r.StubRelPath != "" && !scanner.LocalRelPath(r.StubRelPath)) {
+			(r.DescriptionRelPath != "" && !scanner.LocalRelPath(r.DescriptionRelPath)) {
 			s.Log.Warn("video registry row ignored: a path is not a local path below its root",
-				"rel_path", r.RelPath, "video_rel_path", r.VideoRelPath, "stub_rel_path", r.StubRelPath)
+				"rel_path", r.RelPath, "description_rel_path", r.DescriptionRelPath)
 			continue
 		}
 		out[key] = r

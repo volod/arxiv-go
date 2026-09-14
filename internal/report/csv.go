@@ -1,13 +1,10 @@
 package report
 
 import (
-	"bytes"
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"strconv"
 	"time"
@@ -15,28 +12,26 @@ import (
 	"github.com/volod/arxiv-go/internal/media"
 )
 
-// RegistryHeader is the fixed column order of the file registry; see
+// RegistryHeader is the canonical column order of the file registry (required
+// columns followed by MetadataHeader); see
 // docs/openspec/stage-1-core/contracts.md#file-registry-csv.
 var RegistryHeader = []string{
 	"rel_path", "file_name", "file_size", "file_type", "file_mime",
-	"is_binary", "is_media", "is_picture", "is_video", "is_large", "metadata",
+	"is_binary", "is_media", "is_picture", "is_video", "is_large",
 }
 
-// MetadataVersion is the "v" field of the metadata JSON.
-const MetadataVersion = 1
+func init() { RegistryHeader = append(RegistryHeader, MetadataHeader...) }
 
-// Metadata is the metadata column. Keys with zero values are omitted.
+// Metadata is the normalized optional data shared by both CSV registries.
 type Metadata struct {
-	V          int              `json:"v"`
-	MTime      string           `json:"mtime,omitempty"`
-	Mode       string           `json:"mode,omitempty"`
-	LinkTarget string           `json:"link_target,omitempty"`
-	Media      *media.MediaInfo `json:"media,omitempty"`
+	MTime      string
+	LinkTarget string
+	Media      *media.MediaInfo
 }
 
-// FileMetadata returns the file-mode metadata for a modification time and mode.
-func FileMetadata(mtime time.Time, mode fs.FileMode) Metadata {
-	m := Metadata{V: MetadataVersion, Mode: fmt.Sprintf("%04o", mode.Perm())}
+// FileMetadata returns the file-mode metadata for a modification time.
+func FileMetadata(mtime time.Time) Metadata {
+	m := Metadata{}
 	if !mtime.IsZero() {
 		m.MTime = mtime.UTC().Format(time.RFC3339)
 	}
@@ -64,8 +59,6 @@ type RegistryWriter struct {
 	f      *os.File // nil for a discarding writer (dry run)
 	count  *countingWriter
 	csv    *csv.Writer
-	json   bytes.Buffer
-	enc    *json.Encoder
 	record []string
 	synced int64 // offset made durable by the last Sync; -1 before the first
 }
@@ -118,8 +111,6 @@ func DiscardRegistry() *RegistryWriter {
 func newRegistryWriter(f *os.File, dst io.Writer, offset int64) *RegistryWriter {
 	w := &RegistryWriter{f: f, count: &countingWriter{w: dst, n: offset}, record: make([]string, len(RegistryHeader)), synced: -1}
 	w.csv = csv.NewWriter(w.count)
-	w.enc = json.NewEncoder(&w.json)
-	w.enc.SetEscapeHTML(false)
 	return w
 }
 
@@ -148,17 +139,13 @@ func openTruncated(path string, offset int64) (*os.File, error) {
 
 // Write buffers one row.
 func (w *RegistryWriter) Write(r RegistryRow) error {
-	w.json.Reset()
-	if err := w.enc.Encode(r.Metadata); err != nil {
-		return err
-	}
-	meta := bytes.TrimSuffix(w.json.Bytes(), []byte("\n"))
 	w.record[0], w.record[1] = r.RelPath, r.FileName
 	w.record[2] = strconv.FormatInt(r.FileSize, 10)
 	w.record[3], w.record[4] = r.FileType, r.FileMIME
 	w.record[5], w.record[6] = strconv.FormatBool(r.IsBinary), strconv.FormatBool(r.IsMedia)
 	w.record[7], w.record[8] = strconv.FormatBool(r.IsPicture), strconv.FormatBool(r.IsVideo)
-	w.record[9], w.record[10] = strconv.FormatBool(r.IsLarge), string(meta)
+	w.record[9] = strconv.FormatBool(r.IsLarge)
+	copy(w.record[FileRegistryKeep:], MetadataCells(r.Metadata))
 	return w.csv.Write(w.record)
 }
 

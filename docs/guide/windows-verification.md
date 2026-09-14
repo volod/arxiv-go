@@ -14,7 +14,7 @@ Windows support is still built and reviewed in every task:
 
 - Platform behavior from the [specification](../openspec/spec.md#platforms-and-build) and the
   [cross-platform notes](../openspec/architecture.md#cross-platform-notes) is implemented in
-  build-tagged files, never dropped or stubbed.
+  build-tagged files, never dropped or described.
 - `make ci` on Linux cross-compiles the Windows binary (`make build-all`) and type-checks all
   packages and tests for Windows (`make vet-windows`). Both are gates.
 - Tests for Windows-only behavior are written next to the code when cheap. They skip on Linux with
@@ -51,7 +51,7 @@ in the plan only when the operator brings Windows into scope.
 | W7 Stage-1 proof | `go test -tags integration ./test/integration/...` on NTFS, then with `ARXGO_TEST_VIDEO_PARENT` naming a directory on the second volume | Manifests equal after split, kill, resume and restore; exit codes as specified |
 | W7a Preview runner | `go test -count=1 -run 'TestRunner' ./internal/media` on NTFS, including the test-binary child process | Timeout ends the child process, failed runs remove their part files, and successful output is published without replacement |
 | W8 Release bundle | Unpack `arxgo-<version>-windows-amd64.zip`; `arxgo.exe split --image start` on a generated video | Previews produced with the bundled `ffmpeg.exe`; no `.env` in the bundle |
-| W9 Cloud (stage 3) | Token cache and session state after a publish | Files readable only by the current user (ACL) |
+| W9 Cloud publishing | Token cache and session state after a publish | Files readable only by the current user (ACL) |
 
 ## Deferred items
 
@@ -65,7 +65,7 @@ each one as deferred to this scenario; the step column shows where it is checked
 | `AUD-add-env-file-and-setup-1` | `.env` ACL instead of mode 0600; `make setup` under Git Bash | W2, W9 |
 | `AUD-implement-filesystem-primitives-1` | Volume serial and serial-0 shares, `GetDiskFreeSpaceEx`, `MoveFileEx` no-replace and retry, `\\?\` prefix, cross-volume copy | W3 |
 | `AUD-implement-run-lock-and-checkpoint-1` | `OpenProcess` liveness, case-insensitive roots, `MoveFileEx` during takeover | W4 |
-| `AUD-implement-write-ahead-log-and-recovery-1` | WAL open/truncate and atomic stub writes | W4 |
+| `AUD-implement-write-ahead-log-and-recovery-1` | WAL open/truncate and atomic description writes | W4 |
 | `AUD-implement-disk-space-preflight-2` | `GetDiskFreeSpaceEx` and UNC zero-total free space | W3 |
 | `AUD-implement-directory-walker-1` | Symlink privilege, junctions as special entries, case-sensitive `SkipPaths` | W5 |
 | `AUD-implement-scan-operation-and-csv-registry-5` | Registry replace while the CSV is open in another program; `mode` values of Windows files | W5 |

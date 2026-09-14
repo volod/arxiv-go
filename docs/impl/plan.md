@@ -56,7 +56,7 @@ Add the target interface, publish WAL steps, link rewrite and the `publish` oper
 - Agent status: CLEAR
 - Dependencies: `research-cloud-target-apis`.
 - User-visible outcome: `arxgo publish` and `split --publish` drive any target resumably and rewrite
-  stub and registry links.
+  description and registry links.
 - Scope boundary: `internal/cloud` interface, in-memory fake target, session store in run state,
   publish recovery, link rewrite, secret redaction handler, CLI enablement. No real provider.
 - Data and artifact paths: `internal/cloud/`, `internal/archive/publish.go`, `internal/cli/`.
@@ -154,7 +154,7 @@ Decide whether stage 1 is fit for use on real archives after a trial on a copy o
 - Human status: HUMAN-GATED
 - Dependencies: [Stage-1 proof](records/0025-restore-prove-stage-1-on-generated-archive.md).
 - Requested input or decision: Run scan, split, interrupt, resume and restore on a disposable copy
-  of a representative archive; review registry, stubs, logs and timings; accept, or file defects.
+  of a representative archive; review registry, descriptions, logs and timings; accept, or file defects.
   Where available, put one root on a CIFS/NFS share and start a second `arxgo` from another host
   against its lock; note scan throughput at the default `--checkpoint-every`; decide whether
   restore should skip video-archive files whose registry row is `conflict` or `skipped`. These are

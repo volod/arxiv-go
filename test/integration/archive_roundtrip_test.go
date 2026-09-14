@@ -14,7 +14,7 @@ import (
 	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
-// SeedEnv fixes the seed of the stage-1 proof (archive content and kill points); the seed of every
+// SeedEnv fixes the seed of the archive round-trip proof (archive content and kill points); the seed of every
 // run is logged so a failure can be replayed.
 const SeedEnv = "ARXGO_TEST_SEED"
 
@@ -22,17 +22,17 @@ const SeedEnv = "ARXGO_TEST_SEED"
 // /dev/shm, in which the video archive is created so split and restore cross devices.
 const VideoParentEnv = "ARXGO_TEST_VIDEO_PARENT"
 
-// WAL records per video: split on the copy path writes begin, copied, verified, placed, stubbed,
+// WAL records per video: split on the copy path writes begin, copied, verified, placed, described,
 // source_removed and commit; restore with --transfer copy keeps the source and writes one less.
 const (
 	splitCopyRecords   = 7
 	restoreCopyRecords = 6
 )
 
-// TestStage1GeneratedArchive proves stage 1 through the built binary: scan, split killed twice
+// TestArchiveSplitRestoreRoundTrip proves archive split and restore through the built binary: scan, split killed twice
 // and resumed, restore killed and replaced by a run with other options, then the round-trip gate
 // (path, size, mtime and SHA-256 of every file and every directory) and the exit-code contract.
-func TestStage1GeneratedArchive(t *testing.T) {
+func TestArchiveSplitRestoreRoundTrip(t *testing.T) {
 	seed := time.Now().UnixNano()
 	if s := os.Getenv(SeedEnv); s != "" {
 		v, err := strconv.ParseInt(s, 10, 64)
@@ -50,7 +50,7 @@ func TestStage1GeneratedArchive(t *testing.T) {
 	archive := filepath.Join(work, "archive")
 	video := filepath.Join(work, "video")
 	if parent := os.Getenv(VideoParentEnv); parent != "" {
-		dir, err := os.MkdirTemp(parent, "arxgo-stage1-")
+		dir, err := os.MkdirTemp(parent, "arxgo-roundtrip-")
 		if err != nil {
 			t.Fatalf("%s: %v", VideoParentEnv, err)
 		}

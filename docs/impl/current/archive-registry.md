@@ -3,6 +3,9 @@
 Accepted work: [0010 Directory walker](../records/0010-registry-implement-directory-walker.md),
 [0011 File type detection](../records/0011-registry-implement-file-type-detection.md),
 [0012 Scan operation and CSV registry](../records/0012-registry-implement-scan-operation-and-csv-registry.md).
+The flat CSV metadata layout was delivered in
+[0040](../records/0040-split-flatten-operator-csv-outputs.md); default ISO BMFF collection in
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -30,9 +33,11 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
 - Rows: regular files with the detected type, symlinks as `symlink` rows with `link_target`.
   Directories, special entries (walker `special`), `Lstat` failures and files that cannot be opened
   or read get no row; each is logged once, counted in `skipped` by reason and listed in the
-  report's `issues`. `file`-mode metadata is `{"v":1,"mtime":...,"mode":"0644"}`. `--metadata
-  media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
-  and adds `metadata.media` for detected audio/video files.
+  report's `issues`. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
+  and 3GP, flat `media_*` columns from the ISO BMFF parser (a parse failure sets `media_error`).
+  `--metadata media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
+  and fills those columns for other audio/video files and ISO failures. A completed registry omits
+  metadata columns that are empty in every row ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)).
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
@@ -82,7 +87,7 @@ below it, in walk order. It performs no type detection and writes no output.
   Directories wholly before the cursor are pruned with `SkipDir` and never listed; directories on
   the cursor's path are descended silently. Resuming near the end of a 20k-entry tree costs about
   0.1 ms instead of 33 ms for the full walk.
-- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-videos.md`; the
+- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`; the
   `.arxgo-part` suffix and preview part files `<stem>.arxgo-part.<ext>` at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
   `--registry` or a nested video archive); and `Options.Exclude` globs compiled by `CompileGlob`
   (anchored at the root, `path.Match` per segment, `**` for zero or more segments, linear-time

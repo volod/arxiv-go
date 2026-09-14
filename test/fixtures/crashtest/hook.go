@@ -65,23 +65,23 @@ func Catch(fn func() error) (err error) {
 // CopyPoints is every WAL step and filesystem effect on the copy path (split).
 var CopyPoints = []string{
 	"wal:begin", "fs:copy", "wal:copied", "wal:verified", "fs:place",
-	"wal:placed", "fs:stub", "wal:stubbed", "fs:source_removed",
+	"wal:placed", "fs:description", "wal:described", "fs:source_removed",
 	"wal:source_removed", "wal:commit",
 }
 
 // RenamePoints is every WAL step and filesystem effect on the same-device rename path (split).
 var RenamePoints = []string{
-	"wal:begin", "fs:place", "wal:placed", "fs:stub", "wal:stubbed", "wal:commit",
+	"wal:begin", "fs:place", "wal:placed", "fs:description", "wal:described", "wal:commit",
 }
 
-// RestoreCopyPoints is the copy path with stub_removed in place of stubbed.
+// RestoreCopyPoints is the copy path with description_removed in place of described.
 var RestoreCopyPoints = []string{
 	"wal:begin", "fs:copy", "wal:copied", "wal:verified", "fs:place",
-	"wal:placed", "fs:stub", "wal:stub_removed", "fs:source_removed",
+	"wal:placed", "fs:description", "wal:description_removed", "fs:source_removed",
 	"wal:source_removed", "wal:commit",
 }
 
-// RestoreRenamePoints is the rename path with stub_removed in place of stubbed.
+// RestoreRenamePoints is the rename path with description_removed in place of described.
 var RestoreRenamePoints = []string{
-	"wal:begin", "fs:place", "wal:placed", "fs:stub", "wal:stub_removed", "wal:commit",
+	"wal:begin", "fs:place", "wal:placed", "fs:description", "wal:description_removed", "wal:commit",
 }

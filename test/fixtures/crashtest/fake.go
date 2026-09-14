@@ -27,8 +27,8 @@ type Op struct {
 
 // Layout is one pair of roots plus a relative video path.
 type Layout struct {
-	Archive, Video, RelPath string
-	Src, Dst, Stub, Part    string
+	Archive, Video, RelPath     string
+	Src, Dst, Description, Part string
 }
 
 // NewLayout builds archive and video roots under dir and returns absolute paths.
@@ -40,7 +40,7 @@ func NewLayout(dir, relPath string) Layout {
 	}
 	l.Src = filepath.Join(l.Archive, filepath.FromSlash(relPath))
 	l.Dst = filepath.Join(l.Video, filepath.FromSlash(relPath))
-	l.Stub = l.Src + ".md"
+	l.Description = l.Src + ".md"
 	l.Part = fsops.PartPath(l.Dst)
 	return l
 }
@@ -66,7 +66,7 @@ func SplitOp(l Layout, rename bool, h *Hook) (*Op, error) {
 	}, nil
 }
 
-// RestoreOp returns a restore fake: the video is in the video archive and a stub is in the archive.
+// RestoreOp returns a restore fake: the video is in the video archive and a description is in the archive.
 func RestoreOp(l Layout, rename bool, h *Hook) (*Op, error) {
 	src := l.Dst
 	dst := l.Src
@@ -79,7 +79,7 @@ func RestoreOp(l Layout, rename bool, h *Hook) (*Op, error) {
 	if err := os.WriteFile(src, []byte(Payload), 0o644); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(dst+".md", []byte("stub\n"), 0o644); err != nil {
+	if err := os.WriteFile(dst+".md", []byte("description\n"), 0o644); err != nil {
 		return nil, err
 	}
 	st, err := os.Stat(src)
@@ -137,14 +137,14 @@ func (o *Op) Execute(ctx context.Context, w *state.WAL) error {
 	if _, err := w.Append(txid, state.StepPlaced, state.Record{}); err != nil {
 		return err
 	}
-	if err := o.writeOrRemoveStub(); err != nil {
+	if err := o.writeOrRemoveDescription(); err != nil {
 		return err
 	}
-	stubStep := state.StepStubbed
+	descriptionStep := state.StepDescribed
 	if o.Restore {
-		stubStep = state.StepStubRemoved
+		descriptionStep = state.StepDescriptionRemoved
 	}
-	if _, err := w.Append(txid, stubStep, state.Record{Stub: o.stubPath()}); err != nil {
+	if _, err := w.Append(txid, descriptionStep, state.Record{Description: o.descriptionPath()}); err != nil {
 		return err
 	}
 	if !o.Rename {
@@ -195,15 +195,15 @@ func (o *Op) placeRename() error {
 	return o.hit("fs:place")
 }
 
-func (o *Op) stubPath() string {
+func (o *Op) descriptionPath() string {
 	if o.Restore {
 		return o.Dst + ".md"
 	}
 	return o.Src + ".md"
 }
 
-func (o *Op) writeOrRemoveStub() error {
-	path := o.stubPath()
+func (o *Op) writeOrRemoveDescription() error {
+	path := o.descriptionPath()
 	if o.Restore {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return err
@@ -211,7 +211,7 @@ func (o *Op) writeOrRemoveStub() error {
 	} else if err := os.WriteFile(path, []byte("rel_path: "+o.RelPath+"\n"), 0o644); err != nil {
 		return err
 	}
-	return o.hit("fs:stub")
+	return o.hit("fs:description")
 }
 
 // FinalOK reports whether the tree matches an uninterrupted successful run.
@@ -236,14 +236,14 @@ func (o *Op) FinalOK() error {
 	if _, err := os.Stat(fsops.PartPath(o.Dst)); !os.IsNotExist(err) {
 		return errOr("part file remains", err)
 	}
-	_, stubErr := os.Stat(o.stubPath())
+	_, descriptionErr := os.Stat(o.descriptionPath())
 	if o.Restore {
-		if !os.IsNotExist(stubErr) {
-			return errOr("stub still present", stubErr)
+		if !os.IsNotExist(descriptionErr) {
+			return errOr("description still present", descriptionErr)
 		}
 		return nil
 	}
-	return stubErr
+	return descriptionErr
 }
 
 func errOr(msg string, err error) error {
