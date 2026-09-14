@@ -2,7 +2,8 @@
 
 Accepted work: [0018 Video split transactions](../records/0018-split-implement-video-split-transactions.md);
 [0019 Stubs and video registry](../records/0019-split-implement-stubs-and-video-registry.md);
-[0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md).
+[0023 Split/restore round-trip repairs](../records/0023-restore-repair-split-restore-round-trip-defects.md);
+relocated archive roots in [0034](../records/0034-preview-repair-stage-2-preview-defects.md).
 Specification: [split](../../openspec/stage-1-core/split-restore.md#split),
 [contracts](../../openspec/stage-1-core/contracts.md#markdown-stub),
 [recovery](../../openspec/stage-1-core/integrity.md#recovery).
@@ -58,6 +59,11 @@ are `moved`; splits aborted at their destination are `conflict` and other aborte
 unless the row is `moved`; committed restores set `restored` with the restoring run id. This run's
 pre-transaction skips add `conflict` / `skipped` rows. A split after a restore therefore keeps
 restored videos `restored`, and after a retired registry the new registry keeps them as history.
+Absolute WAL paths (stubs, previews) are read against the roots recorded in each run's
+`options.json`, so `stub_rel_path` and `previews` stay archive-relative after the archive root is
+mounted or renamed elsewhere ([0034](../records/0034-preview-repair-stage-2-preview-defects.md)).
+Placement and its failure handling (destination conflict, cross-device fallback, changed source)
+are shared with restore in `archive/transfer.go`.
 Rows are sorted by the walk-order key. The summary
 lists generation time, version, run ids, roots, optional base URL, totals, container/codec
 counts, resolution bands (`<SD`, `SD`, `HD`, `4K+`), skip/conflict lists and the 100 largest

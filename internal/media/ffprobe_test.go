@@ -43,7 +43,7 @@ func TestFFprobeCapturedFormats(t *testing.T) {
 			if tc.streamsV > 0 && m.FrameRate != "25/1" {
 				t.Fatalf("frame rate = %q", m.FrameRate)
 			}
-			if tc.file == "rotated.json" && m.Rotation != 270 {
+			if tc.file == "rotated.json" && m.Rotation != 90 {
 				t.Fatalf("rotation = %d", m.Rotation)
 			}
 		})
@@ -81,23 +81,26 @@ func TestFFprobeReaderProcessLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only the hung helper gets the short timeout: a race-instrumented helper can take longer than
+	// that just to start, which is not the behavior under test.
 	for _, tc := range []struct {
 		mode, want string
+		timeout    time.Duration
 	}{
-		{"valid", ""},
-		{"oversize", "output limit exceeded"},
-		{"nonzero", "exit status 7"},
-		{"sleep", "deadline exceeded"},
+		{"valid", "", 30 * time.Second},
+		{"oversize", "output limit exceeded", 30 * time.Second},
+		{"nonzero", "exit status 7", 30 * time.Second},
+		{"sleep", "deadline exceeded", 250 * time.Millisecond},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			t.Setenv(ffprobeHelperEnv, tc.mode)
-			reader := FFprobeReader{Path: exe, Timeout: 250 * time.Millisecond}
+			reader := FFprobeReader{Path: exe, Timeout: tc.timeout}
 			start := time.Now()
 			m := reader.Read(context.Background(), "clip.avi", "video/x-msvideo")
 			if tc.want == "" && (m.Error != "" || m.VideoCodec != "mpeg4") || tc.want != "" && !strings.Contains(m.Error, tc.want) {
 				t.Fatalf("metadata: %+v", m)
 			}
-			if time.Since(start) > 3*time.Second {
+			if tc.mode == "sleep" && time.Since(start) > 3*time.Second {
 				t.Fatalf("process did not stop promptly: %s", time.Since(start))
 			}
 		})

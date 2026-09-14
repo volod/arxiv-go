@@ -24,10 +24,10 @@ Both parsers produce the same Go struct and JSON object (`metadata.media`, see
 | Field | Type | Notes |
 | --- | --- | --- |
 | `container` | string | `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`, `avi`, ... |
-| `duration_s` | float | Seconds, 3 decimals |
+| `duration_s` | float | Presented duration in seconds, 3 decimals. ISO BMFF uses the movie header, which honors edit lists; only fragmented files or a missing movie duration use the longest video or audio track |
 | `bit_rate` | int | bits/s, container level when known |
 | `width`, `height` | int | First video stream, display dimensions after rotation |
-| `rotation` | int | Degrees from the display matrix or side data |
+| `rotation` | int | Clockwise degrees a player applies for display (`0`, `90`, `180`, `270`): the ISO BMFF track matrix, or ffprobe display-matrix side data negated (it counts counter-clockwise), or the legacy `rotate` tag. An iPhone portrait video is `90` |
 | `frame_rate` | string | Rational, e.g. `30000/1001` |
 | `video_codec` | string | e.g. `h264`, `hevc`, `av1`, `mpeg4` |
 | `audio_codec` | string | Empty when no audio |

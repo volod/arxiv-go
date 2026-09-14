@@ -14,7 +14,7 @@ import (
 type recovEnv struct {
 	dir, src, dst, part, stub string
 	w                         *WAL
-	res                       FSResolver
+	res                       fsResolver
 }
 
 func setupRecov(t *testing.T, op, transfer string, size int) recovEnv {
@@ -44,7 +44,7 @@ func setupRecov(t *testing.T, op, transfer string, size int) recovEnv {
 	}
 	return recovEnv{
 		dir: dir, src: src, dst: dst, part: fsops.PartPath(dst), stub: src + ".md",
-		w: w, res: FSResolver{},
+		w: w, res: fsResolver{},
 	}
 }
 
@@ -293,7 +293,7 @@ func TestRecoverySeqOrder(t *testing.T) {
 		}
 		paths = append(paths, src)
 	}
-	got, err := Recover(context.Background(), w, FSResolver{}, nil)
+	got, err := Recover(context.Background(), w, fsResolver{}, nil)
 	if err != nil || got.Aborted != 2 {
 		t.Fatalf("got %+v err %v", got, err)
 	}

@@ -1,23 +1,24 @@
 # Pinned ffmpeg/ffprobe builds approved for use and redistribution with arxgo.
-# Decision and evidence: docs/impl/records/0002-preview-approve-ffmpeg-distribution.md
+# Decisions and evidence: docs/impl/records/0002-preview-approve-ffmpeg-distribution.md (sources,
+# licence) and docs/impl/records/0035-preview-approve-ffmpeg-9-distribution.md (version 9.0.1).
 # Read by scripts/fetch-ffmpeg.sh (`make ffmpeg`). Format: key=value, no spaces, no quoting.
 
-version=6.1.1
+version=9.0.1
 license=GPL-3.0-or-later
 
-# linux/amd64: static-pie (musl) build from the mwader/static-ffmpeg:6.1.1 image, amd64 manifest
-# sha256:1a986bde9516b0e57564395f9ad843db96ae8214b2704b190247c5ed85920bf6. The image has a single
+# linux/amd64: static-pie (musl) build from the mwader/static-ffmpeg:9.0.1 image, amd64 manifest
+# sha256:532d8d399fae7baba29b8fe120e49ae7ec7335e72e69ead51973b6728e3d40d1. The image has a single
 # layer; it is fetched from the Docker Hub registry by digest, so no docker client is needed.
-# Build recipe: https://github.com/wader/static-ffmpeg (tag 6.1.1).
+# Build recipe: https://github.com/wader/static-ffmpeg (tag 9.0.1).
 linux_amd64_registry_repo=mwader/static-ffmpeg
-linux_amd64_layer_sha256=6a50276a3bb9cfb113cdea2914393956f9fa74f0878398001bb0c811974170d6
-linux_amd64_ffmpeg_sha256=dcf4c806caad507b11c73754b86a8cbd0ce686ae12f90bf8ba235d145f53edc0
-linux_amd64_ffprobe_sha256=aef7126f9c9845cdb8692c1dfd3c9eb74016210a68f8534325cf9f9a631cf9f1
+linux_amd64_layer_sha256=1cf035891321d42fd1ff73b9f7ba764ebd55a3798a9a3107d1298d956ce404d5
+linux_amd64_ffmpeg_sha256=bafab020a1052f44e338e10305035080766cf9ae122c74fcde332152c7550a2c
+linux_amd64_ffprobe_sha256=6d6e9d9550b931afa0bf268eddd54f8202def8a39102ccb1071eb3794af13aa5
 
-# windows/amd64: gyan.dev 6.1.1 essentials static build (GPL v3). Source commit per its README:
-# https://github.com/FFmpeg/FFmpeg/commit/e38092ef93
-windows_amd64_url=https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
-windows_amd64_archive_sha256=742e32fc9f92681f9f254b925e1b613fdd8074ba40749d4879aefdb009b94cc5
-windows_amd64_archive_dir=ffmpeg-6.1.1-essentials_build/bin
-windows_amd64_ffmpeg_sha256=04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00
-windows_amd64_ffprobe_sha256=3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4
+# windows/amd64: gyan.dev 9.0.1 essentials static build (GPL v3). Source commit per its README:
+# https://github.com/FFmpeg/FFmpeg/commit/bf1b838f2a
+windows_amd64_url=https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip
+windows_amd64_archive_sha256=fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9
+windows_amd64_archive_dir=ffmpeg-9.0.1-essentials_build/bin
+windows_amd64_ffmpeg_sha256=72a489eccd008c2ec2c0a5856c5c75bc3d8bbfa90166c4566865c246445e6aa3
+windows_amd64_ffprobe_sha256=19202b23c0043f15ad1b7bce2344f406fd52bd6efd8f995ce02e7392a1cec52f

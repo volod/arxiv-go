@@ -72,7 +72,7 @@ func (r SplitResolver) DeletePart(tx state.Tx) error {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	return hitSplit(r.Crash, "fs:delete_part")
+	return hitCrash(r.Crash, "fs:delete_part")
 }
 
 // StubPath chooses the owned primary path, or the collision fallback when the primary file is
@@ -118,7 +118,7 @@ func (r SplitResolver) RemoveSource(tx state.Tx) error {
 	if err := fsops.SyncDir(filepath.Dir(tx.Begin.Src)); err != nil {
 		return err
 	}
-	return hitSplit(r.Crash, "fs:source_removed")
+	return hitCrash(r.Crash, "fs:source_removed")
 }
 
 // destinationStatus compares an already present destination without changing either file.

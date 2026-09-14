@@ -7,10 +7,13 @@ import (
 )
 
 type Track struct {
-	Kind          string // vide or soun
+	Kind          string // vide, soun, or another handler such as tmcd
 	Codec         string
 	Width, Height uint16
 	Rotation      int
+	// MediaMs overrides the 5000 ms media duration in mdhd, as in a trimmed QuickTime edit whose
+	// movie and track headers present less than the stored media.
+	MediaMs uint32
 }
 
 type Options struct {
@@ -120,7 +123,7 @@ func track(id uint32, t Track, fragmented, quickTime bool) []byte {
 	md := make([]byte, 24)
 	binary.BigEndian.PutUint32(md[12:16], 1000)
 	if !fragmented {
-		binary.BigEndian.PutUint32(md[16:20], 5000)
+		binary.BigEndian.PutUint32(md[16:20], max(5000, t.MediaMs))
 	}
 	hd := make([]byte, 24)
 	copy(hd[8:12], []byte(t.Kind))

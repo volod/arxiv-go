@@ -65,7 +65,7 @@ nothing and never changes `current`, so it cannot hide an interrupted real run f
   creates its own lock with `O_EXCL`.
 - Every checkpoint verifies that both lock files still name this run; a removed or replaced lock
   stops the run with exit 5 and nothing more is written into the run directory.
-- The lock is removed on every exit the process controls (0, 1, 3, 4, 6, 70, and 130 after the
+- The lock is removed on every exit the process controls (0, 1, 3, 4, 6, and 130 after the
   checkpoint), except exit 5 after the run started (a lost lock, or corrupt state found while
   running). A start refused with exit 5 (a held, stale, remote or unreadable lock, corrupt run
   state, or an interrupted run this process may not recover) releases the locks it took, so the
@@ -79,11 +79,13 @@ nothing and never changes `current`, so it cannot hide an interrupted real run f
 - Record fields: `v` (format version), `txid` (`{run-id}-{6-digit}`), `seq` (monotonic in the file),
   `step`, `ts`, and step payload. Formats are in [contracts](contracts.md#wal-record).
 - Opening `wal.jsonl` truncates a torn last line (JSON decode failure on the final line only). A
-  decode failure on any other line, or a last line that decodes but is not `v` 1, exits 5 as
-  corruption.
+  decode failure on any other line, or a line that decodes with an unsupported version (`v` 1 for
+  transaction steps, `v` 2 for preview events), exits 5 as corruption.
 - Steps for split: `begin -> [copied -> verified] -> placed -> stubbed -> [source_removed] ->
   commit`. Restore uses the same steps with `stub_removed` replacing `stubbed`. Stage 2 adds
-  `preview` records after `commit`; stage 3 adds `published`.
+  independent preview events after the video's `commit`
+  ([previews](../stage-2-previews/previews.md#transactions-and-failures)); stage 3 adds
+  `published`.
 
 ## Recovery
 
@@ -179,7 +181,7 @@ Resume recomputes preflight from the remaining candidates only.
   the remaining bytes (items when the byte total is unknown).
 - `report.json` and the final log line hold totals per phase, skipped/failed items with reasons,
   bytes written and freed per root, and wall time. `report.json` is written when a run completes
-  (exit 0 or 6, or 70 while an operation is not implemented) and for every dry run (including one
+  (exit 0 or 6) and for every dry run (including one
   refused by preflight); an interrupted
   or failed run has none and is resumed. Per-phase figures cover the process that wrote the report;
   the counters are cumulative across resumed processes.

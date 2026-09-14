@@ -1,6 +1,9 @@
 package state
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 // CommittedSet is the set of rel_path values whose WAL transactions committed. Resume skips
 // these candidates. Lookups are O(1).
@@ -48,16 +51,17 @@ func (s *CommittedSet) Len() int {
 	return len(s.m)
 }
 
-// Paths returns a copy of the committed rel_path set.
-func (s *CommittedSet) Paths() map[string]struct{} {
-	out := make(map[string]struct{})
+// Paths returns the committed rel_path values in sorted order.
+func (s *CommittedSet) Paths() []string {
 	if s == nil {
-		return out
+		return nil
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	out := make([]string, 0, len(s.m))
 	for p := range s.m {
-		out[p] = struct{}{}
+		out = append(out, p)
 	}
+	slices.Sort(out)
 	return out
 }

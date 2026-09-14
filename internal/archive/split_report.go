@@ -3,9 +3,7 @@ package archive
 import (
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
@@ -16,7 +14,7 @@ const phaseReport = "report"
 
 type walAcc struct {
 	begin  state.Record
-	stub   string
+	stub   string // archive-relative stub path
 	sha    string
 	status string
 }
@@ -84,7 +82,7 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 	}
 	byReg := report.RegistryByPath(regRows)
 	fill := func(row *report.VideoRow) { fillVideoRow(row, byReg, c.BaseURL) }
-	merged, err := replayVideoRows(existing, s.cfg.Archive, fill)
+	merged, err := replayArchive(s, existing, fill)
 	if err != nil {
 		return nil, err
 	}
@@ -103,77 +101,47 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 	return merged, nil
 }
 
-// replayVideoRows applies the transactions of every run in the archive to the existing registry
-// rows, run by run in start order, so a later run always wins: a committed split makes a row
-// moved, a split aborted at its destination makes it a conflict (other aborts skipped) unless it
-// is moved, and a committed restore marks the row restored. fill completes new split rows.
-func replayVideoRows(existing []report.VideoRow, archiveRoot string, fill func(*report.VideoRow)) ([]report.VideoRow, error) {
-	runs, err := runsInStartOrder(archiveRoot)
+// replayArchive reads the current WAL history of the archive and replays it onto existing rows.
+func replayArchive(s *Session, existing []report.VideoRow, fill func(*report.VideoRow)) ([]report.VideoRow, error) {
+	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
 	if err != nil {
 		return nil, err
 	}
+	idx, err := newPreviewIndex(s.cfg.Archive, history)
+	if err != nil {
+		return nil, err
+	}
+	return replayVideoRows(existing, history, idx, fill), nil
+}
+
+// replayVideoRows applies the transactions of every run to the existing registry rows, run by run
+// in start order, so a later run always wins: a committed split makes a row moved, a split aborted
+// at its destination makes it a conflict (other aborts skipped) unless it is moved, and a committed
+// restore marks the row restored. fill completes new split rows. The previews column lists the
+// completed previews of idx.
+func replayVideoRows(existing []report.VideoRow, history []runHistory, idx *previewIndex, fill func(*report.VideoRow)) []report.VideoRow {
 	rows := report.MergeVideoRows(nil, existing)
-	for _, rd := range runs {
-		recs, err := state.ReadWALRecords(rd.File(state.WALFile))
-		if err != nil {
-			return nil, err
-		}
-		if len(recs) == 0 {
-			continue
-		}
-		split, restored := videoEvents(recs, archiveRoot)
+	for _, run := range history {
+		split, restored := videoEvents(run)
 		if fill != nil {
 			for i := range split {
 				fill(&split[i])
 			}
 		}
-		rows = report.MarkRestored(report.MergeVideoRows(rows, split), restored, rd.ID)
-	}
-	idx, err := readPreviewIndex(archiveRoot)
-	if err != nil {
-		return nil, err
+		rows = report.MarkRestored(report.MergeVideoRows(rows, split), restored, run.id)
 	}
 	for i := range rows {
 		rows[i].Previews = idx.encoded(rows[i].RelPath)
 	}
-	return rows, nil
-}
-
-// runsInStartOrder lists the run directories of root ordered by the creation time in their
-// options.json, then by id. Run ids alone order only to the second.
-func runsInStartOrder(root string) ([]state.RunDir, error) {
-	ids, err := state.ListRunIDs(root)
-	if err != nil {
-		return nil, err
-	}
-	type run struct {
-		dir     state.RunDir
-		created time.Time
-	}
-	runs := make([]run, 0, len(ids))
-	for _, id := range ids {
-		rd, err := state.OpenRunDir(root, id)
-		if err != nil {
-			return nil, err
-		}
-		var o state.RunOptions
-		_ = state.ReadJSON(rd.File(state.OptionsFile), &o) // a run without options sorts first
-		runs = append(runs, run{rd, o.CreatedAt})
-	}
-	sort.SliceStable(runs, func(i, j int) bool { return runs[i].created.Before(runs[j].created) })
-	out := make([]state.RunDir, len(runs))
-	for i, r := range runs {
-		out[i] = r.dir
-	}
-	return out, nil
+	return rows
 }
 
 // videoEvents reduces one run's WAL to its final split rows and the rel_paths it restored.
-func videoEvents(recs []state.Record, archiveRoot string) ([]report.VideoRow, map[string]struct{}) {
+func videoEvents(run runHistory) ([]report.VideoRow, map[string]struct{}) {
 	open := map[string]*walAcc{}
 	byRel := map[string]report.VideoRow{}
 	restored := map[string]struct{}{}
-	for _, rec := range recs {
+	for _, rec := range run.records {
 		a := open[rec.TxID]
 		switch {
 		case rec.Step == state.StepBegin:
@@ -186,16 +154,16 @@ func videoEvents(recs []state.Record, archiveRoot string) ([]report.VideoRow, ma
 		case rec.Step == state.StepVerified && rec.SHA256 != "":
 			a.sha = rec.SHA256
 		case rec.Step == state.StepStubbed && rec.Stub != "":
-			a.stub = rec.Stub
+			a.stub, _ = run.archiveRel(rec.Stub)
 		case rec.Step == state.StepCommit:
 			a.status = report.StatusMoved
-			byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
+			byRel[a.begin.RelPath] = a.row()
 		case rec.Step == state.StepAborted:
 			if old, ok := byRel[a.begin.RelPath]; ok && old.Status == report.StatusMoved {
 				continue
 			}
 			a.status = abortStatus(rec.Reason)
-			byRel[a.begin.RelPath] = rowFromAcc(a, archiveRoot)
+			byRel[a.begin.RelPath] = a.row()
 		}
 	}
 	out := make([]report.VideoRow, 0, len(byRel))
@@ -205,14 +173,10 @@ func videoEvents(recs []state.Record, archiveRoot string) ([]report.VideoRow, ma
 	return out, restored
 }
 
-func rowFromAcc(a *walAcc, archiveRoot string) report.VideoRow {
+func (a *walAcc) row() report.VideoRow {
 	rel := a.begin.RelPath
-	stubRel := ""
-	if a.stub != "" {
-		stubRel = report.MustRelStubPath(archiveRoot, a.stub)
-	}
 	return report.VideoRow{
-		RelPath: rel, VideoRelPath: rel, StubRelPath: stubRel,
+		RelPath: rel, VideoRelPath: rel, StubRelPath: a.stub,
 		FileName: path.Base(rel), FileSize: a.begin.Size, SHA256: a.sha,
 		Transfer: a.begin.Transfer, Status: a.status, RunID: runIDFromTxID(a.begin.TxID),
 	}

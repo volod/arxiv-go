@@ -1,10 +1,10 @@
-FFmpeg and ffprobe in this Linux bundle are FFmpeg 6.1.1 GPL v3 builds.
+FFmpeg and ffprobe in this Linux bundle are FFmpeg 9.0.1 GPL v3 builds.
 The GPL v3 licence text is in GPL-3.0.txt. arxgo has a separate MIT licence
 in arxgo-MIT.txt; it starts FFmpeg as an external process.
 
-Build provenance: mwader/static-ffmpeg:6.1.1, amd64 image manifest
-sha256:1a986bde9516b0e57564395f9ad843db96ae8214b2704b190247c5ed85920bf6.
+Build provenance: mwader/static-ffmpeg:9.0.1, amd64 image manifest
+sha256:532d8d399fae7baba29b8fe120e49ae7ec7335e72e69ead51973b6728e3d40d1.
 Build recipe and dependency sources: https://github.com/wader/static-ffmpeg
-FFmpeg 6.1.1 corresponding source: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+FFmpeg 9.0.1 corresponding source: https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz
 The exact layer and executable SHA-256 pins are in packaging/ffmpeg.lock in the
 arxgo source repository: https://github.com/volod/arxiv-go

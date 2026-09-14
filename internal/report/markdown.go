@@ -21,10 +21,8 @@ type StubInput struct {
 	SHA256           string
 	RunID            string
 	MovedAt          time.Time
-	FileName         string
-	RelLink          string
-	SizeHuman        string
-	MediaLine        string
+	FileName         string // defaults to the base name of RelPath
+	RelLink          string // relative link from the stub to the video; omitted when empty
 	Media            *media.MediaInfo
 }
 
@@ -40,14 +38,10 @@ This video was moved to the video archive by arxgo.
 {{- if .URL}}
 - Cloud link: <{{.URL}}>
 {{- end}}
-- Size: {{.SizeHuman}}
+- Size: {{.Size}}
 {{- if .MediaLine}}
 - Duration: {{.MediaLine}}
 {{- end}}
-
-## Previews
-
-(stage 2: embedded PNG frames and sample clip links)
 `
 
 var stubTmpl = template.Must(template.New("stub").Parse(stubTemplate))
@@ -58,21 +52,21 @@ type stubView struct {
 	RelLink          string
 	VideoArchivePath string
 	URL              string
-	SizeHuman        string
+	Size             string
 	MediaLine        string
 }
 
-// RenderStub returns a complete Markdown stub. Front matter always starts with arxgo_stub: 1.
+// RenderStub returns a complete Markdown stub. Front matter always starts with arxgo_stub: 1. The
+// preview section is added by ReplacePreviewSection once previews exist.
 func RenderStub(in StubInput) ([]byte, error) {
 	name := in.FileName
 	if name == "" {
 		name = path.Base(in.RelPath)
 	}
-	moved := ""
+	moved, size := "", ""
 	if !in.MovedAt.IsZero() {
 		moved = in.MovedAt.UTC().Format(time.RFC3339)
 	}
-	size := ""
 	if in.FileSize > 0 {
 		size = strconv.FormatInt(in.FileSize, 10)
 	}
@@ -92,60 +86,69 @@ func RenderStub(in StubInput) ([]byte, error) {
 		RelLink:          in.RelLink,
 		VideoArchivePath: in.VideoArchivePath,
 		URL:              in.URL,
-		SizeHuman:        in.SizeHuman,
-		MediaLine:        in.MediaLine,
+		MediaLine:        MediaLine(in.Media),
 	}
-	if view.SizeHuman == "" && in.FileSize > 0 {
-		view.SizeHuman = FormatSize(in.FileSize)
-	}
-	if view.MediaLine == "" {
-		view.MediaLine = MediaLine(in.Media)
+	if in.FileSize > 0 {
+		view.Size = FormatSize(in.FileSize)
 	}
 	var buf bytes.Buffer
 	if err := stubTmpl.Execute(&buf, view); err != nil {
 		return nil, err
 	}
-	out := buf.Bytes()
-	if !bytes.HasSuffix(out, []byte("\n")) {
-		out = append(out, '\n')
-	}
-	return out, nil
+	return buf.Bytes(), nil
 }
 
-// ReplacePreviewSection updates only the generated preview section of an owned stub.
-// The front matter and original move timestamp remain unchanged on catch-up runs.
-func ReplacePreviewSection(data []byte, links []string) []byte {
-	const (
-		heading     = "## Previews\n"
-		begin       = "<!-- arxgo-previews-begin -->\n"
-		end         = "<!-- arxgo-previews-end -->\n"
-		placeholder = "(stage 2: embedded PNG frames and sample clip links)\n"
-	)
+// PreviewLink is one preview listed in a stub: PNG frames are embedded, samples linked.
+type PreviewLink struct {
+	Name string // file name shown
+	URL  string // escaped link relative to the stub
+}
+
+const (
+	previewHeading = "## Previews\n\n"
+	previewBegin   = "<!-- arxgo-previews-begin -->\n"
+	previewEnd     = "<!-- arxgo-previews-end -->\n"
+)
+
+// ReplacePreviewSection sets the generated preview section of an owned stub to links. The section
+// is delimited by HTML comments, so front matter and operator notes before or after it are kept.
+// Without previews the section is removed; a stub without a section gets one appended.
+func ReplacePreviewSection(data []byte, links []PreviewLink) []byte {
+	var section strings.Builder
+	if len(links) > 0 {
+		section.WriteString(previewHeading + previewBegin)
+		for _, l := range links {
+			if path.Ext(l.Name) == ".png" {
+				section.WriteString("- ![" + l.Name + "](" + l.URL + ")\n")
+			} else {
+				section.WriteString("- [" + l.Name + "](" + l.URL + ")\n")
+			}
+		}
+		section.WriteString(previewEnd)
+	}
 	s := string(data)
-	i := strings.Index(s, heading)
-	if i < 0 {
-		return data
+	start := strings.Index(s, previewBegin)
+	stop := strings.Index(s, previewEnd)
+	if start < 0 || stop < start {
+		if section.Len() == 0 {
+			return data
+		}
+		if !strings.HasSuffix(s, "\n") {
+			s += "\n"
+		}
+		return []byte(s + "\n" + section.String())
 	}
-	var content strings.Builder
-	content.WriteString(begin)
-	if len(links) == 0 {
-		content.WriteString("(no previews)\n")
-	} else {
-		for _, link := range links {
-			content.WriteString(link)
-			content.WriteByte('\n')
+	if strings.HasSuffix(s[:start], previewHeading) {
+		start -= len(previewHeading)
+	}
+	prefix, suffix := s[:start], s[stop+len(previewEnd):]
+	if section.Len() == 0 {
+		// Drop the blank line that separated the removed section from its neighbors.
+		if suffix == "" {
+			prefix = strings.TrimSuffix(prefix, "\n")
+		} else {
+			suffix = strings.TrimPrefix(suffix, "\n")
 		}
 	}
-	content.WriteString(end)
-	tail := s[i+len(heading):]
-	if start := strings.Index(tail, begin); start >= 0 {
-		if stop := strings.Index(tail[start+len(begin):], end); stop >= 0 {
-			stop += start + len(begin) + len(end)
-			return []byte(s[:i+len(heading)] + tail[:start] + content.String() + tail[stop:])
-		}
-	}
-	if start := strings.Index(tail, placeholder); start >= 0 {
-		return []byte(s[:i+len(heading)] + tail[:start] + content.String() + tail[start+len(placeholder):])
-	}
-	return []byte(s[:i+len(heading)] + "\n" + content.String() + tail)
+	return []byte(prefix + section.String() + suffix)
 }

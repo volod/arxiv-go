@@ -3,7 +3,6 @@ package report
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"path"
 	"sort"
 	"strings"
@@ -253,14 +252,4 @@ func topLargest(rows []VideoRow, n int) []largestRow {
 		out[i] = largestRow{RelPath: r.RelPath, Size: FormatSize(r.FileSize), Link: link}
 	}
 	return out
-}
-
-// WriteSummaryTo writes the rendered summary.
-func WriteSummaryTo(w io.Writer, in SummaryInput) error {
-	b, err := RenderSummary(in)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(b)
-	return err
 }

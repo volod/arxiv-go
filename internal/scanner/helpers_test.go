@@ -77,3 +77,41 @@ func canSymlink(t *testing.T, dir string) {
 	}
 	_ = os.Remove(filepath.Join(dir, "probe-link"))
 }
+
+// Stats counts delivered entries for walker tests; the scan operation counts in state.ScanStats.
+type Stats struct {
+	Dirs     int64
+	Files    int64
+	Symlinks int64
+	Special  int64
+	Skipped  map[string]int64 // by reason, see Entry.SkipReason
+}
+
+// Count adds e. An unreadable directory counts both as a directory and as skipped.
+func (s *Stats) Count(e Entry) {
+	switch e.Kind {
+	case KindDir:
+		s.Dirs++
+	case KindFile:
+		s.Files++
+	case KindSymlink:
+		s.Symlinks++
+	case KindSpecial:
+		s.Special++
+	}
+	if reason := e.SkipReason(); reason != "" {
+		if s.Skipped == nil {
+			s.Skipped = map[string]int64{}
+		}
+		s.Skipped[reason]++
+	}
+}
+
+// SkippedTotal returns the number of skipped entries.
+func (s *Stats) SkippedTotal() int64 {
+	var n int64
+	for _, c := range s.Skipped {
+		n += c
+	}
+	return n
+}

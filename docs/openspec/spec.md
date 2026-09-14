@@ -138,7 +138,8 @@ any mutation. Details: [tool discovery](stage-1-core/metadata.md#tool-discovery)
 - `<root>/.arxgo/` in either root: run lock, state, write-ahead logs, checkpoints and run logs.
 - `<archive>/arxgo-registry.csv`, `<archive>/arxgo-videos.csv`, `<archive>/arxgo-videos.md` and
   the same names inside the video archive root.
-- Temporary transfer files ending in `.arxgo-part`.
+- Temporary transfer files ending in `.arxgo-part`, and preview part files named
+  `<stem>.arxgo-part.<ext>` (a single extension after the marker).
 
 ### Operations and defaults
 
@@ -163,7 +164,7 @@ acceptance evidence exist. Registry order is the implementation line followed by
 | 4 | `media-metadata` | 1 | shipped | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Current](../impl/current/media-metadata.md) |
 | 5 | `video-split` | 1 | shipped | Byte-identical videos in mirrored tree, stubs, registries, same/cross-device paths, idempotent rerun | [Current](../impl/current/video-split.md) |
 | 6 | `video-restore` | 1 | planned | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Current](../impl/current/video-restore.md) |
-| 7 | `media-previews` | 2 | planned | Sample/frame count, duration, resolution clamp, naming and restore cleanup on generated fixtures | [Open work](../impl/plan.md#media-previews----media-previews) |
+| 7 | `media-previews` | 2 | shipped | Sample/frame count, duration, resolution clamp, naming and restore cleanup on generated fixtures | [Current](../impl/current/media-previews.md) |
 | 8 | `cloud-publishing` | 3 | planned | Resumable upload, link rewrite and idempotent re-publish against recorded API fixtures and a test tenant | [Open work](../impl/plan.md#cloud-publishing----cloud-publishing) |
 
 ## Development integrity

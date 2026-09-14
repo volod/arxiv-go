@@ -165,8 +165,7 @@ Validation happens before the lock is taken and before any filesystem write.
 | 3 | Required external tool missing; download link printed |
 | 4 | Insufficient free space found by preflight |
 | 5 | Run lock held by a live process, or recovery needs operator action |
-| 6 | Completed with skipped items (conflicts, missing directories, unreadable files); see report |
-| 70 | Operation not implemented in this build (scaffold only) |
+| 6 | Completed with skipped items (conflicts, missing directories, unreadable files) or failed previews; see report |
 | 130 | Interrupted by signal after writing a checkpoint |
 
 ## Examples

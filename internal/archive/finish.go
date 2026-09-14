@@ -16,7 +16,6 @@ type Status int
 const (
 	StatusCompleted         Status = iota // everything done, nothing skipped
 	StatusPartial                         // done with skipped or failed items
-	StatusNotImplemented                  // the operation body is not in this build
 	StatusInterrupted                     // context canceled; checkpoint written
 	StatusFailed                          // unexpected error; rerun resumes
 	StatusNeedsOperator                   // lock lost or corrupt state; lock kept when still ours
@@ -181,6 +180,9 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 	attrs := []any{"op", s.cfg.Op, "run_id", s.Run.ID, "status", res.Status.String(),
 		"wall", FormatDuration(s.cfg.Now().Sub(s.started)), "files", c.Files, "bytes", c.Bytes,
 		"videos_done", c.VideosDone, "videos_skipped", c.VideosSkipped, "videos_failed", c.VideosFailed}
+	if c.PreviewsDone > 0 || c.PreviewsFailed > 0 {
+		attrs = append(attrs, "previews_done", c.PreviewsDone, "previews_failed", c.PreviewsFailed)
+	}
 	switch res.Status {
 	case StatusInterrupted:
 		s.Log.Warn("run interrupted; rerun the same command to resume", attrs...)
@@ -209,12 +211,10 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 		s.mu.Lock()
 		issues := len(s.issues) > 0 || s.issuesOmitted > 0 || s.partial
 		s.mu.Unlock()
-		if issues || c.VideosSkipped > 0 || c.VideosFailed > 0 {
+		if issues || c.VideosSkipped > 0 || c.VideosFailed > 0 || c.PreviewsFailed > 0 {
 			return StatusPartial
 		}
 		return StatusCompleted
-	case errors.Is(err, ErrNotImplemented):
-		return StatusNotImplemented
 	case errors.Is(err, ErrInsufficientSpace):
 		return StatusInsufficientSpace
 	case errors.Is(err, state.ErrLockLost), errors.Is(err, state.ErrStateCorrupt):
@@ -239,7 +239,7 @@ func (s *Session) escalate(res Result, err error) Result {
 }
 
 func reportable(st Status) bool {
-	return st == StatusCompleted || st == StatusPartial || st == StatusNotImplemented
+	return st == StatusCompleted || st == StatusPartial
 }
 
 // useConsoleOnly drops the run-log handler so a lost lock writes nothing more
@@ -277,8 +277,6 @@ func (st Status) String() string {
 		return "completed"
 	case StatusPartial:
 		return "partial"
-	case StatusNotImplemented:
-		return "not_implemented"
 	case StatusInterrupted:
 		return "interrupted"
 	case StatusFailed:
@@ -292,6 +290,3 @@ func (st Status) String() string {
 	}
 	return fmt.Sprintf("status(%d)", int(st))
 }
-
-// Op returns the operation name.
-func (s *Session) Op() string { return s.cfg.Op }

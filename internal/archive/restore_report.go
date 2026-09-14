@@ -20,7 +20,7 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 		s.Log.Info("no video registry to update")
 		return nil
 	}
-	rows, err := replayVideoRows(existing, s.cfg.Archive, nil)
+	rows, err := replayArchive(s, existing, nil)
 	if err != nil {
 		return err
 	}

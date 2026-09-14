@@ -67,7 +67,7 @@ func TestSessionRecoversInterruptedTransaction(t *testing.T) {
 
 	h.FailAt = ""
 	cfg = testConfig(r, clock, 200)
-	cfg.Recoverer = state.FSResolver{}
+	cfg.Recoverer = crashtest.Resolver{}
 	cfg.Crash = h.Func()
 	resumed := start(t, cfg)
 	if !resumed.Resumed || resumed.Run.ID != s.Run.ID {

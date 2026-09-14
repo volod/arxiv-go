@@ -77,10 +77,11 @@ func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	return g
 }
 
-// addFFmpegClips adds real encoded clips when ffmpeg is on PATH. They are optional: CI installs no
-// ffmpeg. ARXGO_TEST_REQUIRE_TOOLS=1 makes a missing ffmpeg fail the test instead.
+// addFFmpegClips adds real encoded clips when ffmpeg is available (the pinned build in bin/, else
+// PATH). They are optional: CI installs no ffmpeg. ARXGO_TEST_REQUIRE_TOOLS=1 makes a missing
+// ffmpeg fail the test instead.
 func (g *genArchive) addFFmpegClips(t *testing.T) {
-	ffmpeg, err := exec.LookPath("ffmpeg")
+	ffmpeg, err := tooltest.Path("ffmpeg")
 	if err != nil {
 		if os.Getenv(tooltest.RequireEnv) == "1" {
 			t.Fatalf("ffmpeg is required by %s=1: %v", tooltest.RequireEnv, err)

@@ -34,7 +34,6 @@ func attachRestoreRecoverer(cfg *Config, c *RestoreConfig, crash state.CrashHook
 		FS: cfg.FS, Verify: c.Verify, Crash: crash,
 		KeepStubs: c.KeepStubs, KeepSource: c.KeepSource, Archive: cfg.Archive,
 	})
-	c.Resolver = &r
 	cfg.Recoverer = r
 	cfg.Crash = crash
 }

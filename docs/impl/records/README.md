@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0033`.
+Next unused sequence: `0038`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -41,3 +41,8 @@ Next unused sequence: `0033`.
 | [0030 Preview integration](0030-preview-integrate-previews-into-split-and-restore.md) | Split and restore preview WAL, registry, stub and cleanup integration | Accepted; live FFmpeg tests and `make ci` pass on Linux; Windows cross-compiled |
 | [0031 Document operator use](0031-foundation-document-operator-use.md) | README, Linux and Windows practical manuals, environment template, release bundle documentation scope | Accepted; `make ci` passes on Linux, Windows cross-compiled |
 | [0032 Release bundle with FFmpeg](0032-preview-implement-release-bundle-with-ffmpeg.md) | Per-platform release archives with verified pinned FFmpeg tools, licences, source notices, checksums and manuals; tag release workflow | Accepted; Linux bundle smoke, fresh tool download and `make ci` pass; Windows cross-built/inspected |
+| [0033 Stage-2 previews review](0033-preview-review-stage-2-previews.md) | Stage-2 checkpoint: invariant-to-evidence table, note dispositions, operator-authorized refactor and dead-code removal, declared split/restore round trip on real drone footage | Accepted: `proceed-with-nonblocking-notes`; blockers repaired in 0034; `make ci`, live, integration and race runs pass on Linux |
+| [0034 Stage-2 preview repairs](0034-preview-repair-stage-2-preview-defects.md) | Planning-time sample container, crash-safe restore cleanup, stub links after re-split, relocated roots, interruption and preview counters, presented ISO duration, clockwise rotation, AppleDouble sidecars | Accepted; regressions reproduced on `2bf001b`; `make ci` passes on Linux; Windows cross-compiled |
+| [0035 Approve FFmpeg 9.0.1](0035-preview-approve-ffmpeg-9-distribution.md) | Operator decision to bundle FFmpeg 9.0.1 from the approved publishers; version comparison for mono MP2 and Apple positional audio | Accepted by the operator: FFmpeg 9.0.1 GPL v3 static builds for linux/windows amd64 |
+| [0036 Upgrade bundled FFmpeg to 9.0.1](0036-preview-upgrade-bundled-ffmpeg-to-9.md) | New pins and source notices, live tests on the pinned tools, mono MP2 series regression, bundle and docs | Accepted; `make ffmpeg`, live, integration, race, `make dist` and real-media run pass on Linux; Windows inspected |
+| [0037 Undecodable sample audio](0037-preview-handle-undecodable-sample-audio.md) | Samples use the first decodable audio stream or are silent, for Apple positional audio | Accepted; live regression and real iPhone files pass on Linux; Windows cross-compiled |

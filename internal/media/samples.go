@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,123 +13,65 @@ import (
 
 const sampleChunkLimit = 50
 
-// GenerateSample encodes a planned sample. The caller must own the preview WAL
-// transaction before passing an output in the archive. Chunk files live in a
-// private system temporary directory and are removed when this call returns.
-// The returned path can differ from job.Output for an unsupported extension.
-func (r *Runner) GenerateSample(ctx context.Context, source string, job PreviewJob) (string, error) {
+// GenerateSample encodes a planned sample to job.Output. Series with more than 50 ranges are
+// encoded in chunks inside a private temporary directory, removed when this call returns, then
+// joined with the concat demuxer. The part file is probed before publication, so an invalid clip
+// never becomes a published preview.
+func (r *Runner) GenerateSample(ctx context.Context, source string, job PreviewJob) error {
 	if err := validateSampleJob(source, job); err != nil {
-		return "", err
+		return err
 	}
-	encoders, err := r.Encoders(ctx)
+	job, err := r.sampleAudio(ctx, source, job)
 	if err != nil {
-		return "", err
+		return err
 	}
-	video, audio, err := sampleEncoders(job, encoders)
+	installed, err := r.Encoders(ctx)
 	if err != nil {
-		return "", err
+		return err
 	}
-	var total float64
-	for _, segment := range job.Ranges {
-		total += segment.DurationS
+	video, audio, err := availableEncoders(job, installed)
+	if err != nil {
+		return err
 	}
-	output := job.Output
 	args := sampleEncodeArgs(source, job.Ranges, job, video, audio)
 	if len(job.Ranges) > sampleChunkLimit {
-		var cleanup func()
-		args, cleanup, err = r.sampleChunks(ctx, source, job, video, audio)
+		dir, err := os.MkdirTemp("", "arxgo-samples-")
 		if err != nil {
-			return "", err
+			return fmt.Errorf("create sample chunk directory: %w", err)
 		}
-		defer cleanup()
+		defer os.RemoveAll(dir)
+		if args, err = r.encodeSampleChunks(ctx, dir, source, job, video, audio); err != nil {
+			return err
+		}
 	}
-	// Run refuses an occupied output or part. Validation happens before its
-	// no-replace rename, so an invalid clip never becomes a published preview.
-	run := func(path string) error {
-		return r.Run(ctx, PreviewCommand{
-			Args: args, Output: path, TotalDuration: time.Duration(total * float64(time.Second)),
-			Validate: func(ctx context.Context, part string) error {
-				return r.validateSample(ctx, part, job, total, path)
-			},
-		})
-	}
-	if err = run(output); err != nil {
-		if knownSampleExtension(filepath.Ext(output)) || !unsupportedSampleMuxer(err) {
-			return "", err
-		}
-		fallback := strings.TrimSuffix(output, filepath.Ext(output)) + ".mp4"
-		if fallback == output {
-			return "", err
-		}
-		if r.Log != nil {
-			r.Log.Warn("sample container unsupported; trying mp4", "output", output, "fallback", fallback, "error", err)
-		}
-		if fallbackErr := run(fallback); fallbackErr != nil {
-			return "", errors.Join(err, fallbackErr)
-		}
-		output = fallback
-	}
-	return output, nil
+	return r.Run(ctx, PreviewCommand{
+		Args: args, Output: job.Output, TotalDuration: seconds(job.totalSeconds()),
+		Validate: func(ctx context.Context, part string) error { return r.validateSample(ctx, part, job) },
+	})
 }
 
 func validateSampleJob(source string, job PreviewJob) error {
-	if source == "" || job.Kind != "sample" || job.Output == "" || filepath.Ext(job.Output) == "" ||
-		job.Size.Width < 2 || job.Size.Height < 2 || job.Size.Width%2 != 0 || job.Size.Height%2 != 0 ||
-		len(job.Ranges) == 0 || !sampleQualityValid(job.SampleQuality) {
+	if job.Kind != PreviewSample || len(job.Ranges) == 0 {
 		return errors.New("invalid sample job")
 	}
-	if source == job.Output || PreviewPartPath(job.Output) == source {
-		return errors.New("sample output conflicts with source")
+	if err := job.validate(source); err != nil {
+		return err
 	}
-	for _, segment := range job.Ranges {
-		if segment.StartS < 0 || segment.DurationS <= 0 || math.IsNaN(segment.StartS) ||
-			math.IsNaN(segment.DurationS) || math.IsInf(segment.StartS, 0) || math.IsInf(segment.DurationS, 0) {
+	for _, r := range job.Ranges {
+		if !finite(r.StartS) || !finite(r.DurationS) || r.StartS < 0 || r.DurationS <= 0 {
 			return errors.New("invalid sample range")
 		}
 	}
 	return nil
 }
 
-func sampleQualityValid(q string) bool { return q == "low" || q == "medium" || q == "high" }
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
-func knownSampleExtension(ext string) bool {
-	switch strings.ToLower(ext) {
-	case ".mp4", ".m4v", ".mov", ".3gp", ".mkv", ".webm", ".avi":
-		return true
-	}
-	return false
-}
+func seconds(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
 
-func unsupportedSampleMuxer(err error) bool {
-	return strings.Contains(err.Error(), "Unable to find a suitable output format") ||
-		strings.Contains(err.Error(), "Unable to choose an output format")
-}
-
-func sampleEncoders(job PreviewJob, available map[string]bool) (video, audio string, err error) {
-	video, audio = job.VideoEncoder, job.AudioEncoder
-	if !available[video] {
-		switch video {
-		case "libx264":
-			video = "mpeg4"
-		default:
-			return "", "", fmt.Errorf("required video encoder %s is unavailable", video)
-		}
-		if !available[video] {
-			return "", "", fmt.Errorf("required video encoders %s and %s are unavailable", job.VideoEncoder, video)
-		}
-	}
-	if job.HasAudio {
-		if !available[audio] && audio == "libmp3lame" {
-			audio = "aac"
-		}
-		if !available[audio] {
-			return "", "", fmt.Errorf("required audio encoder %s is unavailable", audio)
-		}
-	}
-	return video, audio, nil
-}
-
-func (r *Runner) validateSample(ctx context.Context, path string, job PreviewJob, total float64, output string) error {
+// validateSample requires a probed video stream at the planned size, audio when the source has
+// it, and a duration close to the plan. An unknown-duration start clip may be shorter.
+func (r *Runner) validateSample(ctx context.Context, path string, job PreviewJob) error {
 	info := r.Probe(ctx, path, "")
 	if info.Error != "" {
 		return fmt.Errorf("ffprobe: %s", info.Error)
@@ -139,18 +82,41 @@ func (r *Runner) validateSample(ctx context.Context, path string, job PreviewJob
 	if job.HasAudio && !info.HasAudio {
 		return errors.New("sample audio is missing")
 	}
-	wantContainer := job.Container
-	if strings.EqualFold(filepath.Ext(output), ".mp4") &&
-		!knownSampleExtension(filepath.Ext(job.Output)) {
-		wantContainer = "mp4"
-	}
-	if wantContainer != "" && info.Container != wantContainer {
-		return fmt.Errorf("sample container %s, want %s", info.Container, wantContainer)
-	}
+	total := job.totalSeconds()
 	tolerance := max(0.5, 0.05*total)
-	if info.DurationS <= 0 || info.DurationS > total+tolerance ||
-		job.DurationKnown && info.DurationS < total-tolerance {
+	if info.DurationS <= 0 || info.DurationS > total+tolerance || job.DurationKnown && info.DurationS < total-tolerance {
 		return fmt.Errorf("sample duration %.3fs, want %.3fs", info.DurationS, total)
 	}
 	return nil
+}
+
+// encodeSampleChunks encodes at most 50 ranges per ffmpeg process into dir and returns the
+// concat-demuxer arguments that join them.
+func (r *Runner) encodeSampleChunks(ctx context.Context, dir, source string, job PreviewJob, video, audio string) ([]string, error) {
+	ext := filepath.Ext(job.Output)
+	var list strings.Builder
+	list.WriteString("ffconcat version 1.0\n")
+	for n, start := 0, 0; start < len(job.Ranges); n, start = n+1, start+sampleChunkLimit {
+		chunk := job
+		chunk.Ranges = job.Ranges[start:min(start+sampleChunkLimit, len(job.Ranges))]
+		name := fmt.Sprintf("chunk%04d%s", n, ext)
+		err := r.Run(ctx, PreviewCommand{
+			Args:   sampleEncodeArgs(source, chunk.Ranges, chunk, video, audio),
+			Output: filepath.Join(dir, name), TotalDuration: seconds(chunk.totalSeconds()),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("sample chunk %d: %w", n+1, err)
+		}
+		fmt.Fprintf(&list, "file '%s'\n", name)
+	}
+	listPath := filepath.Join(dir, "chunks.ffconcat")
+	if err := os.WriteFile(listPath, []byte(list.String()), 0o600); err != nil {
+		return nil, fmt.Errorf("write sample chunk list: %w", err)
+	}
+	args := []string{"-v", "error", "-f", "concat", "-safe", "1", "-i", listPath, "-map", "0:v:0"}
+	if job.HasAudio {
+		args = append(args, "-map", "0:a:0")
+	}
+	args = append(args, "-c", "copy")
+	return append(args, containerArgs(ext)...), nil
 }

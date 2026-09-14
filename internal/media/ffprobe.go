@@ -204,12 +204,15 @@ func validFrameRate(s string) string {
 	return s
 }
 
+// streamRotation returns the clockwise degrees a player applies for display, the convention of the
+// legacy rotate tag and of the ISO BMFF track matrix. Display-matrix side data counts
+// counter-clockwise, so an iPhone portrait video reports -90 there and 90 here.
 func streamRotation(s probeStream) int {
 	for _, side := range s.SideData {
 		if side.Rotation != "" {
 			v, err := strconv.ParseFloat(string(side.Rotation), 64)
 			if err == nil && !math.IsInf(v, 0) && !math.IsNaN(v) {
-				return normalizeRotation(int(math.Round(v)))
+				return normalizeRotation(-int(math.Round(v)))
 			}
 		}
 	}

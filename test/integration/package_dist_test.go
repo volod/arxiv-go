@@ -114,7 +114,7 @@ func TestPackageDist(t *testing.T) {
 		if platform == "windows" {
 			provenance = "GyanD/codexffmpeg"
 		}
-		if err != nil || !strings.Contains(string(notice), "FFmpeg 6.1.1 GPL v3") ||
+		if err != nil || !strings.Contains(string(notice), "FFmpeg "+pinnedFFmpegVersion(t)+" GPL v3") ||
 			!strings.Contains(string(notice), provenance) {
 			t.Errorf("%s licence notice: %v: %s", platform, err, notice)
 		}
@@ -131,4 +131,21 @@ func TestPackageDist(t *testing.T) {
 	if out, err := packageCmd().CombinedOutput(); err == nil || !strings.Contains(string(out), "checksum mismatch") {
 		t.Fatalf("tampered binary must fail before packaging: %v: %s", err, out)
 	}
+}
+
+// pinnedFFmpegVersion reads the approved version from packaging/ffmpeg.lock, which the source
+// notices must name.
+func pinnedFFmpegVersion(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "packaging", "ffmpeg.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if v, ok := strings.CutPrefix(line, "version="); ok {
+			return v
+		}
+	}
+	t.Fatal("ffmpeg.lock has no version")
+	return ""
 }

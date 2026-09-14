@@ -2,13 +2,10 @@ package archive
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 
-	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
@@ -21,6 +18,8 @@ func restoreDestRel(v Candidate, byVideo map[string]report.VideoRow) string {
 	return v.RelPath
 }
 
+// restoreCandidate moves one video back in a transaction: begin, place, placed, remove or keep the
+// stub, stub_removed, remove the source after a copy unless it is kept, commit.
 func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreResolver, v Candidate, destRel string, byVideo map[string]report.VideoRow, c *RestoreConfig, list string) error {
 	src := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(v.RelPath))
 	dst := filepath.Join(s.cfg.Archive, filepath.FromSlash(destRel))
@@ -29,20 +28,15 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 	} else if row.Status == report.StatusRestored {
 		s.Log.Info("registry row already restored; filesystem is the source of truth", "rel_path", destRel)
 	}
-	mode := state.TransferCopy
-	if c.Transfer != transferCopy {
-		same, err := s.cfg.FS.SameDevice(s.cfg.Archive, s.cfg.VideoArchive)
-		if err != nil {
-			return err
-		}
-		if same {
-			mode = state.TransferRename
-		}
+	mode, err := transferMode(s, c.Transfer)
+	if err != nil {
+		return err
 	}
-	for attempt := 0; attempt < 2; attempt++ {
+	t := &transferAttempt{s: s, w: w, list: list, transfer: &c.Transfer, mode: mode}
+	for {
 		fi, err := os.Lstat(src)
 		if err != nil || !fi.Mode().IsRegular() {
-			skipSplit(s, v, missingSourceReason(v.RelPath))
+			skipVideo(s, v, missingSourceReason(v.RelPath))
 			return nil
 		}
 		missing, err := ensureRestoreDirs(s, dst, c.CreateDirs)
@@ -50,133 +44,84 @@ func restoreCandidate(ctx context.Context, s *Session, w *state.WAL, r *RestoreR
 			return err
 		}
 		if missing {
-			skipSplit(s, v, "missing-directory")
+			skipVideo(s, v, "missing-directory")
 			return nil
 		}
 		adopted, conflict, err := destinationStatus(src, dst, fi.Size(), c.Verify)
 		if err != nil {
 			return err
 		}
-		overwrite := false
-		if conflict {
-			if !c.Overwrite {
-				if err := removeStalePart(dst); err != nil {
-					return err
-				}
-				skipSplit(s, v, "destination exists with different content")
-				return nil
+		if conflict && !c.Overwrite {
+			if err := removeStalePart(dst); err != nil {
+				return err
 			}
-			overwrite = true
-			mode = state.TransferCopy
+			skipVideo(s, v, "destination exists with different content")
+			return nil
 		}
-		if adopted && !c.KeepSource {
-			mode = state.TransferCopy
+		if conflict || adopted && !c.KeepSource {
+			t.mode = state.TransferCopy
 		}
-		begin := state.Begin{Op: opRestore, RelPath: destRel, Src: src, Dst: dst,
-			Size: fi.Size(), Mtime: fi.ModTime(), Transfer: mode}
-		rec, err := w.Begin(begin)
+		rec, err := w.Begin(state.Begin{Op: opRestore, RelPath: destRel, Src: src, Dst: dst,
+			Size: fi.Size(), Mtime: fi.ModTime(), Transfer: t.mode})
 		if err != nil {
 			return err
 		}
-		s.Log.Debug("restore begin", "rel_path", destRel, "transfer", mode, "size", fi.Size())
-		tx := state.Tx{Begin: rec, Last: rec}
+		s.Log.Debug("restore begin", "rel_path", destRel, "transfer", t.mode, "size", fi.Size())
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !adopted {
-			_, err = placeVideo(ctx, s, w, rec, mode, c.Verify, overwrite, c.StageCopy)
-			retry, done, e := restorePlaceError(ctx, s, w, rec, v, destRel, list, c, &mode, attempt, err)
-			if e != nil {
-				return e
-			}
-			if done {
-				return nil
-			}
-			if retry {
-				continue
-			}
-		} else {
+		if adopted {
 			s.Log.Info("adopted existing destination", "rel_path", destRel)
-		}
-		if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
-			return err
-		}
-		stub := r.StubPath(tx)
-		if err := r.WriteStub(tx); err != nil {
-			return err
-		}
-		if _, err := w.Append(rec.TxID, state.StepStubRemoved, state.Record{Stub: stub}); err != nil {
-			return err
-		}
-		if mode == state.TransferCopy && !c.KeepSource {
-			if err := r.RemoveSource(tx); err != nil {
-				return err
-			}
-			if _, err := w.Append(rec.TxID, state.StepSourceRemoved, state.Record{}); err != nil {
+		} else if _, err := placeVideo(ctx, s, w, rec, t.mode, c.Verify, conflict, c.StageCopy); err != nil {
+			switch outcome, err := t.placeFailed(ctx, rec, v, err); outcome {
+			case placeRetry:
+				if err != nil {
+					return err
+				}
+				continue
+			case placeSkip:
+				return nil
+			default:
 				return err
 			}
 		}
-		if _, err := w.Append(rec.TxID, state.StepCommit, state.Record{}); err != nil {
-			return err
-		}
-		s.Stats.VideosDone.Add(1)
-		s.Stats.VideoBytes.Add(fi.Size())
-		s.Stats.ArchiveWritten.Add(fi.Size())
-		if !c.KeepSource {
-			s.Stats.VideoArchiveFreed.Add(fi.Size())
-		}
-		if fi.Size() >= c.Scan.LargeThreshold {
-			s.Log.Info("video restored", "rel_path", destRel, "bytes", fi.Size(), "transfer", mode)
-		} else {
-			s.Log.Debug("video restored", "rel_path", destRel, "bytes", fi.Size(), "transfer", mode)
-		}
-		return nil
+		return finishRestore(s, w, r, rec, c)
 	}
-	return nil
 }
 
-func restorePlaceError(ctx context.Context, s *Session, w *state.WAL, rec state.Record, v Candidate, destRel, list string, c *RestoreConfig, mode *string, attempt int, err error) (retry, done bool, out error) {
-	if err == nil {
-		return false, false, nil
+// finishRestore logs placed, removes or keeps the stub, removes the source of a copy unless it is
+// kept and commits.
+func finishRestore(s *Session, w *state.WAL, r *RestoreResolver, rec state.Record, c *RestoreConfig) error {
+	tx := state.Tx{Begin: rec, Last: rec}
+	if _, err := w.Append(rec.TxID, state.StepPlaced, state.Record{}); err != nil {
+		return err
 	}
-	if errors.Is(err, fs.ErrExist) {
-		if e := abortConflict(s, w, rec); e != nil {
-			return false, false, e
-		}
-		skipSplit(s, v, "destination appeared during transfer")
-		return false, true, nil
+	stub := r.StubPath(tx)
+	if err := r.WriteStub(tx); err != nil {
+		return err
 	}
-	if fsops.IsCrossDevice(err) && *mode == state.TransferRename {
-		if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "cross-device rename"}); e != nil {
-			return false, false, e
-		}
-		s.Log.Warn("rename crossed devices; falling back to copy", "rel_path", destRel)
-		*mode = state.TransferCopy
-		c.Transfer = transferCopy
-		left, e := countSplitCandidates(list, w)
-		if e != nil {
-			return false, false, e
-		}
-		if e := preflightSplitFallback(ctx, s, left); e != nil {
-			return false, false, e
-		}
-		return true, false, nil
+	if _, err := w.Append(rec.TxID, state.StepStubRemoved, state.Record{Stub: stub}); err != nil {
+		return err
 	}
-	if errors.Is(err, fsops.ErrSourceChanged) {
-		if e := os.Remove(fsops.PartPath(rec.Dst)); e != nil && !errors.Is(e, fs.ErrNotExist) {
-			return false, false, e
+	if rec.Transfer == state.TransferCopy && !c.KeepSource {
+		if err := r.RemoveSource(tx); err != nil {
+			return err
 		}
-		if _, e := w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "source changed"}); e != nil {
-			return false, false, e
+		if _, err := w.Append(rec.TxID, state.StepSourceRemoved, state.Record{}); err != nil {
+			return err
 		}
-		if attempt == 0 {
-			s.Log.Warn("source changed during transfer; retrying", "rel_path", destRel)
-			return true, false, nil
-		}
-		skipSplit(s, v, "source changed twice during transfer")
-		return false, true, nil
 	}
-	return false, false, err
+	if _, err := w.Append(rec.TxID, state.StepCommit, state.Record{}); err != nil {
+		return err
+	}
+	s.Stats.VideosDone.Add(1)
+	s.Stats.VideoBytes.Add(rec.Size)
+	s.Stats.ArchiveWritten.Add(rec.Size)
+	if !c.KeepSource {
+		s.Stats.VideoArchiveFreed.Add(rec.Size)
+	}
+	logMoved(s, "video restored", rec, c.Scan.LargeThreshold)
+	return nil
 }
 
 // videoRowsByVideoPath indexes registry rows by video_rel_path. The registry lives in a root that

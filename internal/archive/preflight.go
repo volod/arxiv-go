@@ -48,8 +48,7 @@ type Candidates struct {
 	Bytes     int64 // sum of candidate sizes
 	Largest   int64 // largest candidate size
 	MediaRows int64 // scan in media mode: rows that carry media metadata
-	// PreviewBytes is the stage-2 preview estimate written to the archive device by split. It is
-	// zero until previews exist.
+	// PreviewBytes is the estimate of the previews split still has to write to the archive device.
 	PreviewBytes int64
 }
 

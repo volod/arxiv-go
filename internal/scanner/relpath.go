@@ -18,7 +18,18 @@ func reservedName(name string) bool {
 // registry name directly under the root (with everything below them), or a part file at any depth.
 func Reserved(rel string) bool {
 	first, _, _ := strings.Cut(rel, "/")
-	return reservedName(first) || strings.HasSuffix(rel, PartSuffix)
+	return reservedName(first) || IsPartFile(rel)
+}
+
+// IsPartFile reports an arxgo temporary file: a transfer part "<name>.arxgo-part" or a preview
+// part "<stem>.arxgo-part.<ext>", which keeps its extension for ffmpeg's muxer selection.
+func IsPartFile(rel string) bool {
+	name := rel[strings.LastIndex(rel, "/")+1:]
+	if strings.HasSuffix(name, PartSuffix) {
+		return true
+	}
+	i := strings.LastIndex(name, PartSuffix+".")
+	return i >= 0 && !strings.Contains(name[i+len(PartSuffix)+1:], ".")
 }
 
 // LocalRelPath reports whether rel, read from a file such as a registry, is a relative slash path

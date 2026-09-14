@@ -104,21 +104,3 @@ func dropLastRune(s string) string {
 	}
 	return s[:len(s)-n]
 }
-
-// RelStubPath returns the archive-relative slash path of an absolute stub.
-func RelStubPath(archiveRoot, stubAbs string) (string, error) {
-	rel, err := filepath.Rel(archiveRoot, stubAbs)
-	if err != nil {
-		return "", err
-	}
-	return filepath.ToSlash(rel), nil
-}
-
-// MustRelStubPath is RelStubPath that falls back to a slash-converted absolute path.
-func MustRelStubPath(archiveRoot, stubAbs string) string {
-	rel, err := RelStubPath(archiveRoot, stubAbs)
-	if err != nil {
-		return filepath.ToSlash(stubAbs)
-	}
-	return rel
-}

@@ -2,8 +2,6 @@ package archive
 
 import (
 	"context"
-	"runtime"
-	"strings"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/report"
@@ -23,7 +21,6 @@ type RestoreConfig struct {
 	DeletePreviews bool // --previews delete
 	// StageCopy is a test seam. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
-	Resolver  *RestoreResolver
 }
 
 // RestoreBody scans the video archive, preflights, and restores candidates in walk order.
@@ -33,7 +30,11 @@ func RestoreBody(c RestoreConfig) func(context.Context, *Session) error {
 }
 
 func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
-	idx, err := readPreviewIndex(s.cfg.Archive)
+	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
+	if err != nil {
+		return err
+	}
+	idx, err := newPreviewIndex(s.cfg.Archive, history)
 	if err != nil {
 		return err
 	}
@@ -63,11 +64,9 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	if err != nil {
 		return err
 	}
-	if done := int64(w.Committed().Len()); done > s.Stats.VideosDone.Load() {
-		s.Stats.VideosDone.Store(done)
-	}
+	syncCommittedCounter(s, w)
 	list := s.Run.File(state.CandidatesFile)
-	remaining, err := countSplitCandidates(list, w)
+	remaining, err := countRemaining(list, w)
 	if err != nil {
 		return err
 	}
@@ -78,7 +77,7 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		s.Log.Info("dry run: restore plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
-	if err := resumePreviewDeletes(s, w, idx); err != nil {
+	if err := restorePreviewsBeforeExecute(s, w, idx, c.DeletePreviews); err != nil {
 		return err
 	}
 	r := restoreResolverOf(s, c)
@@ -86,17 +85,13 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		return err
 	}
 	var index int64
-	seen := make(map[string]string)
+	folded := caseFoldGuard{}
 	err = ReadCandidates(list, func(v Candidate) error {
 		index++
 		destRel := restoreDestRel(v, byVideo)
-		if runtime.GOOS == "windows" {
-			key := strings.ToLower(destRel)
-			if first, ok := seen[key]; ok && first != destRel {
-				skipSplit(s, v, "destination case-folds to "+first)
-				return nil
-			}
-			seen[key] = destRel
+		if first, clash := folded.clash(destRel); clash {
+			skipVideo(s, v, "destination case-folds to "+first)
+			return nil
 		}
 		if w.Committed().Has(destRel) || w.Committed().Has(v.RelPath) {
 			return nil
@@ -108,7 +103,7 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 			return err
 		}
 		if c.DeletePreviews && w.Committed().Has(destRel) {
-			if err := deleteRecordedPreviews(s, w, idx, destRel); err != nil {
+			if err := deletePreviews(s, w, idx, destRel); err != nil {
 				return err
 			}
 		}
@@ -119,9 +114,7 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		return err
 	}
 	if !c.KeepSource {
-		if err := pruneRestoredDirs(s); err != nil {
-			return err
-		}
+		pruneRestoredDirs(s)
 	}
 	if c.RegistryUpdate {
 		return writeRestoreOutputs(s, c, videos)
@@ -129,22 +122,33 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	return nil
 }
 
-func restoreResolverOf(s *Session, c RestoreConfig) *RestoreResolver {
-	r := c.Resolver
-	if r == nil {
-		switch rr := s.cfg.Recoverer.(type) {
-		case *RestoreResolver:
-			r = rr
-		case RestoreResolver:
-			cp := rr
-			r = &cp
-		default:
-			tmp := NewRestoreResolver(RestoreResolver{
-				FS: s.cfg.FS, Verify: c.Verify, Crash: s.cfg.Crash,
-				KeepStubs: c.KeepStubs, KeepSource: c.KeepSource, Archive: s.cfg.Archive,
-			})
-			r = &tmp
+// restorePreviewsBeforeExecute removes part files of unfinished preview generation, finishes
+// interrupted deletions and, with --previews delete, deletes the previews of videos an earlier
+// process of this run already restored.
+func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, deleteRestored bool) error {
+	if err := idx.removeUnfinishedParts(); err != nil {
+		return err
+	}
+	if err := resumePreviewDeletes(s, w, idx); err != nil {
+		return err
+	}
+	if !deleteRestored {
+		return nil
+	}
+	for _, video := range w.Committed().Paths() {
+		if err := deletePreviews(s, w, idx, video); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// restoreResolverOf returns the resolver installed for recovery, so execution and recovery share
+// its stub hints, with the run's policies. Without one it builds a new resolver.
+func restoreResolverOf(s *Session, c RestoreConfig) *RestoreResolver {
+	r, ok := s.cfg.Recoverer.(RestoreResolver)
+	if !ok {
+		r = NewRestoreResolver(RestoreResolver{Verify: c.Verify})
 	}
 	r.KeepStubs, r.KeepSource, r.Archive = c.KeepStubs, c.KeepSource, s.cfg.Archive
 	if s.cfg.Crash != nil {
@@ -153,5 +157,5 @@ func restoreResolverOf(s *Session, c RestoreConfig) *RestoreResolver {
 	if r.FS == nil {
 		r.FS = s.cfg.FS
 	}
-	return r
+	return &r
 }

@@ -27,7 +27,6 @@ const (
 	ExitInsufficientDisk = 4
 	ExitLocked           = 5
 	ExitPartial          = 6
-	ExitNotImplemented   = 70
 	ExitInterrupted      = 130
 )
 
@@ -42,9 +41,6 @@ const (
 
 // version is overridden at build time with -ldflags "-X .../internal/cli.version=...".
 var version = "dev"
-
-// Version returns the build version string.
-func Version() string { return version }
 
 // Handlers execute validated operations and return an exit code. Handlers must return promptly
 // after ctx is canceled; the dispatcher then reports ExitInterrupted.
@@ -93,7 +89,7 @@ var defaultHandlers = Handlers{
 			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
 			KeepStubs: resolver.KeepStubs, KeepSource: resolver.KeepSource,
-			DeletePreviews: o.Previews == StubsDelete,
+			DeletePreviews: o.Previews == PolicyDelete,
 		}))
 	},
 }

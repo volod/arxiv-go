@@ -269,13 +269,50 @@ func TestInspectStubTreatsNonFilesAsForeign(t *testing.T) {
 	}
 }
 
-func TestReplacePreviewSectionPreservesFollowingNotes(t *testing.T) {
-	stub := []byte("# clip\n\n## Previews\n\n(stage 2: embedded PNG frames and sample clip links)\n\n## Operator notes\n\nKeep this text.\n")
-	first := ReplacePreviewSection(stub, []string{"- [frame](frame.png)"})
-	second := ReplacePreviewSection(first, []string{"- [sample](sample.mp4)"})
-	if !bytes.Contains(second, []byte("## Operator notes\n\nKeep this text.")) ||
-		bytes.Contains(second, []byte("[frame]")) || !bytes.Contains(second, []byte("[sample]")) ||
-		bytes.Count(second, []byte("arxgo-previews-begin")) != 1 {
-		t.Fatalf("preview update changed unrelated content: %s", second)
+func TestMediaLine(t *testing.T) {
+	for rate, want := range map[string]string{
+		"25/1": "1:05 | 1920x1080 | h264 + aac | 25 fps", "30000/1001": "1:05 | 1920x1080 | h264 + aac | 29.97 fps",
+		"12690000/422899": "1:05 | 1920x1080 | h264 + aac | 30.01 fps", "": "1:05 | 1920x1080 | h264 + aac",
+	} {
+		m := &media.MediaInfo{DurationS: 65.4, Width: 1920, Height: 1080, VideoCodec: "h264", AudioCodec: "aac", FrameRate: rate}
+		if got := MediaLine(m); got != want {
+			t.Errorf("%q: %q, want %q", rate, got, want)
+		}
+	}
+}
+
+func TestReplacePreviewSection(t *testing.T) {
+	stub, err := RenderStub(stubInput(false, false, "clip.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withNotes := append(append([]byte(nil), stub...), "\n## Operator notes\n\nKeep this text.\n"...)
+	frame := []PreviewLink{{Name: "clip-img01.png", URL: "clip-img01.png"}}
+	sample := []PreviewLink{{Name: "clip-smpl01.mp4", URL: "clip-smpl01.mp4"}}
+
+	first := ReplacePreviewSection(withNotes, frame)
+	if !bytes.Contains(first, []byte("## Previews\n\n<!-- arxgo-previews-begin -->\n- ![clip-img01.png](clip-img01.png)\n")) {
+		t.Fatalf("appended section:\n%s", first)
+	}
+	second := ReplacePreviewSection(first, sample)
+	if !bytes.HasPrefix(second, withNotes) || bytes.Contains(second, []byte("img01")) ||
+		!bytes.Contains(second, []byte("- [clip-smpl01.mp4](clip-smpl01.mp4)")) ||
+		bytes.Count(second, []byte("## Previews")) != 1 {
+		t.Fatalf("replaced section:\n%s", second)
+	}
+	if again := ReplacePreviewSection(second, sample); !bytes.Equal(again, second) {
+		t.Fatal("unchanged links rewrote the stub")
+	}
+	if removed := ReplacePreviewSection(second, nil); !bytes.Equal(removed, withNotes) {
+		t.Fatalf("removing previews changed other text:\n%q\nwant\n%q", removed, withNotes)
+	}
+	// A section between the stub body and operator notes keeps the notes when removed.
+	middle := ReplacePreviewSection(stub, frame)
+	middle = append(middle, "\n## Operator notes\n"...)
+	if removed := ReplacePreviewSection(middle, nil); !bytes.Equal(removed, append(append([]byte(nil), stub...), "\n## Operator notes\n"...)) {
+		t.Fatalf("middle removal:\n%q", removed)
+	}
+	if got := ReplacePreviewSection(stub, nil); !bytes.Equal(got, stub) {
+		t.Fatal("stub without previews changed")
 	}
 }

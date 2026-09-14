@@ -5,7 +5,8 @@ Accepted work: [0013 Tool discovery](../records/0013-metadata-implement-tool-dis
 [0015 ISO BMFF metadata](../records/0015-metadata-implement-iso-bmff-metadata.md),
 [0016 ffprobe metadata](../records/0016-metadata-implement-ffprobe-metadata.md);
 QuickTime handler fix in [0023](../records/0023-restore-repair-split-restore-round-trip-defects.md);
-audio-only refinement narrowed in [0025](../records/0025-restore-prove-stage-1-on-generated-archive.md).
+audio-only refinement narrowed in [0025](../records/0025-restore-prove-stage-1-on-generated-archive.md);
+presented duration and clockwise rotation in [0034](../records/0034-preview-repair-stage-2-preview-defects.md).
 Specification: [media metadata](../../openspec/stage-1-core/metadata.md). The capability is
 shipped. `--metadata media` requires a working `ffprobe` at startup, even for a scan containing
 only ISO BMFF files; successful ISO BMFF parsing itself does not invoke it.
@@ -19,8 +20,14 @@ stream counts, audio presence, creation time and selected text tags. Unknown sam
 remain as four-character codes. A track's kind comes from the `hdlr` directly inside `mdia`; the
 data handler (`dhlr`) that QuickTime movies also carry inside `minf` is ignored. Before that fix a
 QuickTime `.mov` parsed with no streams and `--metadata media` left it in the archive as not video. The box walk skips `mdat`, limits metadata reads to 32 MiB and
-individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. It reads fragment
-duration from `mehd` or summed fragments, including `trex` defaults and fragments before `moov`.
+individual decoded boxes to 1 MiB, and visits a trailing `moov` by seeking. Duration is the presented
+duration of the movie header (`mvhd`), which honors edit lists: a trimmed QuickTime or phone edit
+keeps its untrimmed media, often in a timecode track, and the longest media duration was up to
+ten times too long for 88 of 560 real MP4/MOV files before
+[0034](../records/0034-preview-repair-stage-2-preview-defects.md). Fragmented files read `mehd`
+or summed fragments of the video and audio tracks, including `trex` defaults and fragments before
+`moov`. On that archive the parser now agrees with ffprobe 6.1.1 within 0.12 s for all 546 files it
+parses; the other 14 fall back to ffprobe.
 
 A successful parse with an audio track and no video track clears `is_video` before statistics and
 the candidate list are written, including for audio-only `.mp4`. A parse with neither keeps the
@@ -37,8 +44,10 @@ capture. A failed command, timeout, malformed JSON or oversized output becomes a
 error; the path is excluded from registry error text.
 
 Typed JSON decoding ignores unknown fields. Normalization fills container, duration (from format
-or stream), bit rate, first video codec and display dimensions, frame rate, rotation from side data
-or tags, audio codec and presence, stream counts, creation time and container tags. Tag values are
+or stream), bit rate, first video codec and display dimensions, frame rate, rotation,  audio codec and presence, stream counts, creation time and container tags. Rotation is the clockwise
+angle a player applies, as in the ISO BMFF track matrix and the legacy `rotate` tag; display-matrix
+side data counts counter-clockwise and is negated, so an iPhone portrait video is `90` from both
+parsers. Tag values are
 limited to 256 bytes. An attached cover picture does not count as a video stream. A successful
 audio-only parse clears `is_video` before statistics and candidates are written. A result with no
 audio or video stream keeps the flag: ffprobe 6.1.1 reads some random bytes named `.avi` as LRC

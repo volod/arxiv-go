@@ -83,10 +83,8 @@ func formatFPS(rate string) string {
 	if err1 != nil || err2 != nil || den == 0 {
 		return rate
 	}
-	if den == 1 && num == math.Trunc(num) {
-		return strconv.FormatInt(int64(num), 10)
-	}
-	return rate
+	// People read 29.97 fps, not the 30000/1001 rational or a variable-rate phone's 12690000/422899.
+	return strconv.FormatFloat(math.Round(num/den*100)/100, 'f', -1, 64)
 }
 
 // ResolutionBand classifies a frame size by its short side: <SD, SD, HD, 4K+.

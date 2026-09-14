@@ -19,6 +19,7 @@ type Stats struct {
 	VideoBytes                              atomic.Int64
 	ArchiveWritten, ArchiveFreed            atomic.Int64
 	VideoArchiveWritten, VideoArchiveFreed  atomic.Int64
+	PreviewsDone, PreviewsFailed            atomic.Int64
 }
 
 // Snapshot returns the current counters.
@@ -29,6 +30,7 @@ func (s *Stats) Snapshot() state.Counters {
 		VideoBytes:     s.VideoBytes.Load(),
 		ArchiveWritten: s.ArchiveWritten.Load(), ArchiveFreed: s.ArchiveFreed.Load(),
 		VideoWritten: s.VideoArchiveWritten.Load(), VideoFreed: s.VideoArchiveFreed.Load(),
+		PreviewsDone: s.PreviewsDone.Load(), PreviewsFailed: s.PreviewsFailed.Load(),
 	}
 }
 
@@ -44,6 +46,8 @@ func (s *Stats) Restore(c state.Counters) {
 	s.ArchiveFreed.Store(c.ArchiveFreed)
 	s.VideoArchiveWritten.Store(c.VideoWritten)
 	s.VideoArchiveFreed.Store(c.VideoFreed)
+	s.PreviewsDone.Store(c.PreviewsDone)
+	s.PreviewsFailed.Store(c.PreviewsFailed)
 }
 
 // Totals are the known work of a phase. A phase with zero Items has an unknown total (scan): its

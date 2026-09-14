@@ -99,7 +99,7 @@ func TestDefaults(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferAuto, Verify: VerifySize,
-		Stubs: StubsDelete, RegistryUpdate: true, Previews: StubsKeep,
+		Stubs: PolicyDelete, RegistryUpdate: true, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore defaults\n got %+v\nwant %+v", restore, wantRestore)
@@ -155,7 +155,7 @@ func TestEveryFlagParses(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferCopy, Verify: VerifyHash,
-		Stubs: StubsKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false, Previews: StubsKeep,
+		Stubs: PolicyKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore options\n got %+v\nwant %+v", restore, wantRestore)

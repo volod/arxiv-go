@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
 const opTimeout = 5 * time.Minute
@@ -47,9 +49,15 @@ func buildArxgo(t *testing.T) *arxgoBin {
 	if msg, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build arxgo: %v\n%s", err, msg)
 	}
+	// The binary finds ffmpeg and ffprobe on PATH; put the pinned tools first so it runs the same
+	// build as the live tests.
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(strings.ToUpper(kv), "ARXGO_") {
+		switch upper := strings.ToUpper(kv); {
+		case strings.HasPrefix(upper, "ARXGO_"):
+		case strings.HasPrefix(upper, "PATH="):
+			env = append(env, "PATH="+tooltest.PinnedDir()+string(os.PathListSeparator)+kv[len("PATH="):])
+		default:
 			env = append(env, kv)
 		}
 	}

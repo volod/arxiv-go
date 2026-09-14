@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,7 @@ const DetectLimit = 4096
 const (
 	MIMEEmpty       = "inode/x-empty"
 	MIMEOctetStream = "application/octet-stream"
+	MIMEAppleDouble = "multipart/appledouble"
 	mimeTextPlain   = "text/plain"
 )
 
@@ -28,6 +30,9 @@ var BuiltinVideoExtensions = []string{
 	"mp4", "m4v", "mov", "qt", "3gp", "3g2", "mkv", "webm", "avi", "wmv", "asf", "flv", "f4v",
 	"mpg", "mpeg", "m2v", "ts", "m2ts", "mts", "vob", "ogv", "mxf", "dv", "rm", "rmvb",
 }
+
+// appleDoubleMagic starts an AppleDouble header file.
+var appleDoubleMagic = []byte{0x00, 0x05, 0x16, 0x07}
 
 // textMIMEs are non-text/plain descendants that still count as text.
 var textMIMEs = map[string]bool{
@@ -97,6 +102,11 @@ func Classify(head []byte, name string, opts DetectOptions) FileType {
 	}
 	if len(head) > DetectLimit {
 		head = head[:DetectLimit]
+	}
+	if bytes.HasPrefix(head, appleDoubleMagic) {
+		// The "._<name>" sidecar macOS writes on filesystems without extended attributes keeps
+		// the extension of the file it describes but holds only Finder metadata.
+		return FileType{MIME: MIMEAppleDouble, IsBinary: true}
 	}
 	m := mimetype.Detect(head)
 	ft := FileType{MIME: stripParams(m.String())}

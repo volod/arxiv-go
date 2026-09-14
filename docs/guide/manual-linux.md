@@ -11,7 +11,7 @@ Download the `arxgo-<version>-linux-amd64.tar.gz` bundle for Linux amd64. It con
 already beside `arxgo`; no separate installation or Go toolchain is needed. The bundle never
 contains a configured `.env` file.
 `LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence,
-`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 6.1.1 source link, and
+`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 9.0.1 source link, and
 `LICENSES/arxgo-MIT.txt` covers arxgo itself.
 
 From the directory containing the downloaded archive, extract and verify it:
@@ -120,10 +120,26 @@ spacing, while `--image-every` controls frame spacing. `sd`, `hd` and `4k` are u
 bounds; `low`, `medium` and `high` select quality. Active preview modes require working
 `ffmpeg` and `ffprobe`, discovered beside `arxgo` or on `PATH`.
 
-Preview generation reads the video in its destination archive after the move commits. If
-encoding fails, the video remains moved, the issue is reported with exit 6, and a later `split`
-with the same preview settings can create missing previews. A later split scan excludes recorded
-preview clips from video candidates.
+Samples keep the source container when it holds H.264/AAC (MP4, M4V, MOV, 3GP, 3G2, F4V, FLV, MKV,
+TS, M2TS, MTS), WebM uses VP9/Opus and AVI MPEG-4/MP3. Other sources, such as MPEG-PS `.mpg`,
+`.vob`, `.ogv`, `.wmv`, `.mxf` or GoPro `.LRV`, get an `.mp4` sample and a warning. Only the first
+video and audio streams are encoded. Metadata tracks that cameras and phones add (GoPro telemetry
+`gpmd`, GoPro SOS `fdsc`, timecode, Apple metadata) stay untouched in the moved video; a desktop
+player that asks for `meta/x-gst-fourcc-gpmd` or similar "codecs" is reporting those tracks, not a
+problem arxgo needs to solve. Rotated phone videos produce upright previews. Samples use the first
+audio track that the bundled FFmpeg 9.0.1 can decode. Apple spatial audio (`apac`) decodes only on
+Apple systems: iPhone videos also carry a normal AAC track that samples use, and a video with no
+decodable audio gets a silent sample and a warning. A source without a video stream gets no
+previews and a warning.
+
+Previews are generated from the moved video after its transfer commits. A failed preview leaves the
+video moved, is counted as `previews_failed` in `report.json`, listed under "Preview failures" in
+`arxgo-videos.md`, and makes the run exit 6; rerun `split` with the same preview options to create
+the missing ones. A rerun never regenerates a preview that still has its recorded size, and it
+keeps an existing preview name even when you change modes or quality; delete a preview file to
+have the next split regenerate it with the new options. Recorded previews and their
+temporary `*.arxgo-part.*` files are never treated as videos by later scans. macOS `._<name>`
+sidecar files are recognized as metadata, not videos.
 
 ## Restore videos
 
@@ -139,7 +155,9 @@ parent directory in the main archive was removed, the default skips that video (
 you explicitly use `--overwrite`. The default `--stubs delete` removes only matching
 arxgo-owned stubs; `--stubs keep` preserves them. The default `--previews keep` leaves
 previews; `--previews delete` removes only recorded previews whose sizes still match, preserving
-changed or unrelated files. The default updates both video registries to show restored rows;
+changed or unrelated files. If a restore with `--previews delete` is interrupted, rerunning the same
+command also deletes the previews of videos it had already restored. A kept stub (`--stubs keep`)
+loses the links of deleted previews. The default updates both video registries to show restored rows;
 completed registries may be renamed with `.restored-<run-id>` rather than deleted.
 
 Restore's default `--transfer auto` renames on one device or copies, verifies and removes the
@@ -157,6 +175,10 @@ command to recover unfinished transfers and resume at its checkpoint. `--new-run
 unfinished transfers first, then scans anew. Do not edit the WAL or remove a video that recovery
 may need. If options changed or a new command cannot lock the interrupted run's original roots,
 follow its exit-5 message and rerun against those roots first.
+
+The run state stores the roots it was started with. Moving or remounting a whole archive (for
+example a disk that mounts under another path) keeps previews and registry links working, but
+interrupted runs must finish first under their original paths.
 
 Only one run may use an archive at a time. Exit 5 can mean a live lock or one requiring operator
 action. `--force-unlock` is for a stale lock from a dead process on this host; it will not take

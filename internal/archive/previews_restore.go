@@ -9,63 +9,58 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
+// resumePreviewDeletes finishes deletions whose preview_delete was logged by an earlier process.
 func resumePreviewDeletes(s *Session, w *state.WAL, idx *previewIndex) error {
-	for rel, byPath := range idx.pending {
-		for path, generating := range byPath {
-			if generating {
-				continue
-			}
-			if err := deleteRecordedPreview(s, w, idx, rel, path); err != nil {
+	for _, video := range sortedKeys(idx.deleting) {
+		for _, preview := range idx.deleting.sorted(video) {
+			if err := deletePreview(s, w, idx, video, preview); err != nil {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-func deleteRecordedPreviews(s *Session, w *state.WAL, idx *previewIndex, rel string) error {
-	for _, path := range idx.list(rel) {
-		if err := deleteRecordedPreview(s, w, idx, rel, path); err != nil {
+		if err := refreshPreviewStub(s, idx, video); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// deleteRecordedPreview refuses directories and links, and checks the recorded byte size before
-// removal. The begin event is durable before the delete and a repeated deletion is idempotent.
-func deleteRecordedPreview(s *Session, w *state.WAL, idx *previewIndex, rel, path string) error {
-	want := idx.owned[rel][path]
-	if want <= 0 {
-		return nil
+// deletePreviews removes the recorded previews of a restored video, then updates a kept stub.
+func deletePreviews(s *Session, w *state.WAL, idx *previewIndex, video string) error {
+	for _, preview := range idx.owned.sorted(video) {
+		if err := deletePreview(s, w, idx, video, preview); err != nil {
+			return err
+		}
 	}
-	abs := filepath.Join(s.cfg.Archive, filepath.FromSlash(path))
+	return refreshPreviewStub(s, idx, video)
+}
+
+// deletePreview removes one preview only when it is still a regular file with the recorded size;
+// a changed file is kept and reported. preview_delete is durable before the removal, and a file
+// already gone after a logged intent completes the deletion.
+func deletePreview(s *Session, w *state.WAL, idx *previewIndex, video, preview string) error {
+	want := idx.owned[video][preview]
+	if want <= 0 {
+		want = idx.deleting[video][preview]
+	}
+	abs := idx.abs(preview)
 	if err := noSymlinkParents(s.cfg.Archive, abs); err != nil {
 		return err
 	}
 	fi, err := os.Lstat(abs)
-	if os.IsNotExist(err) {
-		// The previous process may have removed the file after preview_delete was logged.
-		return recordPreviewDeletion(s, w, idx, rel, path, want, false)
-	}
-	if err != nil {
+	switch {
+	case os.IsNotExist(err):
+	case err != nil:
 		return err
-	}
-	if !fi.Mode().IsRegular() || fi.Size() != want {
-		s.Issue(state.IssueSkipped, rel, fmt.Sprintf("preview size or type changed; kept %s", path))
+	case !fi.Mode().IsRegular() || fi.Size() != want:
+		s.Issue(state.IssueSkipped, video, fmt.Sprintf("preview size or type changed; kept %s", preview))
 		return nil
 	}
-	return recordPreviewDeletion(s, w, idx, rel, path, want, true)
-}
-
-func recordPreviewDeletion(s *Session, w *state.WAL, idx *previewIndex, rel, path string, want int64, remove bool) error {
-	abs := filepath.Join(s.cfg.Archive, filepath.FromSlash(path))
-	begin, err := w.BeginPreview(rel, abs, want, true)
+	begin, err := w.BeginPreview(video, abs, want, true)
 	if err != nil {
 		return err
 	}
-	if remove {
-		if err := os.Remove(abs); err != nil {
+	if fi != nil {
+		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		if err := fsops.SyncDir(filepath.Dir(abs)); err != nil {
@@ -73,20 +68,18 @@ func recordPreviewDeletion(s *Session, w *state.WAL, idx *previewIndex, rel, pat
 		}
 		s.Stats.ArchiveFreed.Add(want)
 	}
-	delete(idx.owned[rel], path)
-	if err := refreshPreviewStub(s, rel, idx.list(rel)); err != nil {
+	if _, err := w.FinishPreview(begin.TxID, state.StepPreviewDeleted, "", want, ""); err != nil {
 		return err
 	}
-	if _, err := w.FinishPreview(begin.TxID, state.StepPreviewDeleted, abs, want, ""); err != nil {
-		return err
-	}
-	delete(idx.pending[rel], path)
+	idx.owned.remove(video, preview)
+	idx.deleting.remove(video, preview)
 	return nil
 }
 
+// noSymlinkParents requires every parent of path up to root to be a real directory, so a deletion
+// never follows a link out of the archive.
 func noSymlinkParents(root, path string) error {
-	dir := filepath.Dir(path)
-	for {
+	for dir := filepath.Dir(path); dir != root; {
 		fi, err := os.Lstat(dir)
 		if err != nil {
 			return err
@@ -94,13 +87,11 @@ func noSymlinkParents(root, path string) error {
 		if !fi.IsDir() {
 			return fmt.Errorf("preview parent is not a directory: %s", dir)
 		}
-		if dir == root {
-			return nil
-		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			return fmt.Errorf("preview path outside archive: %s", path)
 		}
 		dir = parent
 	}
+	return nil
 }

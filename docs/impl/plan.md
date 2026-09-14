@@ -25,27 +25,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Media previews -- `media-previews`
-
-#### review-stage-2-previews
-
-Review preview integration before cloud publishing builds on the stage-2 WAL and registry.
-
-- Serves: `media-previews` -- [Development integrity](../openspec/spec.md#development-integrity)
-- Agent status: CLEAR
-- Task kind: checkpoint
-- Dependencies: [Preview integration](records/0030-preview-integrate-previews-into-split-and-restore.md); [Release bundle](records/0032-preview-implement-release-bundle-with-ffmpeg.md).
-- User-visible outcome: Stage 2 is coherent and stage 3 can rely on its contracts.
-- Scope boundary: Preview WAL/recovery, naming/exclusion invariants, restore cleanup, bundle
-  licensing evidence, Windows code paths by review and cross-compilation (runtime checks deferred to
-  the Windows scenario). Add missing behavior tests; no speculative refactor.
-- Data and artifact paths: Stage-2 records, `internal/media/`, `internal/archive/`.
-- Execution path: Invariant-to-evidence table, targeted tests, routed notes.
-- Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
-  passes.
-- Documentation target: `docs/impl/current.md`
-- Review checkpoint: none; this is the bounded checkpoint.
-
 ### Cloud publishing -- `cloud-publishing`
 
 #### research-cloud-target-apis
@@ -55,7 +34,7 @@ Confirm or amend the cloud target design against current Google Drive and Micros
 - Serves: `cloud-publishing` -- [Cloud targets](../openspec/stage-3-cloud/cloud-targets.md)
 - Agent status: CLEAR
 - Research: yes
-- Dependencies: `review-stage-2-previews`.
+- Dependencies: [Stage-2 review](records/0033-preview-review-stage-2-previews.md).
 - User-visible outcome: The stage-3 specification reflects verified upload, resume, hash, auth and
   quota behavior, and dependency choices keep a static single binary.
 - Scope boundary: Documentation research, small throwaway probes outside the repository, spec

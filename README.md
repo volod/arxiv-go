@@ -18,17 +18,17 @@ make setup
 creates an optional `bin/.env` from [.env.example](.env.example). `make build-all` builds just
 the two static executables.
 
-The planned distribution command is `make dist`. It will create a Linux tarball and Windows
-ZIP in `dist/`, each containing `arxgo`, the matching FFmpeg tools, `.env.example`, a practical
-manual, licences and checksums. **`make dist` is not implemented yet**, so no distribution
-bundle can be produced from the current checkout.
+To create distribution bundles, run `make dist`. It writes a Linux tarball and a Windows ZIP to
+`dist/`, each containing the static executable, the matching pinned FFmpeg 9.0.1 tools,
+`.env.example`, the practical manual, licences and checksums (see the
+[development guide](docs/guide/development.md) for release details).
 
-After a bundle is available, extract the archive for the target host and run its executable
-from the extracted directory:
+Copy the bundle for the target host, extract it and run the executable from the extracted
+directory:
 
 ```text
-Linux:              ./arxgo scan --archive /path/to/archive
-Windows PowerShell: .\arxgo.exe scan --archive 'D:\archive'
+Linux:              ./arxgo split --archive /data/archive --video-archive /mnt/video --dry-run
+Windows PowerShell: .\arxgo.exe split --archive 'D:\archive' --video-archive 'E:\video' --dry-run
 ```
 
 The [Linux manual](docs/guide/manual-linux.md) and

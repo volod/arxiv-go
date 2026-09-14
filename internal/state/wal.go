@@ -18,8 +18,8 @@ import (
 const WALVersion = 1
 const PreviewWALVersion = 2
 
-// WAL steps. Restore uses stub_removed in place of stubbed. Preview events are independent
-// sub-records after commit; published is reserved for stage 3.
+// Step names a WAL record. Restore uses stub_removed in place of stubbed. Preview events are
+// independent sub-records after the commit of the video they serve.
 type Step string
 
 // Transaction steps recorded in the WAL.
@@ -33,13 +33,11 @@ const (
 	StepSourceRemoved  Step = "source_removed"
 	StepCommit         Step = "commit"
 	StepAborted        Step = "aborted"
-	StepPreview        Step = "preview"
 	StepPreviewBegin   Step = "preview_begin"
 	StepPreviewDone    Step = "preview_done"
 	StepPreviewFailed  Step = "preview_failed"
 	StepPreviewDelete  Step = "preview_delete"
 	StepPreviewDeleted Step = "preview_deleted"
-	StepPublished      Step = "published"
 )
 
 // Transfer recorded on begin: copy path vs same-device rename.

@@ -17,7 +17,3 @@ This video was moved to the video archive by arxgo.
 - Absolute path: `/mnt/nas/video/projects/2024/interview.mp4`
 - Cloud link: <https://storage.example.com/video/projects/2024/interview.mp4>
 - Size: 700.0 MiB
-
-## Previews
-
-(stage 2: embedded PNG frames and sample clip links)

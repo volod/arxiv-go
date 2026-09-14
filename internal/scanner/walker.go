@@ -223,7 +223,7 @@ func (w *walker) excluded(rel string, key Key) bool {
 	if len(key) == 1 && reservedName(key[0]) {
 		return true
 	}
-	if strings.HasSuffix(rel, PartSuffix) || w.skip[rel] {
+	if IsPartFile(rel) || w.skip[rel] {
 		return true
 	}
 	for _, g := range w.globs {

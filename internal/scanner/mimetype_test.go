@@ -158,6 +158,11 @@ func TestVideoExtensionOptions(t *testing.T) {
 	if Classify([]byte("text"), "a.braw", opts).IsVideo || Classify(pngSignature, "a.mkv", opts).IsVideo {
 		t.Error("extension list applied to an unambiguous signature")
 	}
+	// A macOS AppleDouble sidecar "._clip.MP4" describes a video but is Finder metadata.
+	appleDouble := append([]byte{0x00, 0x05, 0x16, 0x07, 0x00, 0x02, 0x00, 0x00}, "Mac OS X        "...)
+	if ft := Classify(appleDouble, "._clip.MP4", opts); ft.IsVideo || ft.IsMedia || ft.MIME != MIMEAppleDouble || !ft.IsBinary {
+		t.Errorf("AppleDouble sidecar = %+v", ft)
+	}
 }
 
 func TestIsBinaryHierarchy(t *testing.T) {
@@ -178,18 +183,6 @@ func TestIsBinaryHierarchy(t *testing.T) {
 	} {
 		if ft := Classify(head, "f", DetectOptions{}); !ft.IsBinary {
 			t.Errorf("%q detected as %s must be binary", head, ft.MIME)
-		}
-	}
-}
-
-func TestStripParams(t *testing.T) {
-	for in, want := range map[string]string{
-		"text/plain; charset=utf-8": "text/plain",
-		" Text/HTML ;charset=x":     "text/html",
-		"video/mp4":                 "video/mp4",
-	} {
-		if got := stripParams(in); got != want {
-			t.Errorf("stripParams(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

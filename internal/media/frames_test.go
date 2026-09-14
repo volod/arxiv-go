@@ -57,10 +57,10 @@ func runFrames(t *testing.T, r *Runner, source string, jobs []PreviewJob) []stri
 }
 
 func TestFrameArgsAndInvalidJobs(t *testing.T) {
-	job := PreviewJob{Kind: "image", Output: "x-img01.png", TimeS: 1.25,
-		Size: PreviewSize{320, 240}, ImageQuality: "low"}
+	job := PreviewJob{Kind: PreviewImage, Output: "x-img01.png", TimeS: 1.25,
+		Size: PreviewSize{320, 240}, Quality: "low"}
 	for quality, level := range map[string]string{"low": "9", "medium": "6", "high": "3"} {
-		job.ImageQuality = quality
+		job.Quality = quality
 		want := []string{"-v", "error", "-ss", "1.250000", "-i", "source.mp4",
 			"-map", "0:v:0", "-frames:v", "1", "-vf", "scale=320:240:flags=lanczos,setsar=1",
 			"-compression_level", level}
@@ -72,19 +72,19 @@ func TestFrameArgsAndInvalidJobs(t *testing.T) {
 		}
 	}
 	for _, invalid := range []PreviewJob{
-		{Kind: "sample", Output: job.Output, Size: job.Size, ImageQuality: "high"},
-		{Kind: "image", Output: "x.jpg", Size: job.Size, ImageQuality: "high"},
-		{Kind: "image", Output: job.Output, Size: PreviewSize{319, 240}, ImageQuality: "high"},
-		{Kind: "image", Output: job.Output, Size: job.Size, TimeS: -1, ImageQuality: "high"},
-		{Kind: "image", Output: job.Output, Size: job.Size, TimeS: math.NaN(), ImageQuality: "high"},
-		{Kind: "image", Output: job.Output, Size: job.Size, TimeS: math.Inf(1), ImageQuality: "high"},
-		{Kind: "image", Output: job.Output, Size: job.Size, ImageQuality: "bogus"},
+		{Kind: PreviewSample, Output: job.Output, Size: job.Size, Quality: "high"},
+		{Kind: PreviewImage, Output: "x.jpg", Size: job.Size, Quality: "high"},
+		{Kind: PreviewImage, Output: job.Output, Size: PreviewSize{319, 240}, Quality: "high"},
+		{Kind: PreviewImage, Output: job.Output, Size: job.Size, TimeS: -1, Quality: "high"},
+		{Kind: PreviewImage, Output: job.Output, Size: job.Size, TimeS: math.NaN(), Quality: "high"},
+		{Kind: PreviewImage, Output: job.Output, Size: job.Size, TimeS: math.Inf(1), Quality: "high"},
+		{Kind: PreviewImage, Output: job.Output, Size: job.Size, Quality: "bogus"},
 	} {
 		if err := validateFrameJob("source.mp4", invalid); err == nil {
 			t.Fatalf("accepted invalid job: %+v", invalid)
 		}
 	}
-	job.ImageQuality = "high"
+	job.Quality = "high"
 	for _, source := range []string{"x-img01.png", "x-img01.arxgo-part.png"} {
 		if err := validateFrameJob(source, job); err == nil {
 			t.Fatalf("accepted source/output conflict: %s", source)
@@ -120,8 +120,8 @@ func TestFramePNGValidationAndFailedPublish(t *testing.T) {
 		t.Fatalf("invalid PNG: %v", err)
 	}
 	r := helperRunner(t, "success")
-	job := PreviewJob{Kind: "image", Output: filepath.Join(dir, "new.png"),
-		Size: PreviewSize{4, 2}, ImageQuality: "medium"}
+	job := PreviewJob{Kind: PreviewImage, Output: filepath.Join(dir, "new.png"),
+		Size: PreviewSize{4, 2}, Quality: "medium"}
 	if err := r.GenerateFrame(context.Background(), "source.mp4", job); err == nil || !strings.Contains(err.Error(), "decode") {
 		t.Fatalf("invalid ffmpeg output: %v", err)
 	}

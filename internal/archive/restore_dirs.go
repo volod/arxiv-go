@@ -67,7 +67,7 @@ func ensureRestoreDirs(s *Session, dst string, create bool) (missing bool, err e
 		if e := fsops.SyncDir(filepath.Dir(path)); e != nil {
 			return false, e
 		}
-		if e := hitSplit(s.cfg.Crash, "fs:mkdir"); e != nil {
+		if e := hitCrash(s.cfg.Crash, "fs:mkdir"); e != nil {
 			return false, e
 		}
 	}
@@ -79,29 +79,25 @@ func ensureRestoreDirs(s *Session, dst string, create bool) (missing bool, err e
 // Restores committed by any run count, so a run that replaced an interrupted restore also cleans
 // up after it. The cleanup is best effort: a directory that cannot be read or removed is logged and
 // kept, so an unrelated unreadable directory never fails the run.
-func pruneRestoredDirs(s *Session) error {
-	runs, err := runsInStartOrder(s.cfg.Archive)
+func pruneRestoredDirs(s *Session) {
+	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
 	if err != nil {
-		return err
+		s.Log.Warn("video archive cleanup: run logs unreadable", "error", err)
+		return
 	}
 	dirs := map[string]struct{}{}
-	for _, rd := range runs {
-		recs, err := state.ReadWALRecords(rd.File(state.WALFile))
-		if err != nil {
-			s.Log.Warn("video archive cleanup: run log unreadable", "run_id", rd.ID, "error", err)
-			continue
-		}
+	for _, run := range history {
 		src := map[string]string{}
-		for _, rec := range recs {
+		for _, rec := range run.records {
 			switch {
 			case rec.Step == state.StepBegin && rec.Op == opRestore:
 				src[rec.TxID] = rec.Src
 			case rec.Step == state.StepCommit && src[rec.TxID] != "":
-				rel, err := filepath.Rel(s.cfg.VideoArchive, filepath.Dir(src[rec.TxID]))
-				if err != nil || rel == "." || !filepath.IsLocal(rel) {
-					continue // a video at the root, or one restored from another video archive
+				rel, ok := run.videoRel(src[rec.TxID])
+				if !ok {
+					continue // restored from another video archive
 				}
-				for d := filepath.ToSlash(rel); d != "."; d = path.Dir(d) {
+				for d := path.Dir(rel); d != "."; d = path.Dir(d) {
 					dirs[d] = struct{}{}
 				}
 			}
@@ -130,5 +126,4 @@ func pruneRestoredDirs(s *Session) error {
 			s.Log.Warn("video archive directory not removed", "dir", rel, "error", err)
 		}
 	}
-	return nil
 }

@@ -73,3 +73,6 @@ each one as deferred to this scenario; the step column shows where it is checked
 | `AUD-implement-file-type-detection-4` | Detection open on files locked by another process or denied by ACL returns an error counted unreadable | W5 |
 | `AUD-implement-tool-discovery-1` | `LookPath` on `.exe` candidates, `-version` via `CreateProcess`, timeout kill; only `.exe` names are candidates, so runtime checks use the helper-process tests and a real `ffprobe.exe` | W6 |
 | `AUD-review-stage-1-integrity-1` | Registry path validation (`filepath.IsLocal` device names, `\`), replaced-run root comparison by recorded spelling, cleanup `filepath.Rel` case folding | W7 |
+| `AUD-review-stage-2-previews-2` | WAL paths resolved against the roots recorded in `options.json` with `filepath.Rel` (drive-letter case, UNC spelling, a root remapped to another drive letter); preview deletion's parent walk compared with the root string | W7a |
+| `AUD-implement-release-bundle-with-ffmpeg-1` | Bundled `ffmpeg.exe`/`ffprobe.exe` discovery and preview generation from the extracted ZIP | W8 |
+| `AUD-upgrade-bundled-ffmpeg-to-9-1` | The FFmpeg 9.0.1 `ffmpeg.exe`/`ffprobe.exe` (hashed and inspected only), including the audio decode check before a sample | W8 |

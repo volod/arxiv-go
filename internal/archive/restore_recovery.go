@@ -62,7 +62,7 @@ func (r RestoreResolver) DeletePart(tx state.Tx) error {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	return hitSplit(r.Crash, "fs:delete_part")
+	return hitCrash(r.Crash, "fs:delete_part")
 }
 
 // StubPath is the owned stub that WriteStub removes (or keeps with --stubs keep), or "" when
@@ -73,11 +73,11 @@ func (r RestoreResolver) StubPath(tx state.Tx) string {
 
 func (r RestoreResolver) WriteStub(tx state.Tx) error {
 	if r.KeepStubs {
-		return hitSplit(r.Crash, "fs:stub")
+		return hitCrash(r.Crash, "fs:stub")
 	}
 	path := r.ownedStub(tx)
 	if path == "" {
-		return hitSplit(r.Crash, "fs:stub")
+		return hitCrash(r.Crash, "fs:stub")
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -85,7 +85,7 @@ func (r RestoreResolver) WriteStub(tx state.Tx) error {
 	if err := fsops.SyncDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	return hitSplit(r.Crash, "fs:stub")
+	return hitCrash(r.Crash, "fs:stub")
 }
 
 func (r RestoreResolver) RemoveSource(tx state.Tx) error {

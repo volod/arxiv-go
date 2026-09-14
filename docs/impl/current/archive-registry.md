@@ -83,7 +83,7 @@ below it, in walk order. It performs no type detection and writes no output.
   the cursor's path are descended silently. Resuming near the end of a 20k-entry tree costs about
   0.1 ms instead of 33 ms for the full walk.
 - Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-videos.md`; the
-  `.arxgo-part` suffix at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
+  `.arxgo-part` suffix and preview part files `<stem>.arxgo-part.<ext>` at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
   `--registry` or a nested video archive); and `Options.Exclude` globs compiled by `CompileGlob`
   (anchored at the root, `path.Match` per segment, `**` for zero or more segments, linear-time
   matching). Excluded directories are pruned. `cli` validates `--exclude` with the same
@@ -99,8 +99,6 @@ below it, in walk order. It performs no type detection and writes no output.
   cursor. A missing, non-directory or unlistable root, a context cancellation, or a callback error
   ends the walk with an error; `ErrStop` from the callback ends it cleanly. `fs.SkipDir` and
   `fs.SkipAll` from the callback are rejected because the held-back directory makes them ambiguous.
-- `Stats.Count(Entry)` accumulates directories, files, symlinks, special entries and skipped counts
-  by reason; the scan operation will persist it in the checkpoint so resumed runs keep counting.
 
 Measured on the development host (i9-14900K, NVMe ext4, Go 1.27.1): 20,420-entry generated tree
 in about 33 ms per full walk (about 20% over bare `WalkDir` plus `Info`); `/usr/share`
@@ -127,7 +125,11 @@ row; `Classify(head, name, opts)` is the pure part over already-read bytes. Neit
   CSV, NDJSON, shell scripts and UTF-8/UTF-16 text with a BOM are text.
 - `IsVideo` is a `video/` type, or `application/octet-stream` with an extension in
   `BuiltinVideoExtensions` or the extras given to `NewDetectOptions` (dot and case ignored). A
-  recognized signature always wins over the extension, so text named `.mp4` is not video.
+  recognized signature always wins over the extension, so text named `.mp4` is not video. A
+  macOS AppleDouble sidecar (`._clip.MP4`, magic `00 05 16 07`) is `multipart/appledouble`,
+  binary and never video: before [0034](../records/0034-preview-repair-stage-2-preview-defects.md)
+  42 such 4 KiB files on an operator drone archive were moved as videos with previews that failed
+  on every rerun.
   `IsPicture` is an `image/` type; `IsMedia` is video, picture or `audio/`.
 - `IsLarge` is `size >= LargeThreshold` using the size recorded for the row; a threshold of zero
   marks nothing large.

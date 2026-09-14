@@ -132,18 +132,24 @@ moved_at: 2026-09-13T10:17:42Z
 This video was moved to the video archive by arxgo.
 
 - Video archive: [interview.mp4](../../../../mnt/nas/video/projects/2024/interview.mp4)
+- Absolute path: `/mnt/nas/video/projects/2024/interview.mp4`
 - Cloud link: <https://storage.example.com/video/projects/2024/interview.mp4>
 - Size: 700.0 MiB
 - Duration: 30:34 | 1920x1080 | h264 + aac | 25 fps
 
 ## Previews
 
-- [interview-smpl01.mp4](interview-smpl01.mp4)
+<!-- arxgo-previews-begin -->
 - ![interview-img01.png](interview-img01.png)
+- [interview-smpl01.mp4](interview-smpl01.mp4)
+<!-- arxgo-previews-end -->
 ```
 
 Rules: relative links are URL-escaped per segment; lines absent for missing data are omitted; the
-file is written atomically; front matter keys are stable and additive.
+file is written atomically; front matter keys are stable and additive. The `## Previews` section
+exists only while the video has completed previews; its list sits between the
+`<!-- arxgo-previews-begin -->` and `<!-- arxgo-previews-end -->` comments, which arxgo rewrites
+without touching operator text elsewhere in the stub.
 
 ## Archive summary
 
@@ -167,7 +173,9 @@ the same JSON Lines WAL and the same `txid` and `seq` scheme. They use `rel_path
 video, `dst` for the absolute path in the main archive, `size` on completion or deletion, and
 `reason` on failure. `preview_begin`/`preview_done`/`preview_failed` surround generation;
 `preview_delete`/`preview_deleted` surround size-checked restore cleanup. A preview event may
-belong to a later run than the video move it serves. Later stage-1 steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
+belong to a later run than the video move it serves. Readers of earlier runs resolve absolute `src`,
+`dst` and `stub` paths against the `archive` and `video_archive` roots in that run's
+`options.json`, so the registries stay correct after a root is mounted or renamed elsewhere. Later stage-1 steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
 `verified`, `stub` on `stubbed`/`stub_removed`: the stub written, or the owned stub restore removed
 or kept, omitted when there is none; `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
 increases by one for each record in the file. Records are shown wrapped here; on disk each is one
@@ -217,8 +225,8 @@ types, durations in nanoseconds and sizes in bytes. `dry_run` is present only fo
 empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
 `candidates.jsonl`, omitted when zero) and `scan`: the scan statistics matching the cursor and
 offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`large`
-as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos) and the per-root `*_bytes_written`/`*_bytes_freed`
-counters are omitted when zero. `elapsed_s` accumulates across resumed processes.
+as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
+counters and the split preview counters `previews_done`/`previews_failed` are omitted when zero. `elapsed_s` accumulates across resumed processes.
 
 ## Run report
 

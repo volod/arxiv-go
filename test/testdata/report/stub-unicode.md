@@ -17,7 +17,3 @@ This video was moved to the video archive by arxgo.
 - Absolute path: `/mnt/nas/video/deep/clip-α and space.mp4`
 - Cloud link: <https://storage.example.com/video/deep/clip-%CE%B1%20and%20space.mp4>
 - Size: 700.0 MiB
-
-## Previews
-
-(stage 2: embedded PNG frames and sample clip links)

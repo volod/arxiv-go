@@ -77,7 +77,7 @@ func (m *MarkdownStub) Write(tx state.Tx) error {
 	if err := m.cfg.FS.AtomicWriteFile(path, data, 0o644); err != nil {
 		return err
 	}
-	return hitSplit(m.cfg.Crash, "fs:stub")
+	return hitCrash(m.cfg.Crash, "fs:stub")
 }
 
 func (m *MarkdownStub) input(tx state.Tx, stubAbs string) (report.StubInput, error) {

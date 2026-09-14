@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -182,15 +181,6 @@ func scanManifest(t *testing.T, root string, skipTop ...string) map[string]strin
 		t.Fatal(err)
 	}
 	return out
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func readReport(t *testing.T, archive, runID string) state.Report {

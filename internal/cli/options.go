@@ -22,8 +22,8 @@ const (
 	TransferCopy  = "copy"
 	VerifySize    = "size"
 	VerifyHash    = "hash"
-	StubsDelete   = "delete"
-	StubsKeep     = "keep"
+	PolicyDelete  = "delete" // --stubs and --previews
+	PolicyKeep    = "keep"
 	LogText       = "text"
 	LogJSON       = "json"
 )
@@ -85,7 +85,7 @@ type RestoreOptions struct {
 	Common
 	Transfer       string
 	Verify         string
-	Stubs          string // StubsDelete or StubsKeep
+	Stubs          string // PolicyDelete or PolicyKeep
 	CreateDirs     bool
 	Overwrite      bool
 	RegistryUpdate bool

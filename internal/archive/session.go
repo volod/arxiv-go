@@ -18,9 +18,6 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
-// ErrNotImplemented is returned by an operation body that this build does not provide yet.
-var ErrNotImplemented = errors.New("operation not implemented in this build")
-
 // Config describes one run. The cli package maps validated options onto it.
 type Config struct {
 	Op                 string

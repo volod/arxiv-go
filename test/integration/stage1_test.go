@@ -5,12 +5,13 @@ package integration
 import (
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/volod/arxiv-go/test/fixtures/tooltest"
 )
 
 // SeedEnv fixes the seed of the stage-1 proof (archive content and kill points); the seed of every
@@ -172,6 +173,6 @@ func withPath(env []string, dir string) []string {
 }
 
 func hasTool(name string) bool {
-	_, err := exec.LookPath(name)
+	_, err := tooltest.Path(name)
 	return err == nil
 }

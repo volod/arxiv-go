@@ -49,7 +49,8 @@ there and where it went.
 - **Source changed during the run.** Size or mtime differs from the WAL `begin` record at copy
   completion: discard the part file, abort the transaction, retry once, then skip with a warning.
 - **Previews are not candidates.** Stage 2 preview clips are videos inside the archive; the scan
-  excludes every path listed in the `previews` column of the existing `arxgo-videos.csv`.
+  excludes every preview path recorded by the WAL preview events of any run, and preview part files
+  are reserved paths.
 - **Idempotency.** A rerun after success scans, finds no video candidates (only stubs), and exits 0
   after regenerating the summaries.
 - **Links.** The stub always contains the relative filesystem path from the stub to the video when

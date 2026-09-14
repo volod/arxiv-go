@@ -11,10 +11,10 @@ arxiv-go/
 |-- internal/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
 |   |-- scanner/                 walker.go, order.go, entry.go, relpath.go (traversal, reserved and local paths); mimetype.go (detection and flags)
-|   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
+|   |-- media/                   tools.go, guidance.go (discovery); metadata.go, isobmff*.go, ffprobe.go (metadata); ffmpeg*.go (runner); preview.go, preview_plan.go, samples*.go, frames.go (previews)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, wal_preview.go, recovery.go
-|   |-- archive/                 session.go, session_state.go, resume.go, resume_replaced.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, previews_*.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
+|   |-- state/                   rundir.go, lock*.go, checkpoint.go, committed.go, scanstats.go, report.go, runlog.go, wal.go, wal_read.go, wal_preview.go, recovery.go
+|   |-- archive/                 session*.go, resume*.go, finish.go, progress.go, preflight*.go, scan*.go, candidates.go; history.go (WAL of every run), transfer.go (placement shared by split and restore); split.go, split_exec.go, split_recovery.go, split_stub.go, split_report.go; restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go; previews_index.go, previews_plan.go, previews_exec.go, previews_restore.go
 |   |-- report/                  csv.go, csv_read.go (file registry); markdown.go, frontmatter.go, names.go, videos.go, summary.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
@@ -133,7 +133,9 @@ Recovery rules for a transaction without `commit` (full table in
   pool whose results are re-ordered before writing.
 - Transfers run sequentially in stage 1. A `--jobs` flag for parallel cross-device copies is a
   later refinement and must keep WAL ordering per transaction.
-- Stage 2 previews run in a bounded ffmpeg worker pool (default 1) after the owning video commits.
+- Stage 2 previews run on one ffmpeg worker goroutine that reads committed videos from the video
+  archive while the split loop moves the next ones; its first fatal error stops the loop at the
+  next transaction boundary.
 
 ## Cross-platform notes
 

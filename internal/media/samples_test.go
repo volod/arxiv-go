@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math"
@@ -21,31 +22,34 @@ func sampleTools(t *testing.T) (string, *Runner) {
 	return ffmpeg, &Runner{Tools: Toolset{FFmpeg: {Path: ffmpeg}, FFprobe: {Path: ffprobe}}}
 }
 
+// sampleSource generates a testsrc2 clip, with a sine tone when audio is set, in a codec the
+// container of ext holds.
 func sampleSource(t *testing.T, ffmpeg, ext, size string, duration float64, audio bool) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "source"+ext)
 	args := []string{"-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i",
-		"testsrc2=size=" + size + ":rate=10:duration=" + sampleSeconds(duration)}
+		"testsrc2=size=" + size + ":rate=10:duration=" + formatSeconds(duration)}
 	if audio {
-		args = append(args, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration="+sampleSeconds(duration))
+		args = append(args, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration="+formatSeconds(duration))
 	}
-	if ext == ".webm" {
-		args = append(args, "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "6")
-		if audio {
-			args = append(args, "-c:a", "libopus")
-		}
-	} else {
-		args = append(args, "-c:v", "mpeg4", "-q:v", "5")
-		if audio {
-			audioCodec := "aac"
-			if ext == ".avi" {
-				audioCodec = "libmp3lame"
-			}
-			args = append(args, "-c:a", audioCodec)
-		}
+	videoCodec, audioCodec := "mpeg4", "aac"
+	switch ext {
+	case ".webm":
+		videoCodec, audioCodec = "libvpx-vp9", "libopus"
+		args = append(args, "-deadline", "realtime", "-cpu-used", "6")
+	case ".avi":
+		audioCodec = "libmp3lame"
+	case ".mpg", ".vob":
+		// Mono MP2: FFmpeg before 8.1 rejected it in a series concat filter after input seeking.
+		videoCodec, audioCodec = "mpeg2video", "mp2"
+	case ".ogv":
+		videoCodec, audioCodec = "libtheora", "libvorbis"
 	}
-	args = append(args, path)
-	cmd := exec.CommandContext(context.Background(), ffmpeg, args...)
+	args = append(args, "-c:v", videoCodec)
+	if audio {
+		args = append(args, "-c:a", audioCodec)
+	}
+	cmd := exec.CommandContext(context.Background(), ffmpeg, append(args, path)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("create %s source: %v: %s", ext, err, out)
 	}
@@ -69,45 +73,60 @@ func sampleJob(t *testing.T, r *Runner, source, mode string, length, every time.
 	return job
 }
 
-func checkSample(t *testing.T, r *Runner, output string, job PreviewJob, tolerance float64) {
+func generateSample(t *testing.T, r *Runner, source string, job PreviewJob, tolerance float64) *MediaInfo {
 	t.Helper()
-	info := r.Probe(context.Background(), output, "")
+	if err := r.GenerateSample(context.Background(), source, job); err != nil {
+		t.Fatal(err)
+	}
+	info := r.Probe(context.Background(), job.Output, "")
 	if info.Error != "" {
 		t.Fatal(info.Error)
 	}
-	var want float64
-	for _, segment := range job.Ranges {
-		want += segment.DurationS
-	}
-	if math.Abs(info.DurationS-want) > tolerance {
+	if want := job.totalSeconds(); math.Abs(info.DurationS-want) > tolerance {
 		t.Fatalf("duration %.3f, want %.3f", info.DurationS, want)
 	}
-	if info.Width != job.Size.Width || info.Height != job.Size.Height || info.Container != job.Container ||
-		info.HasAudio != job.HasAudio || info.VideoStreams == 0 {
+	if info.Width != job.Size.Width || info.Height != job.Size.Height || info.HasAudio != job.HasAudio || info.VideoStreams == 0 {
 		t.Fatalf("sample = %+v, job = %+v", info, job)
 	}
-	if _, err := os.Stat(PreviewPartPath(output)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(PreviewPartPath(job.Output)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("part remains: %v", err)
+	}
+	return info
+}
+
+func TestGenerateSampleLiveModes(t *testing.T) {
+	ffmpeg, r := sampleTools(t)
+	source := sampleSource(t, ffmpeg, ".mp4", "256x144", 3.2, true)
+	for _, mode := range []string{"start", "middle", "end", "series"} {
+		t.Run(mode, func(t *testing.T) {
+			job := sampleJob(t, r, source, mode, time.Second, time.Second, "sd")
+			generateSample(t, r, source, job, 0.5*float64(len(job.Ranges)))
+		})
 	}
 }
 
-func TestGenerateSamplesLiveContainersAndModes(t *testing.T) {
+// Each container gets a two-fragment series clip (concat filter) in the planned container.
+func TestGenerateSampleLiveContainers(t *testing.T) {
 	ffmpeg, r := sampleTools(t)
-	for _, ext := range []string{".mp4", ".mov", ".mkv", ".webm", ".m4v", ".3gp", ".avi"} {
-		t.Run(ext, func(t *testing.T) {
-			source := sampleSource(t, ffmpeg, ext, "256x144", 3.2, true)
-			for _, mode := range []string{"start", "middle", "end", "series"} {
-				t.Run(mode, func(t *testing.T) {
-					job := sampleJob(t, r, source, mode, time.Second, time.Second, "sd")
-					output, err := r.GenerateSample(context.Background(), source, job)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if output != job.Output || filepath.Base(output) != "source-smpl01"+ext {
-						t.Fatalf("output = %s", output)
-					}
-					checkSample(t, r, output, job, 0.5*float64(len(job.Ranges)))
-				})
+	for _, tc := range []struct{ ext, output, container string }{
+		{".mov", "source-smpl01.mov", "mov"},
+		{".mkv", "source-smpl01.mkv", "matroska"},
+		{".webm", "source-smpl01.webm", "webm"},
+		{".m4v", "source-smpl01.m4v", "mp4"},
+		{".3gp", "source-smpl01.3gp", "3gp"},
+		{".avi", "source-smpl01.avi", "avi"},
+		{".mpg", "source-smpl01.mp4", "mp4"},
+		{".vob", "source-smpl01.mp4", "mp4"},
+		{".ogv", "source-smpl01.mp4", "mp4"},
+	} {
+		t.Run(tc.ext, func(t *testing.T) {
+			source := sampleSource(t, ffmpeg, tc.ext, "256x144", 2.2, true)
+			job := sampleJob(t, r, source, "series", 500*time.Millisecond, time.Second, "sd")
+			if filepath.Base(job.Output) != tc.output || len(job.Ranges) != 3 {
+				t.Fatalf("job = %+v", job)
+			}
+			if got := generateSample(t, r, source, job, 1); got.Container != tc.container {
+				t.Fatalf("container = %s, want %s", got.Container, tc.container)
 			}
 		})
 	}
@@ -119,11 +138,7 @@ func TestGenerateSampleLiveClampAndShortNoAudio(t *testing.T) {
 		t.Run(size, func(t *testing.T) {
 			source := sampleSource(t, ffmpeg, ".mp4", size, 0.8, false)
 			job := sampleJob(t, r, source, "end", 2*time.Second, time.Second, "sd")
-			output, err := r.GenerateSample(context.Background(), source, job)
-			if err != nil {
-				t.Fatal(err)
-			}
-			checkSample(t, r, output, job, 0.5)
+			generateSample(t, r, source, job, 0.5)
 		})
 	}
 }
@@ -139,19 +154,15 @@ func TestGenerateSampleLiveUnknownDurationStart(t *testing.T) {
 	opts := DefaultPreviewOptions()
 	opts.SampleMode = "start"
 	plan, err := PlanPreviews(*info, source, opts, nil)
-	if err != nil || len(plan.Jobs) != 1 {
+	if err != nil || len(plan.Jobs) != 1 || plan.Jobs[0].DurationKnown {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}
 	job := plan.Jobs[0]
-	if job.DurationKnown {
-		t.Fatal("unknown duration marked known")
-	}
 	job.Output = filepath.Join(t.TempDir(), job.Output)
-	output, err := r.GenerateSample(context.Background(), source, job)
-	if err != nil {
+	if err := r.GenerateSample(context.Background(), source, job); err != nil {
 		t.Fatal(err)
 	}
-	got := r.Probe(context.Background(), output, "")
+	got := r.Probe(context.Background(), job.Output, "")
 	if got.Error != "" || math.Abs(got.DurationS-0.8) > 0.5 || got.Width != job.Size.Width {
 		t.Fatalf("unknown duration sample = %+v", got)
 	}
@@ -160,21 +171,13 @@ func TestGenerateSampleLiveUnknownDurationStart(t *testing.T) {
 func TestGenerateSampleLiveLongSeries(t *testing.T) {
 	ffmpeg, r := sampleTools(t)
 	for _, audio := range []bool{false, true} {
-		name := "silent"
-		if audio {
-			name = "audio"
-		}
-		t.Run(name, func(t *testing.T) {
+		t.Run(map[bool]string{false: "silent", true: "audio"}[audio], func(t *testing.T) {
 			source := sampleSource(t, ffmpeg, ".mp4", "128x96", 5.2, audio)
 			job := sampleJob(t, r, source, "series", 200*time.Millisecond, 100*time.Millisecond, "sd")
 			if len(job.Ranges) <= sampleChunkLimit {
 				t.Fatalf("expected chunked series, got %d ranges", len(job.Ranges))
 			}
-			output, err := r.GenerateSample(context.Background(), source, job)
-			if err != nil {
-				t.Fatal(err)
-			}
-			checkSample(t, r, output, job, 0.5)
+			generateSample(t, r, source, job, 0.5)
 		})
 	}
 }
@@ -192,49 +195,7 @@ func TestGenerateSampleLiveRotatedSource(t *testing.T) {
 	if job.Size != (PreviewSize{96, 128}) {
 		t.Fatalf("rotated plan size = %+v", job.Size)
 	}
-	output, err := r.GenerateSample(context.Background(), rotated, job)
-	if err != nil {
-		t.Fatal(err)
-	}
-	checkSample(t, r, output, job, 0.5)
-}
-
-func TestGenerateSampleLiveUnknownExtensionFallback(t *testing.T) {
-	ffmpeg, r := sampleTools(t)
-	source := sampleSource(t, ffmpeg, ".mp4", "128x96", 1.2, false)
-	unknown := filepath.Join(t.TempDir(), "source.unknown")
-	data, err := os.ReadFile(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(unknown, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	job := sampleJob(t, r, unknown, "start", time.Second, time.Second, "sd")
-	output, err := r.GenerateSample(context.Background(), unknown, job)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output != strings.TrimSuffix(job.Output, ".unknown")+".mp4" {
-		t.Fatalf("fallback output = %s", output)
-	}
-	checkSample(t, r, output, job, 0.5)
-	if _, err := os.Stat(job.Output); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("unexpected original output: %v", err)
-	}
-	job.Output = filepath.Join(t.TempDir(), "occupied-smpl01.unknown")
-	if err := os.WriteFile(job.Output, []byte("user data"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := r.GenerateSample(context.Background(), unknown, job); !errors.Is(err, os.ErrExist) {
-		t.Fatalf("occupied output: %v", err)
-	}
-	if data, err := os.ReadFile(job.Output); err != nil || string(data) != "user data" {
-		t.Fatalf("occupied output changed: %q, %v", data, err)
-	}
-	if _, err := os.Stat(strings.TrimSuffix(job.Output, ".unknown") + ".mp4"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("unexpected fallback after output conflict: %v", err)
-	}
+	generateSample(t, r, rotated, job, 0.5)
 }
 
 func TestSampleEncoderFallbackAndValidation(t *testing.T) {
@@ -242,17 +203,20 @@ func TestSampleEncoderFallbackAndValidation(t *testing.T) {
 	source := sampleSource(t, ffmpeg, ".mp4", "128x96", 1.2, true)
 	job := sampleJob(t, r, source, "start", time.Second, time.Second, "sd")
 	r.encoders = map[string]bool{"mpeg4": true, "aac": true}
-	output, err := r.GenerateSample(context.Background(), source, job)
-	if err != nil {
-		t.Fatal(err)
-	}
-	checkSample(t, r, output, job, 0.5)
-	if got := r.Probe(context.Background(), output, "").VideoCodec; got != "mpeg4" {
+	if got := generateSample(t, r, source, job, 0.5).VideoCodec; got != "mpeg4" {
 		t.Fatalf("fallback codec = %s", got)
+	}
+	if err := r.ValidatePublishedPreview(context.Background(), source, job.Output, job); err != nil {
+		t.Fatalf("published sample rejected: %v", err)
+	}
+	wrongSize := job
+	wrongSize.Size = PreviewSize{64, 48}
+	if err := r.ValidatePublishedPreview(context.Background(), source, job.Output, wrongSize); err == nil {
+		t.Fatal("sample with other dimensions accepted")
 	}
 	job.Output = filepath.Join(t.TempDir(), "unpublished.mp4")
 	r.Tools[FFprobe] = Found{}
-	if _, err := r.GenerateSample(context.Background(), source, job); err == nil || !strings.Contains(err.Error(), "ffprobe") {
+	if err := r.GenerateSample(context.Background(), source, job); err == nil || !strings.Contains(err.Error(), "ffprobe") {
 		t.Fatalf("expected probe failure, got %v", err)
 	}
 	for _, path := range []string{job.Output, PreviewPartPath(job.Output)} {
@@ -262,20 +226,62 @@ func TestSampleEncoderFallbackAndValidation(t *testing.T) {
 	}
 }
 
-func TestSampleEncodersAndArguments(t *testing.T) {
-	job := PreviewJob{Kind: "sample", Output: "clip.avi", Size: PreviewSize{640, 360},
-		VideoEncoder: "libx264", AudioEncoder: "libmp3lame", HasAudio: true, SampleQuality: "high"}
-	video, audio, err := sampleEncoders(job, map[string]bool{"mpeg4": true, "aac": true})
-	if err != nil || video != "mpeg4" || audio != "aac" {
-		t.Fatalf("fallback = %s, %s, %v", video, audio, err)
+// undecodableAudioSource remuxes a generated MP4 into a MOV with copies of its AAC stream and
+// renames the first audio sample entry to apac without its esds box: FFmpeg then has no decoder
+// for that stream, as for Apple positional audio in iPhone recordings.
+func undecodableAudioSource(t *testing.T, ffmpeg string, copies int) string {
+	t.Helper()
+	source := sampleSource(t, ffmpeg, ".mp4", "128x96", 1.2, true)
+	mov := filepath.Join(t.TempDir(), "spatial.mov")
+	args := []string{"-hide_banner", "-v", "error", "-y", "-i", source, "-map", "0:v"}
+	for range copies {
+		args = append(args, "-map", "0:a")
 	}
-	if _, _, err := sampleEncoders(job, map[string]bool{"aac": true}); err == nil {
-		t.Fatal("missing video encoder accepted")
+	if out, err := exec.CommandContext(context.Background(), ffmpeg, append(args, "-c", "copy", mov)...).CombinedOutput(); err != nil {
+		t.Fatalf("remux: %v: %s", err, out)
 	}
-	args := sampleEncodeArgs("source.avi", []PreviewRange{{0, 2}}, job, video, audio)
-	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "-q:v 3") || !strings.Contains(joined, "-b:a 128k") ||
-		!strings.Contains(joined, "-map 0:a:0") {
-		t.Fatalf("args = %s", joined)
+	data, err := os.ReadFile(mov)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := bytes.Index(data, []byte("mp4a"))
+	esds := bytes.Index(data[max(entry, 0):], []byte("esds"))
+	if entry < 0 || esds < 0 {
+		t.Fatal("AAC sample entry not found")
+	}
+	copy(data[entry:], "apac")
+	copy(data[entry+esds:], "free")
+	if err := os.WriteFile(mov, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return mov
+}
+
+func TestGenerateSampleLiveUndecodableAudio(t *testing.T) {
+	ffmpeg, r := sampleTools(t)
+	for _, tc := range []struct {
+		name     string
+		copies   int
+		hasAudio bool
+	}{
+		{"later stream decodes", 2, true},
+		{"no stream decodes", 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := undecodableAudioSource(t, ffmpeg, tc.copies)
+			job := sampleJob(t, r, source, "series", 400*time.Millisecond, 500*time.Millisecond, "sd")
+			if !job.HasAudio || job.AudioStreams != tc.copies {
+				t.Fatalf("planned job = %+v", job)
+			}
+			if err := r.GenerateSample(context.Background(), source, job); err != nil {
+				t.Fatal(err)
+			}
+			if got := r.Probe(context.Background(), job.Output, ""); got.Error != "" || got.HasAudio != tc.hasAudio || got.VideoStreams != 1 {
+				t.Fatalf("sample = %+v", got)
+			}
+			if err := r.ValidatePublishedPreview(context.Background(), source, job.Output, job); err != nil {
+				t.Fatalf("published sample rejected: %v", err)
+			}
+		})
 	}
 }

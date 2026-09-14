@@ -16,7 +16,3 @@ This video was moved to the video archive by arxgo.
 - Absolute path: `/mnt/nas/video/projects/2024/interview.mp4`
 - Size: 700.0 MiB
 - Duration: 30:34 | 1920x1080 | h264 + aac | 25 fps
-
-## Previews
-
-(stage 2: embedded PNG frames and sample clip links)

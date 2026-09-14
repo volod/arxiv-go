@@ -67,8 +67,7 @@ var (
 	metadataModes   = []string{MetadataFile, MetadataMedia}
 	transferModes   = []string{TransferAuto, TransferCopy}
 	verifyModes     = []string{VerifySize, VerifyHash}
-	stubPolicies    = []string{StubsDelete, StubsKeep}
-	previewPolicies = []string{StubsDelete, StubsKeep}
+	policies        = []string{PolicyDelete, PolicyKeep}
 	previewModes    = []string{"none", "start", "middle", "end", "series"}
 	previewSizes    = []string{"sd", "hd", "4k"}
 	previewQuality  = []string{"low", "medium", "high"}

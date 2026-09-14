@@ -5,10 +5,11 @@
 - Go 1.27 or newer (`go version`). No cgo toolchain is needed.
 - GNU Make. On Windows use Git Bash, MSYS2 or `choco install make`; every target also documents
   the plain `go` command it runs.
-- Optional, local only: `ffmpeg`/`ffprobe` on `PATH` to run media tests. GitHub CI does not
-  install them; those tests skip there. `make ffmpeg` downloads the approved static 6.1.1 builds
-  into `bin/` (next to `arxgo`, where tool discovery looks first); for `go test` put them on the
-  path with `PATH="$PWD/bin:$PATH"`. The target needs network access, `curl`, `tar`, `gzip` and
+- Optional, local only: `ffmpeg`/`ffprobe` to run media tests. GitHub CI does not install them;
+  those tests skip there. `make ffmpeg` downloads the approved static FFmpeg 9.0.1 builds into
+  `bin/` (next to `arxgo`, where tool discovery looks first). Live tests use those pinned tools
+  when present, as tool discovery does, and otherwise `ffmpeg`/`ffprobe` on `PATH`; the
+  integration tests also put `bin/` first on the built binary's `PATH`. The target needs network access, `curl`, `tar`, `gzip` and
   `unzip`, and is not part of `make ci`. A local run that must exercise the live media tests sets
   `ARXGO_TEST_REQUIRE_TOOLS=1`, so a missing tool fails instead of skipping.
 
@@ -39,7 +40,7 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make env` | `cp .env.example bin/.env` unless it exists | Optional settings file next to the binary; never overwrites |
 | `make build` | `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo ./cmd/arxgo` | Static Linux amd64 binary with version stamp |
 | `make build-all` | `build`, then `CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags ... -o bin/arxgo.exe ./cmd/arxgo` | `bin/arxgo` and `bin/arxgo.exe` |
-| `make ffmpeg` | `bash scripts/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 6.1.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
+| `make ffmpeg` | `bash scripts/fetch-ffmpeg.sh bin linux/amd64 windows/amd64` | Pinned static ffmpeg/ffprobe 9.0.1 into `bin/` (checksums from `packaging/ffmpeg.lock`; network) |
 | `make dist` | `build-all`, `ffmpeg`, then `scripts/package-dist.sh` | Linux `.tar.gz` and Windows `.zip` in `dist/`, each with checksums, matching manual, `.env.example`, GPL v3 text and FFmpeg source notice; also writes archive checksums to `dist/SHA256SUMS` (network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |

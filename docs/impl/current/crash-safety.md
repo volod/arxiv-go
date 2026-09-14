@@ -134,8 +134,8 @@ and restore operations (copy and rename) recover to the same tree as an uninterr
 ## Disk-space preflight (`internal/archive`)
 
 `preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
-`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the stage-2 hook
-that stays zero until previews exist). `DeviceInfo` lists devices with their roles (`archive`,
+`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the split
+estimate of previews not yet published). `DeviceInfo` lists devices with their roles (`archive`,
 `video_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
 device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
 
