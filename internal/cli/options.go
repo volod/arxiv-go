@@ -89,6 +89,7 @@ type RestoreOptions struct {
 	CreateDirs     bool
 	Overwrite      bool
 	RegistryUpdate bool
+	Previews       string // keep or delete
 }
 
 // validator accumulates validation errors so the operator sees all of them at once.
@@ -218,6 +219,7 @@ func buildRestoreOptions(s *settings, fsys rootFS) (RestoreOptions, error) {
 		CreateDirs:     s.createDirs,
 		Overwrite:      s.overwrite,
 		RegistryUpdate: s.registryUpdate,
+		Previews:       s.previews,
 	}
 	return o, v.err()
 }

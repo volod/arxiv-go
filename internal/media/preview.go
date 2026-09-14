@@ -42,6 +42,7 @@ type PreviewJob struct {
 	HasAudio                    bool
 	DurationKnown               bool
 	SampleQuality, ImageQuality string
+	EstimateBytes               int64
 }
 
 type PreviewPlan struct {
@@ -110,15 +111,13 @@ func PlanPreviews(info MediaInfo, source string, opts PreviewOptions, occupied f
 				return PreviewPlan{}, err
 			}
 			video, audio := PreviewEncoders(info.Container, ext)
+			estimate := estimateSample(sumRanges(ranges), opts.SampleResolution, opts.SampleQuality)
 			plan.Jobs = append(plan.Jobs, PreviewJob{Kind: "sample", Output: out, Ranges: ranges,
 				Size: ClampPreviewSize(info, opts.SampleResolution), Container: info.Container,
 				VideoEncoder: video, AudioEncoder: audio,
-				HasAudio: info.HasAudio, DurationKnown: known, SampleQuality: opts.SampleQuality})
-			var seconds float64
-			for _, r := range ranges {
-				seconds += r.DurationS
-			}
-			plan.EstimateBytes += estimateSample(seconds, opts.SampleResolution, opts.SampleQuality)
+				HasAudio: info.HasAudio, DurationKnown: known, SampleQuality: opts.SampleQuality,
+				EstimateBytes: estimate})
+			plan.EstimateBytes += estimate
 		}
 	}
 	if needImage {
@@ -132,13 +131,22 @@ func PlanPreviews(info MediaInfo, source string, opts PreviewOptions, occupied f
 			if err != nil {
 				return PreviewPlan{}, err
 			}
+			estimate := imageEstimate(opts.ImageResolution)
 			plan.Jobs = append(plan.Jobs, PreviewJob{Kind: "image", Output: out, TimeS: at,
 				Size: ClampPreviewSize(info, opts.ImageResolution), ImageQuality: opts.ImageQuality,
-				DurationKnown: known})
+				DurationKnown: known, EstimateBytes: estimate})
 		}
 		plan.EstimateBytes += int64(len(times)) * imageEstimate(opts.ImageResolution)
 	}
 	return plan, nil
+}
+
+func sumRanges(ranges []PreviewRange) float64 {
+	var sum float64
+	for _, r := range ranges {
+		sum += r.DurationS
+	}
+	return sum
 }
 
 func ValidatePreviewOptions(o PreviewOptions) error {

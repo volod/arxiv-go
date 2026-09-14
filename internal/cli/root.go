@@ -75,6 +75,7 @@ var defaultHandlers = Handlers{
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
 			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Stubs: resolver.Stubs,
+			Preview: o.Preview, Tools: o.Tools,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
@@ -92,6 +93,7 @@ var defaultHandlers = Handlers{
 			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
 			KeepStubs: resolver.KeepStubs, KeepSource: resolver.KeepSource,
+			DeletePreviews: o.Previews == StubsDelete,
 		}))
 	},
 }
@@ -184,13 +186,10 @@ func run(ctx context.Context, args []string, e env) int {
 		if err != nil {
 			return usageError(e, op, err)
 		}
-		if o.Preview.SampleMode != "none" || o.Preview.ImageMode != "none" {
-			fmt.Fprintln(e.stderr, "arxgo: preview generation is not available in this build")
-			return ExitNotImplemented
-		}
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
-		if o.Tools, code, ok = requireTools(ctx, e, log, scanNeeds(o.ScanSettings)); ok {
+		if o.Tools, code, ok = requireTools(ctx, e, log, media.Needs{MetadataMedia: o.Metadata == MetadataMedia,
+			Sample: o.Preview.SampleMode, Image: o.Preview.ImageMode}); ok {
 			code = e.handlers.Split(ctx, o, log)
 		}
 	case OpRestore:

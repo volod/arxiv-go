@@ -64,7 +64,7 @@ func TestPreviewFlagErrorsAndNoMutation(t *testing.T) {
 	}
 	var out, errOut bytes.Buffer
 	code := run(context.Background(), []string{"split", "--archive", archive, "--video-archive", video, "--sample", "start"}, testEnv(&out, &errOut, noProcessEnv))
-	if code != ExitNotImplemented || !strings.Contains(errOut.String(), "preview generation is not available") {
+	if code != ExitMissingTool || !strings.Contains(errOut.String(), "required tool not found") {
 		t.Fatalf("active mode exit = %d, stderr %q", code, errOut.String())
 	}
 	if _, err := os.Stat(filepath.Join(archive, ".arxgo")); !errors.Is(err, os.ErrNotExist) {

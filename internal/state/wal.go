@@ -14,26 +14,32 @@ import (
 	"github.com/volod/arxiv-go/internal/fsops"
 )
 
-// WALVersion is the wal.jsonl record format version.
+// WALVersion is the stage-1 transaction record format version. Preview events use version 2.
 const WALVersion = 1
+const PreviewWALVersion = 2
 
-// WAL steps. Restore uses stub_removed in place of stubbed. preview and published are reserved
-// for later stages; they are fsynced like other irreversible steps.
+// WAL steps. Restore uses stub_removed in place of stubbed. Preview events are independent
+// sub-records after commit; published is reserved for stage 3.
 type Step string
 
 // Transaction steps recorded in the WAL.
 const (
-	StepBegin         Step = "begin"
-	StepCopied        Step = "copied"
-	StepVerified      Step = "verified"
-	StepPlaced        Step = "placed"
-	StepStubbed       Step = "stubbed"
-	StepStubRemoved   Step = "stub_removed"
-	StepSourceRemoved Step = "source_removed"
-	StepCommit        Step = "commit"
-	StepAborted       Step = "aborted"
-	StepPreview       Step = "preview"
-	StepPublished     Step = "published"
+	StepBegin          Step = "begin"
+	StepCopied         Step = "copied"
+	StepVerified       Step = "verified"
+	StepPlaced         Step = "placed"
+	StepStubbed        Step = "stubbed"
+	StepStubRemoved    Step = "stub_removed"
+	StepSourceRemoved  Step = "source_removed"
+	StepCommit         Step = "commit"
+	StepAborted        Step = "aborted"
+	StepPreview        Step = "preview"
+	StepPreviewBegin   Step = "preview_begin"
+	StepPreviewDone    Step = "preview_done"
+	StepPreviewFailed  Step = "preview_failed"
+	StepPreviewDelete  Step = "preview_delete"
+	StepPreviewDeleted Step = "preview_deleted"
+	StepPublished      Step = "published"
 )
 
 // Transfer recorded on begin: copy path vs same-device rename.
@@ -91,18 +97,19 @@ type WALOptions struct {
 
 // WAL is the append-only transaction log at runs/<id>/wal.jsonl.
 type WAL struct {
-	path    string
-	runID   string
-	f       *os.File
-	now     func() time.Time
-	crash   CrashHook
-	mu      sync.Mutex
-	seq     int64
-	nextTx  int64
-	begin   map[string]Record
-	last    map[string]Record
-	done    map[string]Step
-	commits *CommittedSet
+	path     string
+	runID    string
+	f        *os.File
+	now      func() time.Time
+	crash    CrashHook
+	mu       sync.Mutex
+	seq      int64
+	nextTx   int64
+	begin    map[string]Record
+	last     map[string]Record
+	done     map[string]Step
+	commits  *CommittedSet
+	previews map[string]Record
 }
 
 // OpenWAL opens or creates path. A torn final line is truncated; a decode or version failure
@@ -126,7 +133,8 @@ func OpenWAL(path, runID string, opts WALOptions) (*WAL, error) {
 	w := &WAL{
 		path: path, runID: runID, f: f, now: opts.Now, crash: opts.Crash,
 		begin: make(map[string]Record), last: make(map[string]Record), done: make(map[string]Step),
-		commits: NewCommittedSet(),
+		commits:  NewCommittedSet(),
+		previews: make(map[string]Record),
 	}
 	if err := w.load(); err != nil {
 		f.Close()
@@ -204,6 +212,9 @@ func (w *WAL) Append(txid string, step Step, extra Record) (Record, error) {
 
 func (w *WAL) appendLocked(rec Record) (Record, error) {
 	rec.V = WALVersion
+	if isPreviewStep(rec.Step) {
+		rec.V = PreviewWALVersion
+	}
 	w.seq++
 	rec.Seq = w.seq
 	rec.TS = w.now().UTC()
@@ -267,6 +278,10 @@ func (w *WAL) Close() error {
 
 func (w *WAL) note(rec Record) {
 	switch rec.Step {
+	case StepPreviewBegin, StepPreviewDelete:
+		w.previews[rec.TxID] = rec
+	case StepPreviewDone, StepPreviewFailed, StepPreviewDeleted:
+		delete(w.previews, rec.TxID)
 	case StepBegin:
 		w.begin[rec.TxID] = rec
 		w.last[rec.TxID] = rec

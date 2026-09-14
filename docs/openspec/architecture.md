@@ -13,8 +13,8 @@ arxiv-go/
 |   |-- scanner/                 walker.go, order.go, entry.go, relpath.go (traversal, reserved and local paths); mimetype.go (detection and flags)
 |   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go
-|   |-- archive/                 session.go, session_state.go, resume.go, resume_replaced.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
+|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, wal_preview.go, recovery.go
+|   |-- archive/                 session.go, session_state.go, resume.go, resume_replaced.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, previews_*.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
 |   |-- report/                  csv.go, csv_read.go (file registry); markdown.go, frontmatter.go, names.go, videos.go, summary.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status

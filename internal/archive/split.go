@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/media"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -22,6 +24,8 @@ type SplitConfig struct {
 	Verify   fsops.VerifyMode
 	Stubs    SplitStubWriter // nil uses MarkdownStub; recovery must receive the same writer
 	BaseURL  string
+	Preview  media.PreviewOptions
+	Tools    media.Toolset
 	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 }
@@ -33,6 +37,20 @@ func SplitBody(c SplitConfig) func(context.Context, *Session) error {
 }
 
 func Split(ctx context.Context, s *Session, c SplitConfig) error {
+	// A corrupt operator registry must stop the run before the first archive move.
+	if _, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive); err != nil {
+		return err
+	}
+	idx, err := readPreviewIndex(s.cfg.Archive)
+	if err != nil {
+		return err
+	}
+	if !s.cfg.DryRun {
+		if err := cleanupPreviewParts(s.cfg.Archive, idx); err != nil {
+			return err
+		}
+	}
+	c.Scan.SkipPaths = append(c.Scan.SkipPaths, idx.skipPaths(s.cfg.Archive)...)
 	if _, err := Scan(ctx, s, c.Scan); err != nil {
 		return err
 	}
@@ -50,6 +68,15 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 	if err != nil {
 		return err
 	}
+	if c.Preview.SampleMode == "" && c.Preview.ImageMode == "" {
+		c.Preview = media.DefaultPreviewOptions()
+	}
+	runner := &media.Runner{Tools: c.Tools, Log: s.Log}
+	plans, estimate, err := planSplitPreviews(ctx, s, c, idx, list, runner)
+	if err != nil {
+		return err
+	}
+	remaining.PreviewBytes = estimate
 	if _, err := s.Preflight(ctx, remaining); err != nil {
 		return err
 	}
@@ -74,6 +101,21 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
+	var worker *previewWorker
+	if previewsEnabled(c.Preview) {
+		worker = startPreviewWorker(ctx, s, w, idx, runner)
+		ordered := make([]string, 0, len(plans))
+		for rel := range plans {
+			ordered = append(ordered, rel)
+		}
+		sort.Strings(ordered)
+		for _, rel := range ordered {
+			item := plans[rel]
+			if item.moved || w.Committed().Has(rel) {
+				worker.jobs <- item
+			}
+		}
+	}
 	resolver := NewSplitResolver(s.cfg.FS, c.Verify, s.cfg.Crash)
 	resolver.Stubs = c.Stubs
 	var index int64
@@ -97,11 +139,24 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		if err := splitCandidate(ctx, s, w, resolver, v, &c, list); err != nil {
 			return err
 		}
+		if worker != nil && w.Committed().Has(v.RelPath) {
+			if item, ok := plans[v.RelPath]; ok {
+				worker.jobs <- item
+			}
+		}
 		s.Update(func(cp *state.Checkpoint) { cp.CandidateIndex = index })
 		return s.Advance(1)
 	})
 	if err != nil {
+		if worker != nil {
+			err = errors.Join(err, worker.close())
+		}
 		return err
+	}
+	if worker != nil {
+		if err := worker.close(); err != nil {
+			return err
+		}
 	}
 	return writeVideoOutputs(s, c)
 }
@@ -249,6 +304,9 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 		s.Stats.VideoBytes.Add(fi.Size())
 		s.Stats.VideoArchiveWritten.Add(fi.Size())
 		s.Stats.ArchiveFreed.Add(fi.Size())
+		if info, err := os.Stat(stub); err == nil {
+			s.Stats.ArchiveWritten.Add(info.Size())
+		}
 		if fi.Size() >= c.Scan.LargeThreshold {
 			s.Log.Info("video moved", "rel_path", v.RelPath, "bytes", fi.Size(), "transfer", mode)
 		} else {

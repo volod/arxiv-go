@@ -13,32 +13,34 @@ import (
 
 // SummaryInput is the data for arxgo-videos.md.
 type SummaryInput struct {
-	Generated    time.Time
-	Version      string
-	RunIDs       []string
-	Archive      string
-	VideoArchive string
-	BaseURL      string
-	Rows         []VideoRow
+	Generated       time.Time
+	Version         string
+	RunIDs          []string
+	Archive         string
+	VideoArchive    string
+	BaseURL         string
+	Rows            []VideoRow
+	PreviewFailures []string
 }
 
 type summaryView struct {
-	Generated    string
-	Version      string
-	RunIDs       string
-	Archive      string
-	VideoArchive string
-	BaseURL      string
-	Videos       int
-	Bytes        string
-	BytesRaw     int64
-	Duration     string
-	Containers   []countRow
-	Codecs       []countRow
-	Bands        []countRow
-	Skipped      []VideoRow
-	Conflicts    []VideoRow
-	Largest      []largestRow
+	Generated       string
+	Version         string
+	RunIDs          string
+	Archive         string
+	VideoArchive    string
+	BaseURL         string
+	Videos          int
+	Bytes           string
+	BytesRaw        int64
+	Duration        string
+	Containers      []countRow
+	Codecs          []countRow
+	Bands           []countRow
+	Skipped         []VideoRow
+	Conflicts       []VideoRow
+	Largest         []largestRow
+	PreviewFailures []string
 }
 
 type countRow struct {
@@ -117,6 +119,14 @@ None.
 {{- range .Largest}}
 | {{.RelPath}} | {{.Size}} | {{.Link}} |
 {{- end}}
+{{- if .PreviewFailures}}
+
+## Preview failures
+{{- range .PreviewFailures}}
+
+- {{.}}
+{{- end}}
+{{- end}}
 `
 
 var summaryTmpl = template.Must(template.New("summary").Parse(summaryTemplate))
@@ -136,12 +146,13 @@ func RenderSummary(in SummaryInput) ([]byte, error) {
 
 func buildSummaryView(in SummaryInput) summaryView {
 	v := summaryView{
-		Generated:    in.Generated.UTC().Format(time.RFC3339),
-		Version:      in.Version,
-		RunIDs:       strings.Join(in.RunIDs, ", "),
-		Archive:      in.Archive,
-		VideoArchive: in.VideoArchive,
-		BaseURL:      in.BaseURL,
+		Generated:       in.Generated.UTC().Format(time.RFC3339),
+		Version:         in.Version,
+		RunIDs:          strings.Join(in.RunIDs, ", "),
+		Archive:         in.Archive,
+		VideoArchive:    in.VideoArchive,
+		BaseURL:         in.BaseURL,
+		PreviewFailures: in.PreviewFailures,
 	}
 	if v.Version == "" {
 		v.Version = "dev"

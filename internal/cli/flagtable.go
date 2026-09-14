@@ -61,7 +61,7 @@ var flagTable = []flagDef{
 	{name: "transfer", ops: restoreOnly, group: groupRestore, stage: 1, arg: "MODE", usage: "auto: rename on the same device, copy then delete otherwise; copy: copy and keep the video archive copy", bind: enum(TransferAuto, transferModes)},
 	{name: "verify", ops: restoreOnly, group: groupRestore, stage: 1, arg: "MODE", usage: "size or hash, as for split", bind: enum(VerifySize, verifyModes)},
 	{name: "stubs", ops: restoreOnly, group: groupRestore, stage: 1, arg: "POLICY", usage: "delete or keep the Markdown stubs at restored locations", bind: enum(StubsDelete, stubPolicies)},
-	{name: "previews", ops: restoreOnly, group: groupRestore, stage: 2, arg: "POLICY", usage: "delete or keep preview files of restored videos", bind: reserved(false)},
+	{name: "previews", ops: restoreOnly, group: groupRestore, stage: 1, arg: "POLICY", usage: "delete or keep preview files of restored videos", bind: enum(StubsKeep, previewPolicies)},
 	{name: "create-dirs", ops: restoreOnly, group: groupRestore, stage: 1, usage: "Recreate a missing parent directory instead of skipping the video", bind: boolean(false)},
 	{name: "overwrite", ops: restoreOnly, group: groupRestore, stage: 1, usage: "Replace an existing, different destination file instead of skipping it", bind: boolean(false)},
 	{name: "registry-update", ops: restoreOnly, group: groupRestore, stage: 1, usage: "Mark restored rows in arxgo-videos.csv and regenerate the summary", bind: boolean(true)},

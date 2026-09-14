@@ -3,6 +3,7 @@ package archive
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -202,10 +203,13 @@ func videoRowsByVideoPath(s *Session, rows []report.VideoRow) map[string]report.
 func loadVideoRegistry(archive, video string) ([]report.VideoRow, error) {
 	rows, err := report.LoadVideoFile(filepath.Join(archive, scanner.VideoRegistryName))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: cannot parse %s: %v; restore a valid registry backup or repair the CSV, then rerun", state.ErrStateCorrupt, filepath.Join(archive, scanner.VideoRegistryName), err)
 	}
 	if rows == nil && video != "" {
-		return report.LoadVideoFile(filepath.Join(video, scanner.VideoRegistryName))
+		rows, err = report.LoadVideoFile(filepath.Join(video, scanner.VideoRegistryName))
+		if err != nil {
+			return nil, fmt.Errorf("%w: cannot parse %s: %v; restore a valid registry backup or repair the CSV, then rerun", state.ErrStateCorrupt, filepath.Join(video, scanner.VideoRegistryName), err)
+		}
 	}
 	return rows, nil
 }

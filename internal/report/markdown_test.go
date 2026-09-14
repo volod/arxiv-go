@@ -268,3 +268,14 @@ func TestInspectStubTreatsNonFilesAsForeign(t *testing.T) {
 		t.Fatalf("directory at the primary stub path: %s, %v", p, err)
 	}
 }
+
+func TestReplacePreviewSectionPreservesFollowingNotes(t *testing.T) {
+	stub := []byte("# clip\n\n## Previews\n\n(stage 2: embedded PNG frames and sample clip links)\n\n## Operator notes\n\nKeep this text.\n")
+	first := ReplacePreviewSection(stub, []string{"- [frame](frame.png)"})
+	second := ReplacePreviewSection(first, []string{"- [sample](sample.mp4)"})
+	if !bytes.Contains(second, []byte("## Operator notes\n\nKeep this text.")) ||
+		bytes.Contains(second, []byte("[frame]")) || !bytes.Contains(second, []byte("[sample]")) ||
+		bytes.Count(second, []byte("arxgo-previews-begin")) != 1 {
+		t.Fatalf("preview update changed unrelated content: %s", second)
+	}
+}

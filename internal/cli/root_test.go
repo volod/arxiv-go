@@ -41,7 +41,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"unknown operation", []string{"shuffle"}, ExitUsage, "", `unknown operation "shuffle"`},
 		{"reserved publish operation", []string{"publish"}, ExitUsage, "", `operation "publish": option not available in this build`},
 		{"invalid flag names the operation help", []string{"restore", "--stubs", "x"}, ExitUsage, "", "Run 'arxgo help restore' for usage."},
-		{"preview mode awaits integration", append([]string{"split", "--image", "start"}, roots...), ExitNotImplemented, "", "preview generation is not available"},
+		{"preview mode requires tools", append([]string{"split", "--image", "start"}, roots...), ExitMissingTool, "", "required tool not found"},
 		{"validation lists every error", []string{"split", "--checkpoint-every", "0"}, ExitUsage, "", "arxgo: --video-archive is required"},
 		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
 		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},

@@ -3,10 +3,11 @@
 Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-runner.md),
 [0027 preview planning](../records/0027-preview-implement-preview-planning.md),
 [0028 video samples](../records/0028-preview-implement-video-samples.md),
-[0029 frame images](../records/0029-preview-implement-frame-images.md).
-Specification: [previews](../../openspec/stage-2-previews/previews.md). The runner is available
-to later preview tasks. Split preview flags now parse and validate, but an active sample or image
-mode exits 70 before opening a run until generation is integrated.
+[0029 frame images](../records/0029-preview-implement-frame-images.md), and
+[0030 split/restore integration](../records/0030-preview-integrate-previews-into-split-and-restore.md).
+Specification: [previews](../../openspec/stage-2-previews/previews.md). Active `split --sample`
+and `--image` modes generate previews; `restore --previews delete` removes recorded previews of
+restored videos when their byte size still matches.
 
 ## Pure planner (`internal/media`)
 
@@ -36,7 +37,7 @@ successful result per runner.
 `Run` reserves `<stem>.arxgo-part.<ext>` without replacing a pre-existing part or final
 file. It removes its part on failure. After a successful ffmpeg exit, it requires a nonempty
 regular file, flushes it, and publishes it with the no-replace durable rename in `fsops`.
-The future split integration owns the preview WAL records around this call.
+Split owns the preview WAL records around this call.
 
 On Linux, cancellation kills the ffmpeg process group, including descendants. A child that
 holds an output pipe after its parent exits is killed when the one-second wait delay expires;
@@ -48,7 +49,7 @@ cross-compiled and vetted on Linux; its runtime check is deferred to
 ## Video sample executor (`internal/media`)
 
 `Runner.GenerateSample` accepts a planned sample job and a video source path, then returns the
-published output path. The owning split transaction must log the preview before passing an archive
+published output path. Split logs a preview begin event before passing an archive
 output. Single clips use input seeking; series clips concatenate planned ranges. Series longer
 than 50 ranges are encoded in groups of at most 50 in a private temporary directory, then joined
 with the concat demuxer. Chunk files are removed after the call. The runner probes the part file
@@ -74,9 +75,33 @@ planned position, selects the first video stream, scales to the planned display-
 encodes one PNG. Image quality maps to PNG compression levels 9, 6 and 3 for low, medium and high.
 The runner decodes the part with `image/png` and checks its dimensions before publishing it. An
 invalid or empty PNG leaves no final output. For an unknown-duration start job, if the 1-second
-seek yields no frame, it retries once at the first frame. The owning split transaction must log
-the preview before passing an archive output. PNG extraction uses FFmpeg's software path; no CUDA
+seek yields no frame, it retries once at the first frame. Split logs a preview begin event before
+passing an archive output. PNG extraction uses FFmpeg's software path; no CUDA
 encoder is needed.
+
+## Archive integration
+
+Split preflights estimated bytes for the still missing preview jobs. It reads duration and
+dimensions from the scan registry or ffprobe, moves each video transactionally, then submits its
+preview jobs to a bounded one-worker ffmpeg queue. A failed preview leaves the committed move
+intact, records an issue and returns exit 6. Later split runs catch up missing previews for
+videos already marked moved. Completed and interrupted preview paths come from WAL events and are
+excluded from split scans, so a sample cannot become a new video candidate.
+
+`preview_begin`, `preview_done` and `preview_failed` are durable version-2 WAL events. A resume
+removes the recorded unfinished part file and retries missing output; if the final output was
+published before a crash, the run adopts it only after the normal format and dimension checks.
+Registry `previews` entries are
+replayed from all WAL runs. Each successful preview updates a marked block in the owned Markdown
+stub, rendering PNGs inline and samples as links while preserving its front matter and any notes
+after the preview section. Archive bytes written
+count stubs and preview outputs.
+
+Restore keeps previews by default. With `--previews delete`, it removes only WAL-recorded regular
+files whose byte size matches the completed preview event. It logs a delete begin and completion,
+so an interrupted cleanup resumes safely. Changed files and unrecorded files stay in place;
+changed files make the restore partial. The stub is refreshed if it was kept. A malformed
+`arxgo-videos.csv` stops split or restore with exit 5 and names the repair action before any move.
 
 ## Verification
 
@@ -97,3 +122,9 @@ Frame tests generate clips at run time and check all position modes, frame count
 decoded dimensions, landscape and portrait clamps, display rotation, a late seek in a short video,
 unknown-duration start fallback, compression arguments, invalid PNG rejection and occupied-file
 preservation.
+Archive tests on Linux generate a two-second MP4 with FFmpeg, then cover split, registry and stub
+links, preview exclusion on rerun, catch-up after an ffmpeg failure, resume after a preview WAL
+crash, size-checked deletion, and preservation of unrecorded and changed files. A binary-level
+integration test exercises `split --sample start --image start` and `restore --previews delete`.
+Windows behavior is cross-compiled and vetted; runtime checks remain in
+[W7a](../../guide/windows-verification.md#scenario).

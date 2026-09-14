@@ -119,7 +119,9 @@ For preflight: sample bytes = total sample seconds x bitrate estimate (`sd` 1 Mb
 
 - `--previews keep` (default): previews stay in the archive next to the restored video.
 - `--previews delete`: preview files recorded for the restored video are deleted if their size
-  matches the recorded size; unrecorded files are never deleted.
+  matches the recorded size; unrecorded files are never deleted. The WAL logs `preview_delete`
+  before removal and `preview_deleted` after it; an interrupted delete is retried on the next
+  restore. A changed file is kept and reported as a skipped item (exit 6).
 - The stub is updated or deleted according to `--stubs`.
 
 ## Release bundle

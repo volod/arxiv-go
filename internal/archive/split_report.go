@@ -35,13 +35,14 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 	}
 	csvBuf := []byte(b.String())
 	mdBuf, err := report.RenderSummary(report.SummaryInput{
-		Generated:    s.cfg.Now().UTC(),
-		Version:      s.cfg.Version,
-		RunIDs:       report.UniqueRunIDs(rows),
-		Archive:      s.cfg.Archive,
-		VideoArchive: s.cfg.VideoArchive,
-		BaseURL:      c.BaseURL,
-		Rows:         rows,
+		Generated:       s.cfg.Now().UTC(),
+		Version:         s.cfg.Version,
+		RunIDs:          report.UniqueRunIDs(rows),
+		Archive:         s.cfg.Archive,
+		VideoArchive:    s.cfg.VideoArchive,
+		BaseURL:         c.BaseURL,
+		Rows:            rows,
+		PreviewFailures: previewFailures(s.Issues()),
 	})
 	if err != nil {
 		return err
@@ -60,6 +61,16 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 	s.Log.Info("wrote video registry", "videos", len(rows),
 		"csv", scanner.VideoRegistryName, "summary", scanner.VideoSummaryName)
 	return nil
+}
+
+func previewFailures(issues []state.Issue) []string {
+	var out []string
+	for _, issue := range issues {
+		if issue.Kind == state.IssueFailed && strings.HasPrefix(issue.Reason, "preview") {
+			out = append(out, issue.RelPath+": "+issue.Reason)
+		}
+	}
+	return out
 }
 
 func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
@@ -117,6 +128,13 @@ func replayVideoRows(existing []report.VideoRow, archiveRoot string, fill func(*
 			}
 		}
 		rows = report.MarkRestored(report.MergeVideoRows(rows, split), restored, rd.ID)
+	}
+	idx, err := readPreviewIndex(archiveRoot)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		rows[i].Previews = idx.encoded(rows[i].RelPath)
 	}
 	return rows, nil
 }

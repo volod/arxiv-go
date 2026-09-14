@@ -27,38 +27,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Media previews -- `media-previews`
 
-#### integrate-previews-into-split-and-restore
-
-Generate previews after each committed move and clean them up on restore.
-
-- Serves: `media-previews` -- [Transactions and failures](../openspec/stage-2-previews/previews.md#transactions-and-failures)
-- Agent status: CLEAR
-- Dependencies: [Video samples](records/0028-preview-implement-video-samples.md); [Frame images](records/0029-preview-implement-frame-images.md).
-- User-visible outcome: `arxgo split --sample ... --image ...` leaves previews next to stubs, stubs
-  embed them, registries list them, failed previews do not affect moves, and `restore --previews
-  delete` removes them.
-- Scope boundary: WAL preview records and recovery, preflight estimate, worker pool, stub/registry
-  preview sections, scan exclusion of recorded previews, restore policy, missing-preview catch-up on
-  rerun, exit 6 on preview failure. While changing the registry reader and writer: an
-  `arxgo-videos.csv` that no longer parses gives an operator-actionable error instead of exit 1 on
-  every rerun, and archive bytes written count stubs and previews
-  (`AUD-review-stage-1-integrity-3`).
-- Data and artifact paths: `internal/archive/split.go`, `internal/archive/restore.go`,
-  `internal/report/markdown.go`, `internal/state/`.
-- Execution path: Extend stage-1 integration test with preview flags when ffmpeg is present.
-- Acceptance gates: Crash during preview resumes only missing previews; previews never become split
-  candidates; restore deletes only recorded previews with matching size; failure injection yields
-  moved video plus exit 6.
-- Documentation target: `docs/impl/current/media-previews.md`
-- Review checkpoint: `review-stage-2-previews`.
-
 #### implement-release-bundle-with-ffmpeg
 
 Package `arxgo` with pinned ffmpeg/ffprobe builds per platform.
 
 - Serves: `media-previews` -- [Release bundle](../openspec/stage-2-previews/previews.md#release-bundle)
 - Agent status: RUN NEEDED
-- Dependencies: `integrate-previews-into-split-and-restore`; [Approve ffmpeg distribution](records/0002-preview-approve-ffmpeg-distribution.md).
+- Dependencies: [Preview integration](records/0030-preview-integrate-previews-into-split-and-restore.md); [Approve ffmpeg distribution](records/0002-preview-approve-ffmpeg-distribution.md).
 - User-visible outcome: Operators download one archive per platform that runs previews with no
   installation.
 - Scope boundary: `make dist` packaging on top of the approved pins in `packaging/ffmpeg.lock` and
@@ -86,7 +61,7 @@ Review preview integration before cloud publishing builds on the stage-2 WAL and
 - Serves: `media-previews` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: `integrate-previews-into-split-and-restore`; `implement-release-bundle-with-ffmpeg`.
+- Dependencies: [Preview integration](records/0030-preview-integrate-previews-into-split-and-restore.md); `implement-release-bundle-with-ffmpeg`.
 - User-visible outcome: Stage 2 is coherent and stage 3 can rely on its contracts.
 - Scope boundary: Preview WAL/recovery, naming/exclusion invariants, restore cleanup, bundle
   licensing evidence, Windows code paths by review and cross-compilation (runtime checks deferred to

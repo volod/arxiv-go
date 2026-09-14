@@ -111,3 +111,41 @@ func RenderStub(in StubInput) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// ReplacePreviewSection updates only the generated preview section of an owned stub.
+// The front matter and original move timestamp remain unchanged on catch-up runs.
+func ReplacePreviewSection(data []byte, links []string) []byte {
+	const (
+		heading     = "## Previews\n"
+		begin       = "<!-- arxgo-previews-begin -->\n"
+		end         = "<!-- arxgo-previews-end -->\n"
+		placeholder = "(stage 2: embedded PNG frames and sample clip links)\n"
+	)
+	s := string(data)
+	i := strings.Index(s, heading)
+	if i < 0 {
+		return data
+	}
+	var content strings.Builder
+	content.WriteString(begin)
+	if len(links) == 0 {
+		content.WriteString("(no previews)\n")
+	} else {
+		for _, link := range links {
+			content.WriteString(link)
+			content.WriteByte('\n')
+		}
+	}
+	content.WriteString(end)
+	tail := s[i+len(heading):]
+	if start := strings.Index(tail, begin); start >= 0 {
+		if stop := strings.Index(tail[start+len(begin):], end); stop >= 0 {
+			stop += start + len(begin) + len(end)
+			return []byte(s[:i+len(heading)] + tail[:start] + content.String() + tail[stop:])
+		}
+	}
+	if start := strings.Index(tail, placeholder); start >= 0 {
+		return []byte(s[:i+len(heading)] + tail[:start] + content.String() + tail[start+len(placeholder):])
+	}
+	return []byte(s[:i+len(heading)] + "\n" + content.String() + tail)
+}

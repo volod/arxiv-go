@@ -98,7 +98,7 @@ row, in walk order. It is run state for split and restore, not an operator outpu
 | 9 | `status` | `moved`, `restored`, `conflict`, `skipped` |
 | 10 | `run_id` | Run that last changed the row |
 | 11 | `url` | `--base-url` link; empty when not given |
-| 12 | `previews` | Stage 2: `;`-separated preview paths relative to the archive; empty in stage 1 |
+| 12 | `previews` | Stage 2: `;`-separated recorded preview paths relative to the archive; empty when none |
 | 13 | `metadata` | Same JSON as the file registry |
 
 Rows are sorted by `rel_path` walk order key. The file is regenerated from the existing file and
@@ -138,7 +138,8 @@ This video was moved to the video archive by arxgo.
 
 ## Previews
 
-(stage 2: embedded PNG frames and sample clip links)
+- [interview-smpl01.mp4](interview-smpl01.mp4)
+- ![interview-img01.png](interview-img01.png)
 ```
 
 Rules: relative links are URL-escaped per segment; lines absent for missing data are omitted; the
@@ -161,7 +162,12 @@ links.
 ```
 
 `mtime` keeps full precision (RFC 3339 with nanoseconds when present) because a copy compares it
-exactly. Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
+exactly. Stage-1 transaction records remain version 1. Stage-2 preview events use version 2 in
+the same JSON Lines WAL and the same `txid` and `seq` scheme. They use `rel_path` for the owning
+video, `dst` for the absolute path in the main archive, `size` on completion or deletion, and
+`reason` on failure. `preview_begin`/`preview_done`/`preview_failed` surround generation;
+`preview_delete`/`preview_deleted` surround size-checked restore cleanup. A preview event may
+belong to a later run than the video move it serves. Later stage-1 steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
 `verified`, `stub` on `stubbed`/`stub_removed`: the stub written, or the owned stub restore removed
 or kept, omitted when there is none; `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
 increases by one for each record in the file. Records are shown wrapped here; on disk each is one

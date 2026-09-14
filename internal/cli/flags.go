@@ -20,7 +20,7 @@ type settings struct {
 	registry, metadata                    string
 	exclude                               []string
 	followSymlinks                        bool
-	transfer, verify, stubs               string
+	transfer, verify, stubs, previews     string
 	baseURL, videoExtensions              string
 	createDirs, overwrite, registryUpdate bool
 	sampleMode, imageMode                 string
@@ -68,6 +68,7 @@ var (
 	transferModes   = []string{TransferAuto, TransferCopy}
 	verifyModes     = []string{VerifySize, VerifyHash}
 	stubPolicies    = []string{StubsDelete, StubsKeep}
+	previewPolicies = []string{StubsDelete, StubsKeep}
 	previewModes    = []string{"none", "start", "middle", "end", "series"}
 	previewSizes    = []string{"sd", "hd", "4k"}
 	previewQuality  = []string{"low", "medium", "high"}
@@ -124,7 +125,7 @@ func stringField(s *settings, name string) *string {
 	fields := map[string]*string{
 		"archive": &s.archive, "video-archive": &s.videoArchive, "log-level": &s.logLevel,
 		"log-format": &s.logFormat, "registry": &s.registry, "metadata": &s.metadata,
-		"transfer": &s.transfer, "verify": &s.verify, "stubs": &s.stubs,
+		"transfer": &s.transfer, "verify": &s.verify, "stubs": &s.stubs, "previews": &s.previews,
 		"base-url": &s.baseURL, "video-extensions": &s.videoExtensions,
 		"sample": &s.sampleMode, "image": &s.imageMode,
 		"sample-resolution": &s.sampleResolution, "image-resolution": &s.imageResolution,
