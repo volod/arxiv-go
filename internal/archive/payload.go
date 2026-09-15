@@ -120,6 +120,9 @@ func sessionPayload(cfg Config) (*payloadSpec, error) {
 		if cfg.Payload.Root == "" {
 			return nil, fmt.Errorf("%s: %s mirror root is required", cfg.Op, spec.noun)
 		}
+		if cfg.SidecarCleanup && cfg.Op != opRestore {
+			return nil, fmt.Errorf("%s records no sidecar cleanup", cfg.Op)
+		}
 		return spec, nil
 	default:
 		if cfg.Payload != (Payload{}) {

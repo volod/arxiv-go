@@ -5,7 +5,8 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0045 CATIA extraction](../records/0045-catia-implement-catia-extraction.md);
 [0046 CATIA split](../records/0046-catia-implement-catia-split.md);
 [0047 CATIA text sidecars](../records/0047-catia-implement-catia-text-sidecars.md);
-[0048 CATIA restore](../records/0048-catia-implement-catia-restore.md).
+[0048 CATIA restore](../records/0048-catia-implement-catia-restore.md);
+[0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
 sidecars and CATIA restore ship; the capability stays planned until the stage-4 proof on a generated
@@ -207,15 +208,35 @@ restore executor. Default `restore` (or `--video`) still returns only videos.
   recorded size and its first line is `arxgo-text: <rel_path>`; otherwise it is kept and reported
   as a skipped issue (exit 6). A missing sidecar or parent directory completes the event. Before
   execute, unfinished text part files are removed, logged deletions are finished, and sidecars of
-  files this run already committed are deleted. Files whose last CATIA transaction is a restore
-  committed by an earlier run recorded with `--descriptions delete` (resolved through
-  `Config.RecovererFor` on that run's options) also lose their owned sidecars, with changed files
-  only logged; this covers a CATIA restore rolled forward by another command. `--descriptions keep`
-  keeps descriptions and sidecars.
+  files this run already committed are deleted, then the sidecars of
+  [replaced restores](#replaced-restore-sidecar-cleanup-internalarchive-internalstate).
+  `--descriptions keep` keeps descriptions and sidecars.
 - **Registry** (`updateRegistry`, `replayCatiaRows`, `writeRestoredRegistry`). With
   `--registry-update`, both `arxgo-catia.csv` copies replay CATIA history onto the existing rows
   (restored rows get the run id and an archive `file:` URL; `text_rel_path` is the remaining owned
   sidecar, empty after deletion). When no row is `moved` and descriptions were deleted, both copies
   become `arxgo-catia.restored-<run-id>.csv` (the helper is shared with the video registry). Restore
   never creates a CATIA registry and never writes `arxgo-videos.csv`.
+
+## Replaced restore sidecar cleanup (`internal/archive`, `internal/state`)
+
+Sidecar deletion runs after `commit`. A restore interrupted in between and replaced by another run
+(`--new-run`, other defining options, or a command of the other payload that rolls it forward)
+used to leave those owned sidecars, because the replacing run has no candidate for the file.
+
+- **Intent** (`state.RunOptions.SidecarCleanup`, `archive.Config.SidecarCleanup`,
+  `archive.RestoreSidecarCleanup`). Restore runs write `sidecar_cleanup` (`true`/`false`) into
+  `options.json`: `--previews delete` for video, `--descriptions delete` for CATIA. The CLI sets
+  the config from the same function the executor uses; `Restore` refuses a configuration whose
+  policy differs from the recorded one, and `Start` refuses the field on scan and split. Split and
+  scan runs omit it; a restore written by an earlier build has none and counts as `false`.
+  `runHistory.sidecarCleanup` exposes it; history no longer keeps raw options.
+- **Rule** (`sidecarCleanup.deleteEarlierRestored`, shared by `videoRestore` and `catiaRestore`).
+  With cleanup on, before execute and after the current run's own resumed commits, the payload's
+  history (read at restore start) is reduced to the last transaction per file. Files whose last
+  transaction is a restore committed by another run with `sidecar_cleanup: true` and that still
+  own sidecars lose them under the family's delete events, with the usual size (and CATIA
+  first-line) checks and, for video, description link refresh. A split after that restore makes
+  the file ineligible. A kept changed sidecar is logged at info (`quiet`), not reported. The rule
+  never uses `Config.RecovererFor`; `catiaRestore.deletedDescriptions` is gone.
 

@@ -200,8 +200,8 @@ moved row is restored with `--descriptions delete`, both are renamed to
 `arxgo-catia.restored-<run-id>.csv`. Videos, the video archive and `arxgo-videos.csv` are not
 touched. `--previews delete`, `--catia-text`, `--video-archive` on the command line and
 `--catia-archive` without `--catia` exit 2 before anything is written. If an interrupted CATIA
-restore was finished by another command (for example a video restore), the next
-`restore --catia` deletes the sidecars that run left.
+restore that deleted descriptions was finished by another command (for example a video restore),
+the next `restore --catia` with `--descriptions delete` deletes the sidecars that run left.
 
 ## Restore videos
 
@@ -218,7 +218,8 @@ matching arxgo-owned video descriptions; `--descriptions keep` leaves them. The 
 `--previews keep` leaves previews; `--previews delete` removes only recorded previews whose
 sizes still match. Changed and unrelated files remain. If a restore with `--previews delete` is
 interrupted, rerunning the same command also deletes the previews of videos it had already
-restored. A kept description (`--descriptions keep`) loses the links of deleted previews. By default, both video registries
+restored, even when another command (`--new-run`, other options, or a CATIA restore) finished the
+interrupted run first. A kept description (`--descriptions keep`) loses the links of deleted previews. By default, both video registries
 record restored rows, and complete registries may be renamed with
 `.restored-<run-id>` rather than deleted.
 

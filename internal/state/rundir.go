@@ -163,6 +163,10 @@ type RunOptions struct {
 	VideoArchive string `json:"video_archive,omitempty"`
 	CatiaArchive string `json:"catia_archive,omitempty"`
 	DryRun       bool   `json:"dry_run,omitempty"`
+	// SidecarCleanup is set for restore runs only: true when the run deletes the owned post-commit
+	// sidecars of the files it restores. Nil (scan, split, or a restore written by an earlier
+	// build) means false.
+	SidecarCleanup *bool `json:"sidecar_cleanup,omitempty"`
 	// Defining holds the options that must match for a later process to resume this run.
 	Defining json.RawMessage `json:"defining"`
 	// Options holds every validated option, including runtime-only ones such as the log level.

@@ -9,7 +9,8 @@ Accepted work: [0026 FFmpeg runner](../records/0026-preview-implement-ffmpeg-run
 [0033 stage-2 review](../records/0033-preview-review-stage-2-previews.md),
 [0034 stage-2 repairs](../records/0034-preview-repair-stage-2-preview-defects.md),
 [0035 FFmpeg 9.0.1 approval](../records/0035-preview-approve-ffmpeg-9-distribution.md),
-[0036 FFmpeg 9.0.1 upgrade](../records/0036-preview-upgrade-bundled-ffmpeg-to-9.md) and
+[0036 FFmpeg 9.0.1 upgrade](../records/0036-preview-upgrade-bundled-ffmpeg-to-9.md),
+[0049 replaced restore cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md) and
 [0037 undecodable sample audio](../records/0037-preview-handle-undecodable-sample-audio.md).
 Specification: [previews](../../openspec/stage-2-previews/previews.md). The capability is shipped:
 `split --sample` and `--image` generate previews next to the descriptions, and `restore --previews
@@ -87,7 +88,11 @@ options generate it again with the current settings.
 Restore keeps previews by default. Before executing it removes unfinished generation parts and
 finishes interrupted deletions (`previews_restore.go`). With `--previews delete` it deletes the
 recorded previews of each video it restores, and first those of videos an interrupted process of
-the same run already restored. A preview is deleted only when it is still a regular file with the
+the same run already restored, and of videos whose last video transaction is a restore committed by
+an earlier run with `sidecar_cleanup: true` in its `options.json` (an interrupted restore replaced
+by `--new-run`, other options or a CATIA command;
+[0049](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md)). For those, a changed
+preview is logged and kept, not reported again, and a kept description's links are refreshed. A preview is deleted only when it is still a regular file with the
 recorded size, below real directories of the archive; `preview_delete` is durable before the
 removal and `preview_deleted` after it. A changed file is kept and reported as skipped (exit 6);
 unrecorded files are never touched. A kept description loses the deleted links, and its section when none

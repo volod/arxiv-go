@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -33,9 +35,13 @@ func previewCleanup(s *Session, w *state.WAL, idx *previewIndex) sidecarCleanup 
 
 // restorePreviewsBeforeExecute removes part files of unfinished preview generation, finishes
 // interrupted deletions and, with --previews delete, deletes the previews of videos an earlier
-// process of this run already restored.
-func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, deleteRestored bool) error {
-	return previewCleanup(s, w, idx).beforeExecute(deleteRestored)
+// process of this run already restored and of videos a replaced earlier restore returned.
+func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, history []runHistory, deleteRestored bool) error {
+	c := previewCleanup(s, w, idx)
+	if err := c.beforeExecute(deleteRestored); err != nil || !deleteRestored {
+		return err
+	}
+	return c.deleteEarlierRestored(history)
 }
 
 // deletePreviews removes the recorded previews of a restored video, then updates a kept description.
@@ -64,6 +70,42 @@ func (c sidecarCleanup) beforeExecute(deleteRestored bool) error {
 		return nil
 	}
 	for _, owner := range c.w.Committed().Paths() {
+		if err := c.deleteAll(owner); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteEarlierRestored deletes, quietly, the owned sidecars of every file whose last transaction
+// in history is a restore committed by an earlier run that recorded sidecar_cleanup: true. Such a
+// run was interrupted between the commit and its sidecar deletion and then replaced by another run
+// (other options, --new-run, or a command of the other payload), so no restore candidate remains
+// for the file. A file split again after that restore is excluded.
+func (c sidecarCleanup) deleteEarlierRestored(history []runHistory) error {
+	last := map[string]*runHistory{}
+	for i := range history {
+		run := &history[i]
+		split, restored := splitEvents(*run)
+		for rel, a := range split {
+			if a.status == report.StatusMoved {
+				last[rel] = nil
+			}
+		}
+		for rel := range restored {
+			last[rel] = run
+		}
+	}
+	var owners []string
+	for rel, run := range last {
+		if run != nil && run.id != c.s.Run.ID && run.sidecarCleanup && len(c.idx.owned[rel]) > 0 {
+			owners = append(owners, rel)
+		}
+	}
+	slices.Sort(owners)
+	c.quiet = true
+	for _, owner := range owners {
+		c.s.Log.Info(c.idx.family.Name+" cleanup of a file an earlier interrupted restore returned", "rel_path", owner)
 		if err := c.deleteAll(owner); err != nil {
 			return err
 		}

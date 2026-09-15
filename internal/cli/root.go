@@ -82,7 +82,7 @@ var defaultHandlers = Handlers{
 		cfg.Preflight.Transfer = o.Transfer
 		resolver := restoreResolver(o)
 		cfg.Recoverer = resolver
-		return runSession(ctx, cfg, log, archive.RestoreBody(archive.RestoreConfig{
+		rc := archive.RestoreConfig{
 			Scan: archive.ScanConfig{
 				Root: cfg.Payload.Root, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
 				SkipPaths: []string{o.Archive},
@@ -91,7 +91,9 @@ var defaultHandlers = Handlers{
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
 			KeepDescriptions: resolver.KeepDescriptions, KeepSource: resolver.KeepSource,
 			DeletePreviews: o.Previews == PolicyDelete,
-		}))
+		}
+		cfg.SidecarCleanup = archive.RestoreSidecarCleanup(cfg.Payload.Kind, rc)
+		return runSession(ctx, cfg, log, archive.RestoreBody(rc))
 	},
 }
 

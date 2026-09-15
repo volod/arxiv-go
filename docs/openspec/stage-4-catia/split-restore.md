@@ -175,4 +175,6 @@ begin/finish/part-file mechanism in `internal/state` with previews rather than a
 - A `restore --catia` killed after a commit and before its text deletion, then rolled forward by a
   video restore, leaves no owned sidecar after the next `restore --catia`; the same holds for a
   video `restore --previews delete` rolled forward by a CATIA restore or replaced with `--new-run`.
-  A restore with `sidecar_cleanup: false` in between, or a later split of the file, keeps them.
+  A restore with `sidecar_cleanup: false` keeps them (a later restore with cleanup still deletes
+  them), and so does any restore after a later split of the file; so does a replaced restore whose
+  own `sidecar_cleanup` was `false` or missing.

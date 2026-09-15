@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -18,10 +17,6 @@ func catiaRestoreConfig(r catiaRoots, mode string) (Config, RestoreConfig) {
 	cfg.Payload = Payload{Kind: PayloadCatia, Root: r.catia}
 	c.Scan.Root, c.Scan.SkipPaths = r.catia, []string{r.archive}
 	attachCatiaRestoreRecoverer(&cfg, &c, nil)
-	// Every earlier restore in these tests deletes descriptions, as the cli would rebuild it.
-	cfg.RecovererFor = func(string, PayloadKind, json.RawMessage) (Resolver, error) {
-		return NewRestoreResolver(RestoreResolver{Archive: r.archive, Payload: PayloadCatia}), nil
-	}
 	return cfg, c
 }
 

@@ -75,9 +75,10 @@ them. `archive.Config.RecovererFor` rebuilds that run's resolver from the payloa
 `options.json` (`cli.recovererFor` requires the payload, checks that the stored options name the same
 one, and decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
 gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
-`--transfer` policies. Post-commit sidecar cleanup is not part of that recovery; the next
-`restore --catia` deletes the text sidecars left by an earlier restore recorded with
-`--descriptions delete` (video previews of a replaced restore are not revisited). The recovery is logged to the console and appended to the earlier run's
+`--transfer` policies. Post-commit sidecar cleanup is not part of that recovery: restore runs
+record `sidecar_cleanup` in `options.json`, and the next restore of that payload with cleanup deletes
+the previews or text sidecars such a replaced restore left
+([0049](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md)). The recovery is logged to the console and appended to the earlier run's
 `run.log.jsonl`. It needs the locks of that run's roots. A split or restore replacing a run of the
 other payload takes the lock of that run's recorded mirror root for the recovery and releases it
 afterwards, so a video split rolls an interrupted CATIA split forward with its CATIA description

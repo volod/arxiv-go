@@ -25,10 +25,13 @@ type Config struct {
 	Archive      string
 	Payload      Payload // split and restore: the kind moved and its mirror root; zero for scan
 	CreateMirror bool    // split: create the mirror root after taking the lock
-	DryRun       bool
-	NewRun       bool
-	ForceUnlock  bool
-	Registry     string // scan: registry file placed by preflight; empty uses the archive
+	// SidecarCleanup is the restore's sidecar cleanup intent (RestoreSidecarCleanup), stored as
+	// sidecar_cleanup in options.json so later restores learn it without decoding Options.
+	SidecarCleanup bool
+	DryRun         bool
+	NewRun         bool
+	ForceUnlock    bool
+	Registry       string // scan: registry file placed by preflight; empty uses the archive
 
 	// Preflight holds the options that change the free-space requirement; Op is taken from Op.
 	Preflight PreflightOptions

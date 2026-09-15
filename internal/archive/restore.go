@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/scanner"
@@ -29,7 +30,21 @@ func RestoreBody(c RestoreConfig) func(context.Context, *Session) error {
 	return func(ctx context.Context, s *Session) error { return Restore(ctx, s, c) }
 }
 
+// RestoreSidecarCleanup reports whether a restore of kind deletes the owned post-commit sidecars of
+// the files it restores: video previews with --previews delete, CATIA text sidecars with
+// --descriptions delete. Callers store it in Config.SidecarCleanup.
+func RestoreSidecarCleanup(kind PayloadKind, c RestoreConfig) bool {
+	if kind == PayloadCatia {
+		return !c.KeepDescriptions
+	}
+	return c.DeletePreviews
+}
+
 func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
+	if RestoreSidecarCleanup(s.payload.kind, c) != s.cfg.SidecarCleanup {
+		return fmt.Errorf("restore: sidecar cleanup %v does not match the run's recorded sidecar_cleanup %v",
+			RestoreSidecarCleanup(s.payload.kind, c), s.cfg.SidecarCleanup)
+	}
 	hooks, err := s.payload.newRestore(ctx, s, &c)
 	if err != nil {
 		return err

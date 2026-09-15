@@ -35,6 +35,10 @@ func (s *Session) openRun(ctx context.Context) error {
 		Archive: cfg.Archive, DryRun: cfg.DryRun, Defining: defining, Options: options,
 	}
 	setRunPayload(&ro, cfg.Payload)
+	if cfg.Op == opRestore {
+		cleanup := cfg.SidecarCleanup
+		ro.SidecarCleanup = &cleanup
+	}
 	if err := state.WriteJSON(s.Run.File(state.OptionsFile), ro); err != nil {
 		return err
 	}

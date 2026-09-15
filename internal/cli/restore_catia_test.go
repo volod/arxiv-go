@@ -88,7 +88,7 @@ func TestRestoreCatiaKeepDescriptionsCommand(t *testing.T) {
 }
 
 // A CATIA restore interrupted after placed is recovered by a video restore command; the next CATIA
-// restore deletes the text sidecar the interrupted run, recorded with --descriptions delete, left.
+// restore deletes the text sidecar the interrupted run, recorded with sidecar_cleanup: true, left.
 func TestVideoRestoreCommandRecoversInterruptedCatiaRestore(t *testing.T) {
 	arc, video, cat, part := catiaCLIFixture(t)
 	withLockIdentity(t, 500)
@@ -128,5 +128,38 @@ func TestVideoRestoreCommandRecoversInterruptedCatiaRestore(t *testing.T) {
 	runCLI(t, ExitOK, "restore", "--catia", "--archive", arc, "--catia-archive", cat, "--min-free", "0")
 	if _, err := os.Stat(src + ".text.md"); !os.IsNotExist(err) {
 		t.Fatalf("text sidecar of the recovered restore left: %v", err)
+	}
+}
+
+// Restore records its sidecar cleanup intent in options.json from the payload's policy flag.
+func TestRestoreRecordsSidecarCleanupPerPayload(t *testing.T) {
+	arc, video, cat, _ := catiaCLIFixture(t)
+	if err := os.Mkdir(cat, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withLockIdentity(t, 500)
+	cases := []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"--video-archive", video}, false},
+		{[]string{"--video-archive", video, "--previews", "delete"}, true},
+		{[]string{"--video-archive", video, "--previews", "delete", "--descriptions", "keep"}, true},
+		{[]string{"--catia", "--catia-archive", cat}, true},
+		{[]string{"--catia", "--catia-archive", cat, "--descriptions", "keep"}, false},
+	}
+	for _, tc := range cases {
+		runCLI(t, ExitOK, append([]string{"restore", "--archive", arc, "--min-free", "0"}, tc.args...)...)
+		id, err := state.ReadCurrent(arc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var o state.RunOptions
+		if err := state.ReadJSON(filepath.Join(state.StateDir(arc), "runs", id, state.OptionsFile), &o); err != nil {
+			t.Fatal(err)
+		}
+		if o.SidecarCleanup == nil || *o.SidecarCleanup != tc.want {
+			t.Errorf("%v: sidecar_cleanup = %v, want %v", tc.args, o.SidecarCleanup, tc.want)
+		}
 	}
 }

@@ -43,7 +43,9 @@ an interrupted CATIA split ([0046](records/0046-catia-implement-catia-split.md))
 writes owned `arxgo-text:` sidecars after commit and for earlier moved files
 ([0047](records/0047-catia-implement-catia-text-sidecars.md)); `restore --catia` returns CATIA files
 and deletes owned descriptions and text sidecars
-([0048](records/0048-catia-implement-catia-restore.md)). The stage-4 proof and checkpoint are still
+([0048](records/0048-catia-implement-catia-restore.md)); a restore records `sidecar_cleanup`, so the
+next restore deletes the previews or text sidecars an interrupted, replaced restore left
+([0049](records/0049-catia-repair-replaced-restore-sidecar-cleanup.md)). The stage-4 proof and checkpoint are still
 open. Stage 3
 cloud publishing waits for the stage-4 checkpoint. The next work is reported by
 `make plan-status`.

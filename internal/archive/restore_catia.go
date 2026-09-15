@@ -2,7 +2,6 @@ package archive
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"github.com/volod/arxiv-go/internal/report"
@@ -59,75 +58,13 @@ func (v *catiaRestore) cleanup(w *state.WAL) sidecarCleanup {
 }
 
 // beforeExecute finishes interrupted text sidecar work and, with --descriptions delete, deletes the
-// sidecars of files this run already restored. It also deletes the sidecars of files whose last
-// transaction is a restore committed by an earlier run that used --descriptions delete but did not
-// clean up, because it was interrupted and another run (possibly of the video payload) recovered it.
+// sidecars of files this run already restored and of files a replaced earlier restore returned.
 func (v *catiaRestore) beforeExecute(w *state.WAL) error {
 	c := v.cleanup(w)
-	if err := c.beforeExecute(v.deletion); err != nil {
+	if err := c.beforeExecute(v.deletion); err != nil || !v.deletion {
 		return err
 	}
-	if !v.deletion {
-		return nil
-	}
-	c.quiet = true
-	for _, rel := range v.earlierRestored() {
-		if err := c.deleteAll(rel); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// earlierRestored lists the files with owned sidecars whose last committed transaction in CATIA
-// history is a restore by an earlier run whose recorded options delete descriptions.
-func (v *catiaRestore) earlierRestored() []string {
-	s := v.s
-	last := map[string]*runHistory{}
-	for i := range v.history {
-		run := &v.history[i]
-		split, restored := splitEvents(*run)
-		for rel, a := range split {
-			if a.status == report.StatusMoved {
-				last[rel] = nil
-			}
-		}
-		for rel := range restored {
-			last[rel] = run
-		}
-	}
-	deletes := map[string]bool{} // run id -> its restore deleted descriptions
-	var out []string
-	for rel, run := range last {
-		if run == nil || run.id == s.Run.ID || len(v.idx.owned[rel]) == 0 {
-			continue
-		}
-		del, ok := deletes[run.id]
-		if !ok {
-			del = v.deletedDescriptions(*run)
-			deletes[run.id] = del
-		}
-		if del {
-			out = append(out, rel)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
-// deletedDescriptions reports whether an earlier restore run was recorded with --descriptions
-// delete, from the resolver its options rebuild.
-func (v *catiaRestore) deletedDescriptions(run runHistory) bool {
-	if v.s.cfg.RecovererFor == nil || run.op != opRestore {
-		return false
-	}
-	res, err := v.s.cfg.RecovererFor(run.op, PayloadCatia, run.options)
-	if err != nil {
-		v.s.Log.Warn("text sidecar cleanup: options of an earlier restore unreadable", "previous_run", run.id, "error", err)
-		return false
-	}
-	r, ok := res.(RestoreResolver)
-	return ok && !r.KeepDescriptions
+	return c.deleteEarlierRestored(v.history)
 }
 
 func (v *catiaRestore) committed(w *state.WAL, rel string) error {

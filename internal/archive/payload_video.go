@@ -99,6 +99,7 @@ func (v *videoSplit) writeRegistry(c SplitConfig) error { return writeVideoOutpu
 // videoRestore is the video part of restore: arxgo-videos.csv rows and preview cleanup.
 type videoRestore struct {
 	s        *Session
+	history  []runHistory // video runs before this restore started executing
 	idx      *previewIndex
 	videos   []report.VideoRow
 	byRel    map[string]report.PayloadRow
@@ -122,7 +123,7 @@ func newVideoRestore(_ context.Context, s *Session, c *RestoreConfig) (restoreHo
 	for i, r := range videos {
 		rows[i] = r.Payload()
 	}
-	return &videoRestore{s: s, idx: idx, videos: videos, byRel: payloadRowsByPath(s, rows), deletion: c.DeletePreviews}, nil
+	return &videoRestore{s: s, history: history, idx: idx, videos: videos, byRel: payloadRowsByPath(s, rows), deletion: c.DeletePreviews}, nil
 }
 
 func (v *videoRestore) rows() map[string]report.PayloadRow { return v.byRel }
@@ -135,7 +136,7 @@ func (v *videoRestore) include(rel string) bool {
 }
 
 func (v *videoRestore) beforeExecute(w *state.WAL) error {
-	return restorePreviewsBeforeExecute(v.s, w, v.idx, v.deletion)
+	return restorePreviewsBeforeExecute(v.s, w, v.idx, v.history, v.deletion)
 }
 
 func (v *videoRestore) committed(w *state.WAL, rel string) error {
