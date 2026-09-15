@@ -253,7 +253,7 @@ func (s *Session) summarizeScan(st *state.ScanStats) {
 	flag := func(c state.CountBytes) string { return fmt.Sprintf("%d/%s", c.Count, FormatBytes(c.Bytes)) }
 	s.Log.Info("scan summary", "files", sum.Files, "dirs", sum.Dirs, "symlinks", sum.Symlinks,
 		"bytes", FormatBytes(sum.Bytes), "binary", flag(sum.Binary), "media", flag(sum.Media),
-		"picture", flag(sum.Picture), "video", flag(sum.Video), "large", flag(sum.Large),
+		"picture", flag(sum.Picture), "video", flag(sum.Video), "catia", flag(sum.Catia), "large", flag(sum.Large),
 		"skipped", st.SkippedTotal(), "skipped_unreadable", st.Skipped[scanner.ReasonUnreadable],
 		"skipped_special", st.Skipped[scanner.ReasonSpecial], "top_mime", strings.Join(top, " "),
 		"elapsed", FormatDuration(secondsDuration(sum.ElapsedS)))

@@ -160,8 +160,46 @@ func TestVideoExtensionOptions(t *testing.T) {
 	}
 	// A macOS AppleDouble sidecar "._clip.MP4" describes a video but is Finder metadata.
 	appleDouble := append([]byte{0x00, 0x05, 0x16, 0x07, 0x00, 0x02, 0x00, 0x00}, "Mac OS X        "...)
-	if ft := Classify(appleDouble, "._clip.MP4", opts); ft.IsVideo || ft.IsMedia || ft.MIME != MIMEAppleDouble || !ft.IsBinary {
+	if ft := Classify(appleDouble, "._clip.MP4", opts); ft.IsVideo || ft.IsMedia || ft.IsCatia || ft.MIME != MIMEAppleDouble || !ft.IsBinary {
 		t.Errorf("AppleDouble sidecar = %+v", ft)
+	}
+}
+
+func TestClassifyCatiaExtensions(t *testing.T) {
+	opts := NewDetectOptions(0, []string{"CATPart"})
+	appleDouble := append([]byte{0x00, 0x05, 0x16, 0x07, 0x00, 0x02, 0x00, 0x00}, "Mac OS X        "...)
+	zipHead := []byte("PK\x03\x04\x14\x00\x00\x00\x08\x00")
+	tests := []struct {
+		name, file string
+		head       []byte
+		wantCatia  bool
+		wantVideo  bool
+	}{
+		{"part whatever bytes", "fixture-part.CATPart", randomBytes(64), true, false},
+		{"product is video-shaped", "fixture-product.CATProduct", ftypBox("isom", "isom", "mp41"), true, false},
+		{"drawing is text", "fixture-drawing.CATDrawing", []byte("not a drawing\n"), true, false},
+		{"cgr empty", "fixture-shape.cgr", nil, true, false},
+		{"3dxml xml", "fixture-xml.3dxml", []byte("<?xml version=\"1.0\"?><root/>"), true, false},
+		{"3dxml zip", "fixture-zip.3DXML", zipHead, true, false},
+		{"mixed case part", "Fixture.catpart", randomBytes(16), true, false},
+		{"AppleDouble part", "._fixture.CATPart", appleDouble, false, false},
+		{"video stays video", "clip.mp4", ftypBox("isom", "isom", "mp41"), false, true},
+		{"catia suffix only", "fixture-part.CATPart.bak", randomBytes(16), false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.head, tt.file, opts)
+			if got.IsCatia != tt.wantCatia || got.IsVideo != tt.wantVideo {
+				t.Errorf("Classify(%s) catia=%v video=%v mime=%s, want catia=%v video=%v",
+					tt.file, got.IsCatia, got.IsVideo, got.MIME, tt.wantCatia, tt.wantVideo)
+			}
+			if got.IsCatia && got.IsVideo {
+				t.Error("is_catia file classified as video")
+			}
+		})
+	}
+	if !IsCatiaExtension("CATPart") || !IsCatiaExtension(".cgr") || IsCatiaExtension("mp4") {
+		t.Error("IsCatiaExtension table")
 	}
 }
 

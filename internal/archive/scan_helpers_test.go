@@ -83,6 +83,7 @@ func buildEdgeCaseTree(t *testing.T, root string) {
 		"deep/l1/l2/sibling.txt":      []byte("sibling\n"),
 		"arxgo-registry.csv":          []byte("old registry\n"),
 		"arxgo-videos.csv":            []byte("reserved\n"),
+		"arxgo-catia.csv":             []byte("reserved catia\n"),
 		"sub/left.arxgo-part":         []byte("reserved part\n"),
 		"sub/arxgo-registry.csv":      []byte("not reserved below the root\n"),
 		".hidden":                     []byte("hidden file\n"),

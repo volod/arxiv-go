@@ -95,6 +95,10 @@ func TestScanGoldenRegistry(t *testing.T) {
 	if len(rec.messages("scan summary")) != 1 || len(rec.messages("skipped entry")) != 1 {
 		t.Error("scan summary or skipped-entry warning not logged exactly once")
 	}
+	repRaw := mustRead(t, filepath.Join(state.StateDir(r.archive), "runs", res.RunID, state.ReportFile))
+	if bytes.Contains(repRaw, []byte(`"catia"`)) {
+		t.Error("zero catia count present in report JSON")
+	}
 }
 
 func TestScanEmptyArchiveWritesHeaderOnly(t *testing.T) {

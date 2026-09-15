@@ -61,13 +61,15 @@ The examples below run from the extracted bundle directory. If you move the exec
 ```
 
 `scan` is the default command and writes `D:\archive\arxgo-registry.csv`. It registers
-readable files and symlinks, marking binary, media, picture, video and large files. Directories
+readable files and symlinks, marking binary, media, picture, video, CATIA and large files. Directories
 and unreadable or special entries are reported as skipped. Symlinks are recorded but never
 followed. `--metadata file` (default) records filesystem metadata and, for MP4, MOV, M4A, M4V
 and 3GP, container duration, size and codecs, with no external tool. `--metadata media` adds
 the same fields for other audio and video files and requires `ffprobe.exe` at startup. Use
 `--registry PATH` to write the CSV elsewhere, `--video-extensions braw,r3d` for ambiguous
-video formats, or repeat `--exclude` for multiple relative patterns. Glob paths use `/` even
+video formats, or repeat `--exclude` for multiple relative patterns. CATIA extensions
+(`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) cannot appear in `--video-extensions`.
+Glob paths use `/` even
 on Windows, as in `cache/**`.
 
 ## Move videos to a video archive

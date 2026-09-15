@@ -45,6 +45,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"validation lists every error", []string{"split", "--checkpoint-every", "0"}, ExitUsage, "", "arxgo: --video-archive is required"},
 		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
 		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},
+		{"scan catia video extension", []string{"scan", "--archive", archive, "--video-extensions", "CATPart"}, ExitUsage, "", "CATIA extension"},
 		{"split", append([]string{"split"}, roots...), ExitOK, "", "op=split"},
 		{"restore", append([]string{"restore"}, roots...), ExitOK, "", "scan summary"},
 	}

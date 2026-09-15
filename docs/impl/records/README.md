@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0043`.
+Next unused sequence: `0044`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -51,3 +51,4 @@ Next unused sequence: `0043`.
 | [0040 Flat operator CSV outputs](0040-split-flatten-operator-csv-outputs.md) | Operator-reported CSV format, local URLs, summary removal and domain naming | Accepted; `make ci` and integration pass on Linux |
 | [0041 Default ISO BMFF metadata](0041-metadata-collect-iso-metadata-by-default.md) | Default scan/split fill MP4/MOV media columns without ffprobe | Accepted; `make ci` passes on Linux |
 | [0042 Approve stage 1 on an operator archive copy](0042-restore-approve-stage-1-on-operator-archive-copy.md) | Operator trial: scan and split on a disposable copy; stage 1 fit for use | Accepted by the operator |
+| [0043 CATIA classification](0043-catia-implement-catia-classification.md) | Built-in CATIA kind table, `is_catia` on scan, new file-registry column order, reserved `arxgo-catia.csv`, CATIA `--video-extensions` rejected | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |

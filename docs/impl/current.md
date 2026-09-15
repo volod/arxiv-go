@@ -20,6 +20,7 @@ linked here in the same change.
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, video descriptions and `arxgo-videos.csv` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, description and registry policies; crash recovery; the stage-1 end-to-end proof | Shipped; stage-1 checkpoint, generated-archive proof and operator archive-copy trial accepted |
 | [Media previews](current/media-previews.md) | ffmpeg runner, planning, sample and PNG encoding, split/restore WAL integration, registry/description links, release bundles | Shipped; stage-2 checkpoint accepted after repairs, including a split/restore round trip on real drone footage |
+| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv` | In progress; classification shipped, split and restore remain planned |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; default `--metadata file` fills ISO BMFF `media_*` columns for MP4, MOV, M4A, M4V and 3GP
@@ -31,5 +32,7 @@ packages both platforms with pinned FFmpeg tools. Stage 1 is proven end to end b
 `make test-integration` (kills, resume, restore, round trip through the built binary), which also
 drives previews through the binary, and by the operator trial on an archive copy
 ([0042](records/0042-restore-approve-stage-1-on-operator-archive-copy.md)). Stage 2 is accepted.
-Stage 4 CATIA split/restore is specified and is the next implementation line; stage 3 cloud
-publishing waits for the stage-4 checkpoint. The next work is reported by `make plan-status`.
+`scan` marks CATIA files in the file registry
+([0043](records/0043-catia-implement-catia-classification.md)); CATIA split and restore are still
+open. Stage 3 cloud publishing waits for the stage-4 checkpoint. The next work is reported by
+`make plan-status`.

@@ -30,6 +30,7 @@ type ScanStats struct {
 	Media   CountBytes `json:"media"`
 	Picture CountBytes `json:"picture"`
 	Video   CountBytes `json:"video"`
+	Catia   CountBytes `json:"catia"`
 	Large   CountBytes `json:"large"`
 
 	// LargestVideo is the size of the largest video row, for split preflight.
@@ -43,7 +44,7 @@ type ScanStats struct {
 
 // FileFlags are the registry flags of one regular file, as counted by AddFile.
 type FileFlags struct {
-	Binary, Media, Picture, Video, Large bool
+	Binary, Media, Picture, Video, Catia, Large bool
 }
 
 // AddFile counts a regular file row.
@@ -53,7 +54,7 @@ func (s *ScanStats) AddFile(size int64, mime string, f FileFlags) {
 	for _, c := range []struct {
 		on  bool
 		acc *CountBytes
-	}{{f.Binary, &s.Binary}, {f.Media, &s.Media}, {f.Picture, &s.Picture}, {f.Video, &s.Video}, {f.Large, &s.Large}} {
+	}{{f.Binary, &s.Binary}, {f.Media, &s.Media}, {f.Picture, &s.Picture}, {f.Video, &s.Video}, {f.Catia, &s.Catia}, {f.Large, &s.Large}} {
 		if c.on {
 			c.acc.add(size)
 		}
@@ -132,6 +133,7 @@ type ScanSummary struct {
 	Media    CountBytes       `json:"media"`
 	Picture  CountBytes       `json:"picture"`
 	Video    CountBytes       `json:"video"`
+	Catia    CountBytes       `json:"catia,omitzero"`
 	Large    CountBytes       `json:"large"`
 	TopMIME  []MIMEBytes      `json:"top_mime"`
 	Skipped  map[string]int64 `json:"skipped,omitempty"`
@@ -145,7 +147,7 @@ const TopMIMECount = 10
 func (s *ScanStats) Summary(elapsedS float64) *ScanSummary {
 	return &ScanSummary{
 		Files: s.Files, Dirs: s.Dirs, Symlinks: s.Symlinks, Bytes: s.Bytes,
-		Binary: s.Binary, Media: s.Media, Picture: s.Picture, Video: s.Video, Large: s.Large,
+		Binary: s.Binary, Media: s.Media, Picture: s.Picture, Video: s.Video, Catia: s.Catia, Large: s.Large,
 		TopMIME: s.TopMIMEs(TopMIMECount), Skipped: maps.Clone(s.Skipped), ElapsedS: elapsedS,
 	}
 }

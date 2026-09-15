@@ -16,8 +16,8 @@ import (
 // columns followed by MetadataHeader); see
 // docs/openspec/stage-1-core/contracts.md#file-registry-csv.
 var RegistryHeader = []string{
-	"rel_path", "file_name", "file_size", "file_type", "file_mime",
-	"is_binary", "is_media", "is_picture", "is_video", "is_large",
+	"rel_path", "file_name", "file_type", "file_size", "is_large", "file_mime",
+	"is_binary", "is_media", "is_picture", "is_video", "is_catia",
 }
 
 func init() { RegistryHeader = append(RegistryHeader, MetadataHeader...) }
@@ -49,6 +49,7 @@ type RegistryRow struct {
 	IsMedia   bool
 	IsPicture bool
 	IsVideo   bool
+	IsCatia   bool
 	IsLarge   bool
 	Metadata  Metadata
 }
@@ -137,14 +138,14 @@ func openTruncated(path string, offset int64) (*os.File, error) {
 	return f, nil
 }
 
-// Write buffers one row.
+// Write buffers one row. Required cells follow RegistryHeader indices 0-10.
 func (w *RegistryWriter) Write(r RegistryRow) error {
-	w.record[0], w.record[1] = r.RelPath, r.FileName
-	w.record[2] = strconv.FormatInt(r.FileSize, 10)
-	w.record[3], w.record[4] = r.FileType, r.FileMIME
-	w.record[5], w.record[6] = strconv.FormatBool(r.IsBinary), strconv.FormatBool(r.IsMedia)
-	w.record[7], w.record[8] = strconv.FormatBool(r.IsPicture), strconv.FormatBool(r.IsVideo)
-	w.record[9] = strconv.FormatBool(r.IsLarge)
+	w.record[0], w.record[1], w.record[2] = r.RelPath, r.FileName, r.FileType
+	w.record[3] = strconv.FormatInt(r.FileSize, 10)
+	w.record[4], w.record[5] = strconv.FormatBool(r.IsLarge), r.FileMIME
+	w.record[6], w.record[7] = strconv.FormatBool(r.IsBinary), strconv.FormatBool(r.IsMedia)
+	w.record[8], w.record[9] = strconv.FormatBool(r.IsPicture), strconv.FormatBool(r.IsVideo)
+	w.record[10] = strconv.FormatBool(r.IsCatia)
 	copy(w.record[FileRegistryKeep:], MetadataCells(r.Metadata))
 	return w.csv.Write(w.record)
 }

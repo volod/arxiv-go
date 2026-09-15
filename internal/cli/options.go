@@ -147,6 +147,11 @@ func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSetti
 	if err != nil {
 		v.addf("--video-extensions %q: %v", s.videoExtensions, err)
 	}
+	for _, ext := range exts {
+		if scanner.IsCatiaExtension(ext) {
+			v.addf("--video-extensions %q: CATIA extension %s cannot mark a file as video", s.videoExtensions, ext)
+		}
+	}
 	sc.VideoExtensions = exts
 	sc.Registry = s.registry
 	if sc.Registry == "" && archive != "" {

@@ -213,6 +213,7 @@ func TestValueValidation(t *testing.T) {
 		{OpSplit, []string{"--base-url", "ftp://x/y"}, "--base-url"},
 		{OpSplit, []string{"--base-url", "https://example.com/v?token=1"}, "query"},
 		{OpSplit, []string{"--video-extensions", "mp4,,ts"}, "--video-extensions"},
+		{OpScan, []string{"--video-extensions", "CATPart"}, "CATIA extension"},
 	}
 	for _, tc := range cases {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
@@ -285,5 +286,25 @@ func TestScanAcceptsVideoExtensions(t *testing.T) {
 	}
 	if _, err := buildScanOptions(s, osRootFS()); err == nil || !strings.Contains(err.Error(), "--video-extensions") {
 		t.Errorf("invalid list on scan: %v", err)
+	}
+}
+
+func TestScanRejectsCatiaVideoExtensions(t *testing.T) {
+	archive, video := fixture(t)
+	for _, list := range []string{"CATPart", "cgr", ".3dxml", "CATProduct,mp4", "catdrawing"} {
+		s, err := parseFlags(OpScan, []string{"--archive", archive, "--video-extensions", list}, noEnv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := buildScanOptions(s, osRootFS()); err == nil || !strings.Contains(err.Error(), "CATIA extension") {
+			t.Errorf("scan %q: %v", list, err)
+		}
+	}
+	s, err := parseFlags(OpSplit, []string{"--archive", archive, "--video-archive", video, "--video-extensions", "CATPart"}, noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := buildSplitOptions(s, osRootFS()); err == nil || !strings.Contains(err.Error(), "CATIA extension") {
+		t.Errorf("split CATPart: %v", err)
 	}
 }

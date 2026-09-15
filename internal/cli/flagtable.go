@@ -29,7 +29,7 @@ var flagTable = []flagDef{
 	{name: "large-threshold", ops: scanSplitOps, group: groupScan, arg: "SIZE", usage: "Files at least this large get is_large=true", bind: size(defaultLarge, func(s *settings) *Size { return &s.largeThreshold })},
 	{name: "registry", ops: scanSplitOps, group: groupScan, arg: "PATH", usage: "CSV registry output path (default <archive>/arxgo-registry.csv)", bind: str("")},
 	{name: "metadata", ops: scanSplitOps, group: groupScan, arg: "MODE", usage: "file: filesystem plus ISO BMFF media fields; media: also ffprobe for other audio and video", bind: enum(MetadataFile, metadataModes)},
-	{name: "video-extensions", ops: scanSplitOps, group: groupScan, arg: "LIST", usage: "Extra comma-separated video extensions used when signature detection is inconclusive", bind: str("")},
+	{name: "video-extensions", ops: scanSplitOps, group: groupScan, arg: "LIST", usage: "Extra comma-separated video extensions used when signature detection is inconclusive (not a CATIA extension)", bind: str("")},
 	{name: "exclude", ops: scanSplitOps, group: groupScan, arg: "GLOB", usage: "Relative-path glob excluded from traversal (repeatable; ** for any depth)", bind: func(fs *flag.FlagSet, s *settings, name, usage string) {
 		fs.Var(&listValue{target: &s.exclude}, name, usage)
 	}},

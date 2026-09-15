@@ -72,6 +72,7 @@ type FileType struct {
 	IsMedia   bool
 	IsPicture bool
 	IsVideo   bool
+	IsCatia   bool
 	IsLarge   bool
 }
 
@@ -98,7 +99,9 @@ func Detect(path string, size int64, opts DetectOptions) (FileType, error) {
 // base name. An empty head is an empty file.
 func Classify(head []byte, name string, opts DetectOptions) FileType {
 	if len(head) == 0 {
-		return FileType{MIME: MIMEEmpty}
+		ft := FileType{MIME: MIMEEmpty}
+		markCatia(&ft, name)
+		return ft
 	}
 	if len(head) > DetectLimit {
 		head = head[:DetectLimit]
@@ -121,6 +124,7 @@ func Classify(head []byte, name string, opts DetectOptions) FileType {
 	ft.IsPicture = strings.HasPrefix(ft.MIME, "image/")
 	ft.IsVideo = strings.HasPrefix(ft.MIME, "video/") || ambiguous && ext != "" && opts.isVideoExt(ext)
 	ft.IsMedia = ft.IsVideo || ft.IsPicture || strings.HasPrefix(ft.MIME, "audio/")
+	markCatia(&ft, name)
 	return ft
 }
 

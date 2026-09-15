@@ -58,7 +58,7 @@ The examples below run from the extracted bundle directory. If you move the exec
 ```
 
 `scan` is also the default command. It writes `/data/archive/arxgo-registry.csv` with one row
-per readable regular file and symlink. It marks binary, media, picture, video and large files.
+per readable regular file and symlink. It marks binary, media, picture, video, CATIA and large files.
 Directories and unreadable or special entries are reported as skipped rather than registered.
 Symlinks are recorded, never followed. `--metadata file` (the default) records filesystem
 metadata and, for MP4, MOV, M4A, M4V and 3GP files, container duration, size and codecs,
@@ -66,7 +66,9 @@ without an external tool. `--metadata media` also records those fields for other
 video files and requires `ffprobe` at startup. An unreadable or malformed media file can
 still have a row with a media error. Use `--registry PATH` to write the file
 elsewhere and `--video-extensions braw,r3d` when a format lacks a recognizable signature.
-`--exclude` globs are relative to the archive root; repeat the flag for multiple patterns.
+CATIA extensions (`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) cannot appear in
+`--video-extensions`. `--exclude` globs are relative to the archive root; repeat the flag for
+multiple patterns.
 
 ## Move videos to a video archive
 

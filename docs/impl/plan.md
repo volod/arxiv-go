@@ -28,33 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-classification
-
-Mark CATIA files in the file registry so split can select them without guessing from ad hoc extensions.
-
-- Serves: `catia-archive` -- [Classification](../openspec/stage-4-catia/catia.md#classification)
-- Agent status: CLEAR
-- Dependencies: [Stage-2 review](records/0033-preview-review-stage-2-previews.md).
-- User-visible outcome: `scan` sets `is_catia` for the built-in CATIA extensions, never classifies
-  those files as video, and writes the file registry in the new logical column order.
-- Scope boundary: `internal/catia` kind table (leaf package); scanner classification by extension;
-  AppleDouble exclusion; the [file registry column order](../openspec/stage-1-core/contracts.md#file-registry-csv)
-  with `is_catia` (writer, reader, `FileRegistryKeep`, column compaction, positional parsing and
-  every test or integration check that names columns); scan statistics `catia` omitted when zero;
-  reserved `arxgo-catia.csv`; a CATIA extension in `--video-extensions` exits 2. No compatibility
-  with registries in the old order. No split, restore, payload flags, format detection or extraction.
-- Data and artifact paths: `internal/catia/`, `internal/scanner/`, `internal/report/`,
-  `internal/state/scanstats.go`, `internal/archive/scan_pipeline.go`, `internal/cli/`.
-- Execution path: Synthetic files in `t.TempDir()` with invented names; no content from gitignored
-  experimental trees.
-- Acceptance gates: CATIA extensions set `is_catia` and not `is_video` whatever the content;
-  `._fixture.CATPart` AppleDouble is not CATIA; the registry header matches the contract and a
-  written registry reads back with all flags and metadata; `--video-extensions CATPart` exits 2;
-  `make ci` and `make test-integration` pass.
-- Documentation target: `docs/impl/current/catia-archive.md`; column references in
-  `docs/impl/current/archive-registry.md` and the operator manuals.
-- Review checkpoint: `review-stage-4-catia`.
-
 #### generalize-payload-split-restore
 
 The split and restore executor is video-named end to end and replays every run's WAL, so CATIA would
@@ -92,7 +65,7 @@ Operators need accessible metadata and optional text without a CATIA licence or 
 
 - Serves: `catia-archive` -- [Accessible metadata](../openspec/stage-4-catia/catia.md#accessible-metadata)
 - Agent status: CLEAR
-- Dependencies: `implement-catia-classification`.
+- Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md).
 - User-visible outcome: A pure-Go streaming extractor returns format, release, component names,
   properties and strings for every CATIA kind, with bounded memory.
 - Scope boundary: `internal/catia` only: format detection, V5 property records, the V5 component
@@ -115,7 +88,8 @@ Move CATIA files with the same safety as video and leave Markdown the operator c
 
 - Serves: `catia-archive` -- [Split](../openspec/stage-4-catia/split-restore.md#split)
 - Agent status: CLEAR
-- Dependencies: `implement-catia-classification`; `generalize-payload-split-restore`;
+- Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md);
+  `generalize-payload-split-restore`;
   `implement-catia-extraction`.
 - User-visible outcome: `arxgo split --catia --catia-archive PATH` moves CATIA files into the CATIA
   archive, writes CATIA descriptions with the `catia:` line and `arxgo-catia.csv`. Default split
