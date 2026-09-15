@@ -8,8 +8,9 @@ current-state sections. Load other guidance when the condition under "Read when 
 
 `arxgo` is a single static Go executable that builds a CSV registry of a file archive, moves video
 files into a mirrored video archive with video description files, and restores them (stage 1); adds
-ffmpeg-based previews (stage 2); and publishes to Google Drive or SharePoint (stage 3). Start with
-the [specification](docs/openspec/spec.md) and the [architecture](docs/openspec/architecture.md).
+ffmpeg-based previews (stage 2); splits and restores CATIA CAD files with Markdown descriptions
+(stage 4); and publishes the video archive to Google Drive or SharePoint (stage 3, after stage 4).
+Start with the [specification](docs/openspec/spec.md) and the [architecture](docs/openspec/architecture.md).
 
 ## Guardrails
 
@@ -33,8 +34,9 @@ the [specification](docs/openspec/spec.md) and the [architecture](docs/openspec/
 ## Task cycle
 
 1. Run `make plan-status`; select one eligible task and note the task counts. Check its
-   dependencies and the records they link. Do not start blocked work; do not start a stage before
-   the previous stage's proof is accepted.
+   dependencies and the records they link. Do not start blocked work. Implementation order follows
+   the capability registry: stage 4 starts after the stage 2 proof; stage 3 starts after the
+   stage 4 checkpoint.
 2. Create `docs/impl/records/NNNN-<group>-<task-id>.md` from the
    [record template](docs/impl/records/template.md) using the
    [naming rules](docs/guide/planning-workflow.md#record-file-naming); paste the full task text; add

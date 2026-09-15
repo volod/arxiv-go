@@ -1,6 +1,7 @@
 # Data contracts
 
 Owners: `archive-registry` (file registry), `video-split` (video registry and description),
+`catia-archive` (CATIA registry, description and text sidecar),
 `crash-safety` (run lock, run options, WAL, checkpoint, run report). A change to a JSON format
 increments its version field; a CSV schema change is identified by its required columns.
 Both require a spec amendment. Metadata columns after the required columns may be omitted
@@ -23,21 +24,24 @@ skipped entries (special files and entries that cannot be read). Symlink rows ha
 | --- | --- | --- | --- |
 | 1 | `rel_path` | `projects/2024/interview.mp4` | Relative to the archive root, including the file name |
 | 2 | `file_name` | `interview.mp4` | Base name |
-| 3 | `file_size` | `734003200` | Bytes |
-| 4 | `file_type` | `mp4` | See [type detection](registry.md#type-detection) |
-| 5 | `file_mime` | `video/mp4` | |
-| 6 | `is_binary` | `true` | |
-| 7 | `is_media` | `true` | video, audio or picture |
-| 8 | `is_picture` | `false` | |
-| 9 | `is_video` | `true` | |
-| 10 | `is_large` | `false` | `file_size >= --large-threshold` |
-| 11 onward | [Flat metadata columns](#flat-metadata-columns) | | Modification time and optional media details |
+| 3 | `file_type` | `mp4` | See [type detection](registry.md#type-detection) |
+| 4 | `file_size` | `734003200` | Bytes |
+| 5 | `is_large` | `false` | `file_size >= --large-threshold` |
+| 6 | `file_mime` | `video/mp4` | |
+| 7 | `is_binary` | `true` | |
+| 8 | `is_media` | `true` | video, audio or picture |
+| 9 | `is_picture` | `false` | |
+| 10 | `is_video` | `true` | |
+| 11 | `is_catia` | `false` | [CATIA classification](../stage-4-catia/catia.md#classification) |
+| 12 onward | [Flat metadata columns](#flat-metadata-columns) | | Modification time and optional media details |
 
-`is_large` implements "highlighting files larger than a specified size" as an explicit column.
+Columns read from general to specific: what the file is (path, name, type), how big it is, how
+detection saw it, then the payload flags that decide what split moves. `is_large` implements
+"highlighting files larger than a specified size" as an explicit column.
 
 ## Flat metadata columns
 
-Both registries append these columns in this order: `mtime`, `link_target`, `media_source`,
+The file registry and the video registry append these columns in this order: `mtime`, `link_target`, `media_source`,
 `media_container`, `media_duration_s`, `media_bit_rate`, `media_width`, `media_height`,
 `media_rotation`, `media_frame_rate`, `media_video_codec`, `media_audio_codec`, `media_has_audio`,
 `media_video_streams`, `media_audio_streams`, `media_subtitle_streams`, `media_creation_time`,
@@ -60,8 +64,9 @@ hold the selected container text tags; other container tags are not collected.
 
 ## Candidate list
 
-`candidates.jsonl` in the run directory: one JSON object per line for every `is_video=true` registry
-row, in walk order. It is run state for split and restore, not an operator output.
+`candidates.jsonl` in the run directory: one JSON object per line for every payload candidate
+registry row (`is_video=true` in video mode, `is_catia=true` in CATIA mode), in walk order. It is
+run state for split and restore, not an operator output.
 
 ```json
 {"v":1,"rel_path":"projects/2024/interview.mp4","size":734003200,
@@ -77,18 +82,22 @@ row, in walk order. It is run state for split and restore, not an operator outpu
 
 | # | Column | Notes |
 | --- | --- | --- |
-| 1 | `rel_path` | Original path in the archive |
-| 2 | `description_rel_path` | Path of the video description in the archive |
-| 3 | `file_name` | |
-| 4 | `file_size` | |
-| 5 | `file_mime` | |
-| 6 | `sha256` | Empty unless `--verify hash` |
-| 7 | `transfer` | `rename` or `copy` |
-| 8 | `status` | `moved`, `restored`, `conflict`, `skipped` |
+| 1 | `rel_path` | Original path in the archive; the same relative path in the mirror |
+| 2 | `file_name` | |
+| 3 | `status` | `moved`, `restored`, `conflict`, `skipped` |
+| 4 | `url` | `--base-url` link, otherwise `file://` URL of the local file |
+| 5 | `description_rel_path` | Path of the description in the archive |
+| 6 | `file_size` | |
+| 7 | `sha256` | Empty unless `--verify hash` |
+| 8 | `transfer` | `rename` or `copy` |
 | 9 | `run_id` | Run that last changed the row |
-| 10 | `url` | `--base-url` link, otherwise `file://` URL of the local video |
+| 10 | `file_mime` | |
 | 11 | `previews` | Stage 2: `;`-separated recorded preview paths relative to the archive; empty when none |
 | 12 onward | [Flat metadata columns](#flat-metadata-columns) | Same layout as the file registry |
+
+Columns 1-10 are the payload registry columns shared with the [CATIA registry](#catia-registry-csv):
+what the file is and its state first, then where to find it and its description, then transfer
+evidence.
 
 `rel_path` names the video in both roots. For a moved row without a base URL, `url` points into
 the video archive; after restore it points into the main archive. Skipped or conflict rows use the
@@ -102,6 +111,27 @@ committed split makes the row `moved`; a split aborted at its destination makes 
 any other aborted split `skipped`, unless the row is `moved`; a committed restore sets `restored`
 and that restore's `run_id`. A split then adds `conflict`/`skipped` rows for the videos it skipped
 before a transaction began. Restore only updates rows; it never adds one.
+
+## CATIA registry CSV
+
+`arxgo-catia.csv` in the archive root and the CATIA archive root. One row per CATIA file handled by
+any CATIA split run; restore updates `status`.
+
+| # | Column | Notes |
+| --- | --- | --- |
+| 1-10 | payload registry columns | As in the [video registry](#video-registry-csv) |
+| 11 | `text_rel_path` | Owned text sidecar path relative to the archive, from the last `text_done`; empty when none |
+| 12 | `catia_kind` | Kind token |
+| 13 | `catia_format` | Format token |
+| 14 | `catia_release` | Release token, empty when `unknown` |
+| 15 | `catia_components` | Component count |
+| 16 | `mtime` | As in the flat metadata columns |
+
+The `catia_*` values come from the `catia` object of the transaction's `described` WAL record
+([WAL record](#wal-record)), so regenerating the registry never re-reads CATIA files. Columns 11-16
+may be omitted when empty in every row. Replay, sort, atomic write and
+`moved`/`restored`/`conflict`/`skipped` rules are those of the video registry, applied to CATIA runs.
+Video split does not rewrite this file; CATIA split does not rewrite `arxgo-videos.csv`.
 
 ## Video description
 
@@ -146,6 +176,66 @@ a backslash or a line break. Times are RFC 3339 UTC. The file is written atomica
 fields link relatively, frames as images and samples as links, URL-escaped per segment; arxgo rewrites only those lines and removes them when no
 preview remains.
 
+## CATIA description
+
+`<archive>/<rel_path>.md`, for example `cad/fixture-part.CATPart.md`, describes the CATIA file that
+`--catia` split moved. The first-line marker is the same `arxgo: <rel_path>` as a video
+description, so occupancy, conflict naming, restore and recovery reuse that check. The `video:` and
+`created:` fields are omitted; a `catia:` summary line is written instead
+([accessible metadata](../stage-4-catia/catia.md#accessible-metadata)). Component names, properties
+and harvested strings are not written here.
+
+```markdown
+arxgo: cad/fixture-part.CATPart
+file_size: 4096 (4.0 KiB)
+file_mime: application/octet-stream
+modified: 2026-09-15T12:00:00Z
+catia: CATPart | V5_CFV2 | V5R30 SP5 | 0 components
+moved_at: 2026-09-15T12:05:00Z
+moved_to: [fixture-part.CATPart](file:///mnt/nas/catia/cad/fixture-part.CATPart)
+```
+
+| Field | Content | Present |
+| --- | --- | --- |
+| `arxgo` | `rel_path` of the CATIA file | always, first line |
+| `file_size`, `file_mime`, `sha256`, `modified`, `moved_at`, `moved_to`, `url` | as for a video description | same rules |
+| `catia` | kind, format, release, component count | always on a CATIA description |
+
+## CATIA text sidecar
+
+With `--catia-text`, split writes `<archive>/<rel_path>.text.md` after the move commits, or for a
+file an earlier CATIA split moved. Example: `cad/fixture-product.CATProduct.text.md`. When that name
+is taken by anything other than an owned sidecar for the same file: `<rel_path>.arxgo.text.md`, then
+the indexed name of the description rule. The first line marks ownership. UTF-8 without BOM, `\n`
+line endings, at most 1 MiB, written through a part file and a non-replacing rename.
+
+```markdown
+arxgo-text: cad/fixture-product.CATProduct
+extracted_at: 2026-09-15T12:05:01Z
+truncated: false
+properties:
+- release: V5R30 SP5
+- build_level: 2026-01-01.00.00
+components:
+- fixture-part.CATPart
+- fixture-sub.CATProduct
+strings:
+- fixture assembly note
+```
+
+| Field or block | Content |
+| --- | --- |
+| `arxgo-text` | `rel_path` of the CATIA file; always first |
+| `extracted_at` | RFC 3339 UTC |
+| `truncated` | `true` when the 1 MiB cap or a 3dxml ZIP limit dropped items |
+| `properties:` | `- key: value` items in a fixed order: `release`, `build_level` (V5); `schema_version`, `title`, `author`, `generator`, `created` (3dxml); omitted when empty |
+| `components:` | sorted unique base names; omitted when empty |
+| `strings:` | sorted unique printable runs not listed as components; omitted when empty |
+
+Restore `--descriptions delete` removes the sidecar only when the first line is
+`arxgo-text: <rel_path>` (first 64 KiB). Extraction and sidecar rules:
+[text extraction](../stage-4-catia/catia.md#text-extraction).
+
 ## WAL record
 
 ```json
@@ -161,8 +251,15 @@ the same JSON Lines WAL and the same `txid` and `seq` scheme. They use `rel_path
 video, `dst` for the absolute path in the main archive, `size` on completion or deletion, and
 `reason` on failure. `preview_begin`/`preview_done`/`preview_failed` surround generation;
 `preview_delete`/`preview_deleted` surround size-checked restore cleanup. A preview event may
-belong to a later run than the video move it serves. Readers of earlier runs resolve absolute `src`,
-`dst` and `description` paths against the `archive` and `video_archive` roots in that run's
+belong to a later run than the video move it serves. Stage-4 CATIA text sidecars use the same
+version 2 envelope and `txid`/`seq` scheme with steps `text_begin`/`text_done`/`text_failed`
+(generation) and `text_delete`/`text_deleted` (restore cleanup). `rel_path` is the owning CATIA
+file; `dst` is the absolute sidecar path in the main archive; `size` on completion or deletion;
+`reason` on failure. A text event may belong to a later run than the CATIA move it serves. A CATIA
+`described` record also carries `catia`:
+`{"kind":"CATProduct","format":"V5_CFV2","release":"V5R30 SP5","components":12}`. Readers of earlier
+runs resolve absolute `src`, `dst` and `description` paths against the `archive` root and the
+`video_archive` or `catia_archive` root in that run's
 `options.json`, so the registries stay correct after a root is mounted or renamed elsewhere. Later stage-1 steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
 `verified`, `description` on `described`/`description_removed`: the description written, or the owned description restore removed
 or kept, omitted when there is none; `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
@@ -179,7 +276,7 @@ line. Recovery writes `aborted` with `reason` `unplaced` when work had not reach
  "root":"/data/archive","peer":"/mnt/nas/video"}
 ```
 
-`role` is `archive` in the archive root and `mirror` in the video archive root, where `peer` names
+`role` is `archive` in the archive root and `mirror` in the video or CATIA archive root, where `peer` names
 the owning archive. `scan` omits `peer`. A lock without `v` 1, `run_id`, a positive `pid` and `host`
 is unreadable.
 
@@ -189,13 +286,16 @@ is unreadable.
 
 ```json
 {"v":1,"run_id":"20260913T101500Z-1a2b3c4d","op":"split","version":"v1.0.0",
- "created_at":"2026-09-13T10:15:00Z","archive":"/data/archive","video_archive":"/mnt/nas/video",
- "defining":{"...":"..."},"options":{"...":"..."}}
+ "created_at":"2026-09-13T10:15:00Z","archive":"/data/archive","payload":"video",
+ "video_archive":"/mnt/nas/video","defining":{"...":"..."},"options":{"...":"..."}}
 ```
 
 `options` holds every validated option and `defining` the subset compared for resume (see
 [integrity](integrity.md#state-layout)); both use the Go field names of the validated option
 types, durations in nanoseconds and sizes in bytes. `dry_run` is present only for dry runs.
+Split and restore runs always carry `payload` (`video` or `catia`) and the matching mirror root,
+`video_archive` or `catia_archive`; `scan` carries neither. Replays of earlier runs read only runs of
+the selected payload ([run history by payload](../stage-4-catia/split-restore.md#run-history-by-payload)).
 
 ## Checkpoint
 
@@ -212,9 +312,13 @@ types, durations in nanoseconds and sizes in bytes. `dry_run` is present only fo
 `phase` is `start` until the operation enters its first phase. `scan_cursor` is omitted when
 empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
 `candidates.jsonl`, omitted when zero) and `scan`: the scan statistics matching the cursor and
-offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`large`
-as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
-counters and the split preview counters `previews_done`/`previews_failed` are omitted when zero. `elapsed_s` accumulates across resumed processes.
+offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`catia`/`large`
+as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `catia` is omitted
+when zero. `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
+counters, the split preview counters `previews_done`/`previews_failed`, and the CATIA counters
+`catia_done`/`catia_skipped`/`catia_failed`, `catia_bytes`, `catia_archive_bytes_written`/
+`catia_archive_bytes_freed` and `texts_done`/`texts_failed` are omitted when zero. A CATIA run uses
+the `catia_*` counters and never the `videos_*` ones. `elapsed_s` accumulates across resumed processes.
 
 ## Run report
 
@@ -231,7 +335,8 @@ counters and the split preview counters `previews_done`/`previews_failed` are om
  "issues":[{"kind":"skipped","rel_path":"projects/a.mp4","reason":"destination exists"}]}
 ```
 
-Runs that scanned add `scan`: `files`, `dirs`, `symlinks`, `bytes`, the five flag totals,
+Runs that scanned add `scan`: `files`, `dirs`, `symlinks`, `bytes`, the flag totals
+(`binary`, `media`, `picture`, `video`, `catia`, `large`; `catia` omitted when zero),
 `top_mime` (up to 10 `{"mime","count","bytes"}` by bytes), `skipped` by reason and `elapsed_s`.
 
 `status` is `completed`, `partial` (skipped or failed items) or `not_implemented`; a dry run that

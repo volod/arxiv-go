@@ -64,9 +64,10 @@ as an accepted record. Agents never self-approve a human task.
 
 Capability groups appear in [registry](../openspec/spec.md#capability-registry) order in both
 lanes. Within a group: prerequisites first, cheap deterministic work before expensive runs,
-checkpoint and proof last. A stage's first tasks depend on the previous stage's proof, so stages
-are strictly sequential while tasks inside a stage may run in parallel when their dependencies
-allow.
+checkpoint and proof last. A stage's first tasks depend on the previous stage's proof.
+Implementation order follows the registry: stage 4 (`catia-archive`) follows stage 2 and precedes
+stage 3 (`cloud-publishing`). Stage 4 does not consume stage 3 contracts. Tasks inside a stage may
+run in parallel when their dependencies allow.
 
 Dependencies must resolve to open tasks or existing records, with no cycles. `make plan-status`
 reports open task counts, the next eligible agent task and every other task that is eligible in
@@ -108,6 +109,7 @@ Filenames are `NNNN-<group>-<task-id>.md`.
 | `video-split` | `split` |
 | `video-restore` | `restore` |
 | `media-previews` | `preview` |
+| `catia-archive` | `catia` |
 | `cloud-publishing` | `cloud` |
 | `governance` (instructions, audits, workflow) | `govern` |
 

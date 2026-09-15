@@ -1,7 +1,7 @@
 # Cloud targets
 
-Owner: `cloud-publishing`. Status: future; behavior below is the design baseline that the research
-task must confirm or amend.
+Owner: `cloud-publishing`. Status: specified; implementation starts after the stage-4 checkpoint.
+Behavior below is the design baseline that the research task must confirm or amend.
 
 ## Operator problem
 
@@ -11,10 +11,14 @@ interrupted multi-gigabyte uploads, and writes the real links back.
 
 ## Operation
 
-- `arxgo split ... --publish gdrive|sharepoint`: after each video commits (and previews finish),
-  upload it; then rewrite the description and registry `url`.
+- `arxgo split ... --publish gdrive|sharepoint`: after each **video** commits (and previews finish),
+  upload it; then rewrite the description and registry `url`. The payload must be video: `--catia`
+  together with `--publish` exits 2.
 - `arxgo publish --archive PATH --video-archive PATH --publish TARGET`: publish an already split
-  archive (new operation; the CLI reserves the name).
+  video archive (new operation; the CLI reserves the name). It does not publish a CATIA mirror.
+- Publishing reads only `--video-archive` and replays only video runs
+  ([run history by payload](../stage-4-catia/split-restore.md#run-history-by-payload)), so CATIA
+  descriptions never get a published `url`. `--catia-archive` is not a publish flag.
 - `--publish-delete-local`: remove the local video archive copy after a verified upload (default
   off; restore then downloads, which is a further refinement and out of this stage's first task set).
 

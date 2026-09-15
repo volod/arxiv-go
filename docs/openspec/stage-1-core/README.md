@@ -49,3 +49,5 @@ independent and can be developed in parallel. The exact task graph is in the
 - A split/restore round trip on a generated archive reproduces every path, size and SHA-256.
 - The stage checkpoint records `proceed` or `proceed-with-nonblocking-notes`.
 - `media-previews` (stage 2) depends only on the contracts in this stage.
+- `catia-archive` (stage 4) depends on the contracts in this stage and the sidecar-failure rule
+  of stage 2; it does not depend on stage 3.

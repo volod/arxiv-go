@@ -6,7 +6,8 @@ of stage pages:
 
 - [Stage 1 -- registry, split and restore](stage-1-core/README.md)
 - [Stage 2 -- previews](stage-2-previews/README.md)
-- [Stage 3 -- cloud publishing (future)](stage-3-cloud/README.md)
+- [Stage 4 -- CATIA archive](stage-4-catia/README.md)
+- [Stage 3 -- cloud publishing](stage-3-cloud/README.md)
 
 The [architecture](architecture.md) maps behavior onto packages, data flow and the transaction
 state machine.

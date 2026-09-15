@@ -1,6 +1,7 @@
 # Split and restore
 
-Owners: `video-split` and `video-restore`. Transaction mechanics: [integrity](integrity.md).
+Owners: `video-split` and `video-restore`. CATIA payload: [stage 4](../stage-4-catia/split-restore.md).
+Transaction mechanics: [integrity](integrity.md).
 Formats: [contracts](contracts.md).
 
 ## Split

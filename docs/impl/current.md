@@ -30,5 +30,6 @@ PNG frames with FFmpeg, and regenerates `arxgo-videos.csv` in both roots.
 packages both platforms with pinned FFmpeg tools. Stage 1 is proven end to end by
 `make test-integration` (kills, resume, restore, round trip through the built binary), which also
 drives previews through the binary, and by the operator trial on an archive copy
-([0042](records/0042-restore-approve-stage-1-on-operator-archive-copy.md)). Stage 2 is accepted, so
-cloud publishing (stage 3) may start. The next work is reported by `make plan-status`.
+([0042](records/0042-restore-approve-stage-1-on-operator-archive-copy.md)). Stage 2 is accepted.
+Stage 4 CATIA split/restore is specified and is the next implementation line; stage 3 cloud
+publishing waits for the stage-4 checkpoint. The next work is reported by `make plan-status`.
