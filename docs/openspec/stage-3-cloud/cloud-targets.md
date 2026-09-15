@@ -6,13 +6,13 @@ task must confirm or amend.
 ## Operator problem
 
 After split, the video archive still has to be uploaded to the organization's cloud storage by hand,
-and stub links point at a guessed URL. Publishing from `arxgo` keeps the directory tree, resumes
+and description links point at a guessed URL. Publishing from `arxgo` keeps the directory tree, resumes
 interrupted multi-gigabyte uploads, and writes the real links back.
 
 ## Operation
 
 - `arxgo split ... --publish gdrive|sharepoint`: after each video commits (and previews finish),
-  upload it; then rewrite the stub and registry `url`.
+  upload it; then rewrite the description and registry `url`.
 - `arxgo publish --archive PATH --video-archive PATH --publish TARGET`: publish an already split
   archive (new operation; the CLI reserves the name).
 - `--publish-delete-local`: remove the local video archive copy after a verified upload (default
@@ -28,7 +28,7 @@ type Target interface {
     Stat(ctx context.Context, relPath string) (RemoteFile, error)
     // Upload streams the file with a resumable session; session state is persisted via the store.
     Upload(ctx context.Context, relPath string, src io.ReaderAt, size int64, sess SessionStore) (RemoteFile, error)
-    // ShareLink returns the link written into stubs and registries.
+    // ShareLink returns the link written into descriptions and registries.
     ShareLink(ctx context.Context, f RemoteFile) (string, error)
 }
 ```

@@ -12,8 +12,7 @@ import (
 
 type toolDiscover func(media.Finder, context.Context, []media.Requirement) (media.Toolset, []media.Requirement, error)
 
-// scanNeeds returns the tool needs of the scan settings. Stage-2 preview modes join when their
-// flags become available.
+// scanNeeds returns the tool needs of the scan settings; split adds its preview modes.
 func scanNeeds(sc ScanSettings) media.Needs {
 	return media.Needs{MetadataMedia: sc.Metadata == MetadataMedia}
 }

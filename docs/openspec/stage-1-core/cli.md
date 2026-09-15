@@ -1,7 +1,8 @@
 # CLI contract
 
-Owner: `project-foundation`. Stage-2 and stage-3 flags are listed so the parser reserves their
-names; until their capability ships, using them exits 2 with `option not available in this build`.
+Owner: `project-foundation`. Split preview settings and restore preview cleanup are active.
+Cloud publishing flags are listed so the parser recognizes their names; using them exits 2 with
+`option not available in this build`.
 
 ## Synopsis
 
@@ -13,7 +14,7 @@ arxgo version
 arxgo help [operation]
 ```
 
-The operation name `publish` is reserved for stage 3.
+The operation name `publish` is reserved for cloud publishing.
 
 The operation is the first non-flag argument; when absent, the operation is `scan`. Flags use the
 standard library `flag` syntax (`--name value` or `--name=value`). Every flag may also be given as
@@ -32,9 +33,10 @@ Parsing details:
   ignored. For the repeatable `--exclude`, the variable holds several globs separated by the
   platform path list separator (`:` on Linux, `;` on Windows). If the flag appears on the
   command line, the variable is ignored.
-- A flag of another operation (for example `--stubs` on `scan`) is an unknown flag (exit 2).
-  Stage-2 and stage-3 flags of the selected operation, and `--follow-symlinks=true`, exit 2 with
-  `option not available in this build` whether they come from the command line or the environment.
+- A flag of another operation (for example `--descriptions` on `scan`) is an unknown flag (exit 2).
+  Split preview flags and restore `--previews` are active. Stage-3 flags and
+  `--follow-symlinks=true` exit 2 with `option not available in this build` whether they come
+  from the command line or the environment.
 - `scan` accepts `--video-archive` (including `ARXGO_VIDEO_ARCHIVE`) and ignores it.
 - All validation errors are printed together, one per line, followed by a pointer to
   `arxgo help <operation>`.
@@ -93,10 +95,10 @@ Used by `scan`, and by `split` for its scan phase.
 | --- | --- | --- |
 | `--large-threshold SIZE` | `1GiB` | Files with `file_size >= SIZE` get `is_large=true` |
 | `--registry PATH` | `<archive>/arxgo-registry.csv` | CSV registry output path |
-| `--metadata MODE` | `file` | `file`: file-system metadata only. `media`: also container/stream metadata for media files (see [metadata](metadata.md)) |
+| `--metadata MODE` | `file` | `file`: filesystem metadata plus ISO BMFF container/stream fields for MP4, MOV, M4A, M4V and 3GP (no external tool). `media`: also ffprobe for other audio/video and ISO failures (see [metadata](metadata.md)) |
 | `--video-extensions LIST` | none | Extra comma-separated extensions treated as video when signature detection is inconclusive (`application/octet-stream`), added to the built-in list |
 | `--exclude GLOB` | none, repeatable | Relative-path glob (`path.Match` per segment, `**` for any depth) anchored at the archive root and excluded from traversal with its subtree; see [traversal](registry.md#traversal) |
-| `--follow-symlinks` | `false` | Reserved; symlinks are recorded but never followed in stage 1 |
+| `--follow-symlinks` | `false` | Reserved; symlinks are recorded but never followed by scan |
 
 ## Split flags
 
@@ -104,7 +106,7 @@ Used by `scan`, and by `split` for its scan phase.
 | --- | --- | --- |
 | `--transfer MODE` | `auto` | `auto`: rename on the same device, copy+verify+delete otherwise. `copy`: always copy+verify+delete |
 | `--verify MODE` | `size` | `size` or `hash` (SHA-256 computed while copying and re-read from the destination) |
-| `--base-url URL` | none | Base URL of the cloud location the video archive will be uploaded to; stubs link to `URL/<rel_path>` |
+| `--base-url URL` | none | Base URL of the cloud location the video archive will be uploaded to; descriptions link to `URL/<rel_path>` |
 | `--sample MODE` | `none` | Stage 2. `none`, `start`, `middle`, `end`, `series` |
 | `--sample-duration DURATION` | `5s` | Stage 2. Clip length, or fragment length for `series` |
 | `--sample-every DURATION` | `5m` | Stage 2. Fragment/frame spacing for `series` |
@@ -115,7 +117,7 @@ Used by `scan`, and by `split` for its scan phase.
 | `--image-resolution RES` | `sd` | Stage 2. Same values as `--sample-resolution` |
 | `--image-quality Q` | `medium` | Stage 2. PNG compression level mapping |
 | `--preview-max-items N` | `100` | Stage 2. Cap on fragments per series clip and frames per series |
-| `--publish TARGET` | none | Stage 3. `gdrive` or `sharepoint`; target-specific flags are in [cloud targets](../stage-3-cloud/cloud-targets.md) |
+| `--publish TARGET` | none | Cloud publishing. `gdrive` or `sharepoint`; target-specific flags are in [cloud targets](../stage-3-cloud/cloud-targets.md) |
 
 `--metadata` doubles as the "type of metadata" option from the requirements: `file` needs no
 external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.
@@ -126,11 +128,11 @@ external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.
 | --- | --- | --- |
 | `--transfer MODE` | `auto` | `auto`: rename on the same device, copy into the archive then delete from the video archive otherwise. `copy`: copy and keep the video archive copy |
 | `--verify MODE` | `size` | As for split |
-| `--stubs POLICY` | `delete` | `delete` or `keep` the Markdown stubs at restored locations |
+| `--descriptions POLICY` | `delete` | `delete` or `keep` the video descriptions at restored locations |
 | `--previews POLICY` | `keep` | Stage 2. `delete` or `keep` preview files generated for restored videos |
 | `--create-dirs` | `false` | Recreate a missing parent directory in the archive; default skips the video with a warning |
 | `--overwrite` | `false` | Replace an existing, different file at the destination; default skips with a conflict entry |
-| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` and regenerate the summary |
+| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` |
 
 ## Validation
 
@@ -143,7 +145,7 @@ Validation happens before the lock is taken and before any filesystem write.
 - Enumerated values, durations and sizes parse; `--sample-*`/`--image-*` flags other than `none`
   require `split`.
 - `--base-url` is an absolute `http`/`https` URL with a host and without credentials, query or
-  fragment, because stubs append `/<rel_path>`. Trailing slashes are removed.
+  fragment, because descriptions append `/<rel_path>`. Trailing slashes are removed.
 - `--video-extensions` items are letters, digits, `_` or `-`, with an optional leading dot. They
   are normalized to lower case with a leading dot, and duplicates are dropped.
 - `--exclude` globs are relative, use `/` on every platform, and contain no empty or `..` segments.
@@ -163,8 +165,7 @@ Validation happens before the lock is taken and before any filesystem write.
 | 3 | Required external tool missing; download link printed |
 | 4 | Insufficient free space found by preflight |
 | 5 | Run lock held by a live process, or recovery needs operator action |
-| 6 | Completed with skipped items (conflicts, missing directories, unreadable files); see report |
-| 70 | Operation not implemented in this build (scaffold only) |
+| 6 | Completed with skipped items (conflicts, missing directories, unreadable files) or failed previews; see report |
 | 130 | Interrupted by signal after writing a checkpoint |
 
 ## Examples

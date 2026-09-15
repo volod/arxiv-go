@@ -93,7 +93,7 @@ func TestWalkResumeMidDeepDirectoryPrunesEarlierSubtrees(t *testing.T) {
 func TestWalkExcludesReservedPathsSkipPathsAndGlobs(t *testing.T) {
 	root := t.TempDir()
 	makeTree(t, root,
-		".arxgo/lock", ".arxgo/runs/r/wal.jsonl", "arxgo-registry.csv", "arxgo-videos.csv", "arxgo-videos.md",
+		".arxgo/lock", ".arxgo/runs/r/wal.jsonl", "arxgo-registry.csv", "arxgo-videos.csv",
 		"video.mp4.arxgo-part", "sub/clip.mp4.arxgo-part", "sub/clip.mp4",
 		"sub/.arxgo/kept", "sub/arxgo-registry.csv", // reserved names only at the root
 		"custom/reg.csv", "videos/v.mp4", "videos-2/v.mp4",
@@ -222,20 +222,6 @@ func TestWalkCallbackControl(t *testing.T) {
 	})
 	if !errors.Is(err, context.Canceled) || n != 1 {
 		t.Errorf("cancel: err=%v after %d entries", err, n)
-	}
-}
-
-func TestStatsCount(t *testing.T) {
-	var s Stats
-	for _, e := range []Entry{
-		{Kind: KindDir}, {Kind: KindDir, Err: fs.ErrPermission}, {Kind: KindFile}, {Kind: KindFile, Err: fs.ErrNotExist},
-		{Kind: KindSymlink}, {Kind: KindSpecial},
-	} {
-		s.Count(e)
-	}
-	if s.Dirs != 2 || s.Files != 2 || s.Symlinks != 1 || s.Special != 1 ||
-		s.Skipped[ReasonUnreadable] != 2 || s.Skipped[ReasonSpecial] != 1 || s.SkippedTotal() != 3 {
-		t.Errorf("stats = %+v", s)
 	}
 }
 

@@ -40,8 +40,7 @@ func ExecutableName(tool Tool, goos string) string {
 type Needs struct {
 	// MetadataMedia is true for --metadata media.
 	MetadataMedia bool
-	// Sample and Image are the stage-2 preview modes; "" and "none" need no tool. The CLI leaves
-	// them empty until the stage-2 flags are available.
+	// Sample and Image are the preview modes; "" and "none" need no tool.
 	Sample, Image string
 }
 

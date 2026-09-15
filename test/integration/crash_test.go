@@ -71,7 +71,7 @@ func TestCrashEachConvergesToUninterruptedState(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := state.Recover(context.Background(), w, state.FSResolver{Crash: h.Func()}, nil); err != nil {
+					if _, err := state.Recover(context.Background(), w, crashtest.Resolver{Crash: h.Func()}, nil); err != nil {
 						t.Fatalf("recover: %v", err)
 					}
 					if err := op.Execute(context.Background(), w); err != nil {
@@ -84,7 +84,7 @@ func TestCrashEachConvergesToUninterruptedState(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := state.Recover(context.Background(), w, state.FSResolver{}, nil); err != nil {
+					if _, err := state.Recover(context.Background(), w, crashtest.Resolver{}, nil); err != nil {
 						t.Fatal(err)
 					}
 					after, err := os.ReadFile(w.Path())

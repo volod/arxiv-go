@@ -37,7 +37,7 @@ func splitRecovererFor(t *testing.T, r roots) func(string, json.RawMessage) (Res
 		}
 		_, c := splitConfig(r, "auto")
 		rs := NewSplitResolver(nil, c.Verify, nil)
-		rs.Stubs = c.Stubs
+		rs.Descriptions = c.Descriptions
 		return rs, nil
 	}
 }
@@ -48,7 +48,7 @@ func TestReplacedSplitRunIsRecoveredBeforeNewRun(t *testing.T) {
 			r, src, dst := splitFixture(t)
 			prev := crashSplit(t, r, "auto", "wal:placed")
 			if exists(src + ".md") {
-				t.Fatal("fixture: stub written before the crash")
+				t.Fatal("fixture: description written before the crash")
 			}
 			cfg, c := splitConfig(r, "auto")
 			cfg.Lock.PID = 200
@@ -66,7 +66,7 @@ func TestReplacedSplitRunIsRecoveredBeforeNewRun(t *testing.T) {
 			}
 			checkSplit(t, src, dst)
 			rows := readVideoCSV(t, filepath.Join(r.archive, scanner.VideoRegistryName))
-			if len(rows) != 2 || rows[1][0] != "nested/clip.mp4" || rows[1][8] != "moved" {
+			if len(rows) != 2 || rows[1][0] != "nested/clip.mp4" || rows[1][7] != "moved" {
 				t.Fatalf("registry rows = %q", rows)
 			}
 			log := string(mustRead(t, filepath.Join(state.StateDir(r.archive), "runs", prev, state.LogFile)))
@@ -90,7 +90,7 @@ func TestRestoreRecoversInterruptedSplitFirst(t *testing.T) {
 		t.Fatalf("restore = %+v", res)
 	}
 	if exists(fsops.PartPath(dst)) || exists(dst) || !exists(src) || exists(src+".md") {
-		t.Fatalf("after recovery: part=%v dst=%v src=%v stub=%v",
+		t.Fatalf("after recovery: part=%v dst=%v src=%v description=%v",
 			exists(fsops.PartPath(dst)), exists(dst), exists(src), exists(src+".md"))
 	}
 }

@@ -20,37 +20,30 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 		s.Log.Info("no video registry to update")
 		return nil
 	}
-	rows, err := replayVideoRows(existing, s.cfg.Archive, nil)
+	rows, err := replayArchive(s, existing, nil)
 	if err != nil {
 		return err
+	}
+	for i := range rows {
+		if !scanner.LocalRelPath(rows[i].RelPath) {
+			continue
+		}
+		if rows[i].Status == report.StatusRestored && (rows[i].URL == "" || strings.HasPrefix(rows[i].URL, "file:")) {
+			rows[i].URL = report.FileURL(filepath.ToSlash(filepath.Join(s.cfg.Archive, filepath.FromSlash(rows[i].RelPath))))
+		}
 	}
 	var b strings.Builder
 	if err := report.WriteVideoCSV(&b, rows); err != nil {
 		return err
 	}
 	csvBuf := []byte(b.String())
-	mdBuf, err := report.RenderSummary(report.SummaryInput{
-		Generated:    s.cfg.Now().UTC(),
-		Version:      s.cfg.Version,
-		RunIDs:       report.UniqueRunIDs(rows),
-		Archive:      s.cfg.Archive,
-		VideoArchive: s.cfg.VideoArchive,
-		Rows:         rows,
-	})
-	if err != nil {
-		return err
-	}
-	retire := !c.KeepStubs && !report.HasMoved(rows)
+	retire := !c.KeepDescriptions && !report.HasMoved(rows)
 	for _, root := range []string{s.cfg.Archive, s.cfg.VideoArchive} {
 		if root == "" {
 			continue
 		}
 		csvPath := filepath.Join(root, scanner.VideoRegistryName)
-		mdPath := filepath.Join(root, scanner.VideoSummaryName)
 		if err := s.cfg.FS.AtomicWriteFile(csvPath, csvBuf, 0o644); err != nil {
-			return err
-		}
-		if err := s.cfg.FS.AtomicWriteFile(mdPath, mdBuf, 0o644); err != nil {
 			return err
 		}
 		if !retire {
@@ -58,9 +51,6 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 		}
 		stamp := fmt.Sprintf("arxgo-videos.restored-%s", s.Run.ID)
 		if err := s.cfg.FS.Replace(csvPath, filepath.Join(root, stamp+".csv")); err != nil {
-			return err
-		}
-		if err := s.cfg.FS.Replace(mdPath, filepath.Join(root, stamp+".md")); err != nil {
 			return err
 		}
 	}

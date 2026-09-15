@@ -1,61 +1,42 @@
 # [arxiv-go](https://github.com/volod/arxiv-go)
 
-Organize videos in a large archive of files in order to separate video and text data for convenient
-storage.
+`arxgo` is a static Linux and Windows command-line tool for cataloging a file archive, moving
+videos to a mirrored archive with video descriptions and optional FFmpeg previews, and restoring
+them. Runs can recover after interruption. Cloud publishing is not available in current builds.
 
-`arxgo(.exe)` is a single static executable for Linux and Windows that:
+## Quick start
 
-1. **scan** (default) -- walks an archive and writes a CSV registry of every file, marking binary,
-   media, picture, video and large files;
-2. **split** -- moves video files into a video archive with the same directory tree (another disk
-   or network share), leaves a Markdown metadata stub with a link at each original location, and
-   writes a video registry and summary;
-3. **restore** -- moves the videos back, optionally recreating deleted directories.
-
-Runs are crash-safe (write-ahead log and checkpoints), resumable and check free disk space before
-starting.
-
-Stage 2 adds video samples and PNG frames through `ffmpeg`;
-Stage 3 adds Google Drive and SharePoint publishing.
-
-> Status: stage 1 in progress. `scan` writes the resumable file registry (`--metadata media` checks
-> for `ffprobe` and exits 3 with download links without it); `split` moves videos transactionally,
-> writes Markdown stubs and video registries; `restore` returns videos from the video archive. The
-> stage-1 integrity checkpoint is accepted; the end-to-end stage-1 proof remains.
+To build from source on Linux, install Go 1.27+ and GNU Make, then:
 
 ```bash
-arxgo --archive /data/archive
-arxgo split --archive /data/archive --video-archive /mnt/nas/video --metadata media
-arxgo restore --archive /data/archive --video-archive /mnt/nas/video --create-dirs
+git clone https://github.com/volod/arxiv-go.git
+cd arxiv-go
+make setup
 ```
 
-## Documentation
+`make setup` builds `bin/arxgo` and `bin/arxgo.exe`, fetches the pinned FFmpeg tools, and
+creates an optional `bin/.env` from [.env.example](.env.example). `make build-all` builds 
+the two static executables for amd64 Linux and Windows.
 
-- [Specification](docs/openspec/spec.md) and [stage tree](docs/openspec/README.md)
-- [Implementation plan](docs/impl/plan.md) and [current state](docs/impl/current.md)
-- [Development guide](docs/guide/development.md)
+To create distribution bundles, run `make dist`. It writes a Linux tarball and a Windows ZIP to
+`dist/`, each containing the static executable, the matching pinned FFmpeg 9.0.1 tools,
+`.env.example`, the practical manual, licences and checksums (see the
+[development guide](docs/guide/development.md) for release details).
+
+Copy the bundle for the target host, extract it and run the executable from the extracted
+directory:
+
+```text
+Linux:              ./arxgo split --archive /data/archive --video-archive /mnt/video --dry-run
+Windows PowerShell: .\arxgo.exe split --archive 'D:\archive' --video-archive 'E:\video' --dry-run
+```
+
+The [Linux manual](docs/guide/manual-linux.md) and
+[Windows manual](docs/guide/manual-windows.md) cover extraction, checksum checks, configuration,
+command examples and recovery.
+
+## Project documentation
+
+- [Specification](docs/openspec/spec.md) and [current implementation](docs/impl/current.md)
+- [Implementation plan](docs/impl/plan.md) and [development guide](docs/guide/development.md)
 - [Agent and contributor rules](AGENTS.md)
-
-## Setup
-
-```bash
-make setup        # build bin/arxgo and bin/arxgo.exe, download ffmpeg/ffprobe, create bin/.env
-```
-
-Settings may come from flags, `ARXGO_*` environment variables, or the optional `bin/.env` file next
-to the executable (template: [.env.example](.env.example)), in that order of precedence.
-
-## Build
-
-```bash
-make build        # bin/arxgo (static Linux amd64)
-make build-all    # bin/arxgo and bin/arxgo.exe (static Linux/Windows amd64)
-```
-
-## Develop
-
-```bash
-make plan-status  # next eligible task
-# implement
-make ci           # required checks
-```

@@ -1,6 +1,6 @@
 # Media metadata
 
-Owner: `media-metadata`. Consumers: registry `metadata` column, video registry, Markdown stubs,
+Owner: `media-metadata`. Consumers: registry media columns, video registry, video descriptions,
 stage-2 preview planning.
 
 ## Operator problem
@@ -13,28 +13,27 @@ online, and collecting it must not require installing anything for the common MP
 
 | `--metadata` | Sources | External tool |
 | --- | --- | --- |
-| `file` (default) | `os.Lstat`: size, mtime, permission bits | none |
-| `media` | `file` fields + container/stream fields below | `ffprobe` for non-ISO-BMFF media and ISO parse failures |
+| `file` (default) | `os.Lstat` plus ISO BMFF container/stream fields for MP4, MOV, M4A, M4V and 3GP | none |
+| `media` | `file` fields + ffprobe for other audio/video and ISO parse failures | `ffprobe` required at startup |
 
 ## Normalized media fields
 
-Both parsers produce the same Go struct and JSON object (`metadata.media`, see
-[contracts](contracts.md#metadata-json)):
+Both parsers produce the same Go struct, projected to [flat CSV columns](contracts.md#flat-metadata-columns):
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `container` | string | `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`, `avi`, ... |
-| `duration_s` | float | Seconds, 3 decimals |
+| `duration_s` | float | Presented duration in seconds, 3 decimals. ISO BMFF uses the movie header, which honors edit lists; only fragmented files or a missing movie duration use the longest video or audio track |
 | `bit_rate` | int | bits/s, container level when known |
 | `width`, `height` | int | First video stream, display dimensions after rotation |
-| `rotation` | int | Degrees from the display matrix or side data |
+| `rotation` | int | Clockwise degrees a player applies for display (`0`, `90`, `180`, `270`): the ISO BMFF track matrix, or ffprobe display-matrix side data negated (it counts counter-clockwise), or the legacy `rotate` tag. An iPhone portrait video is `90` |
 | `frame_rate` | string | Rational, e.g. `30000/1001` |
 | `video_codec` | string | e.g. `h264`, `hevc`, `av1`, `mpeg4` |
 | `audio_codec` | string | Empty when no audio |
 | `has_audio` | bool | |
 | `video_streams`, `audio_streams`, `subtitle_streams` | int | |
 | `creation_time` | string | RFC 3339 when present |
-| `tags` | object | Container tags (`title`, `comment`, `encoder`, ...), values truncated to 256 bytes |
+| `tags` | object | Selected container text tags: `title`, `comment`, `encoder`, `artist`, `album`, `date`, `genre`, `composer`, `grouping`, `description`, `copyright`; values truncated to 256 bytes and projected to their own CSV columns. Other tags are ignored |
 | `source` | string | `go-mp4` or `ffprobe` |
 | `error` | string | Present instead of stream fields when parsing failed |
 

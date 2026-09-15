@@ -42,11 +42,11 @@ func verifyMode(v string) fsops.VerifyMode {
 	return fsops.VerifySize
 }
 
-// splitResolver is the recovery resolver of a split run; execute uses its stub writer too.
+// splitResolver is the recovery resolver of a split run; execute uses its description writer too.
 func splitResolver(o SplitOptions) archive.SplitResolver {
 	verify := verifyMode(o.Verify)
 	r := archive.NewSplitResolver(nil, verify, nil)
-	r.Stubs = archive.NewMarkdownStub(archive.StubConfig{
+	r.Descriptions = archive.NewMarkdownDescription(archive.DescriptionConfig{
 		Archive: o.Archive, VideoArchive: o.VideoArchive, BaseURL: o.BaseURL,
 		Registry: o.Registry, Version: version, Verify: verify,
 	})
@@ -56,7 +56,7 @@ func splitResolver(o SplitOptions) archive.SplitResolver {
 // restoreResolver is the recovery resolver of a restore run.
 func restoreResolver(o RestoreOptions) archive.RestoreResolver {
 	return archive.NewRestoreResolver(archive.RestoreResolver{
-		Verify: verifyMode(o.Verify), KeepStubs: o.Stubs == StubsKeep,
+		Verify: verifyMode(o.Verify), KeepDescriptions: o.Descriptions == PolicyKeep,
 		KeepSource: o.Transfer == TransferCopy, Archive: o.Archive,
 	})
 }
@@ -114,8 +114,6 @@ func exitCode(st archive.Status) int {
 		return ExitOK
 	case archive.StatusPartial:
 		return ExitPartial
-	case archive.StatusNotImplemented:
-		return ExitNotImplemented
 	case archive.StatusInterrupted:
 		return ExitInterrupted
 	case archive.StatusLocked, archive.StatusNeedsOperator:
@@ -125,14 +123,4 @@ func exitCode(st archive.Status) int {
 	default:
 		return ExitFailure
 	}
-}
-
-// notImplemented is the body of operations whose work is not in this build: the run lifecycle
-// (lock, run directory, log, checkpoint, report) runs, then the operation exits 70.
-func notImplemented(ctx context.Context, s *archive.Session) error {
-	if err := s.Phase("validate", archive.Totals{}); err != nil {
-		return err
-	}
-	s.Log.Error("operation not implemented in this build", "op", s.Op())
-	return archive.ErrNotImplemented
 }

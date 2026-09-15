@@ -3,6 +3,9 @@
 Accepted work: [0010 Directory walker](../records/0010-registry-implement-directory-walker.md),
 [0011 File type detection](../records/0011-registry-implement-file-type-detection.md),
 [0012 Scan operation and CSV registry](../records/0012-registry-implement-scan-operation-and-csv-registry.md).
+The flat CSV metadata layout was delivered in
+[0040](../records/0040-split-flatten-operator-csv-outputs.md); default ISO BMFF collection in
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -30,9 +33,11 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
 - Rows: regular files with the detected type, symlinks as `symlink` rows with `link_target`.
   Directories, special entries (walker `special`), `Lstat` failures and files that cannot be opened
   or read get no row; each is logged once, counted in `skipped` by reason and listed in the
-  report's `issues`. `file`-mode metadata is `{"v":1,"mtime":...,"mode":"0644"}`. `--metadata
-  media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
-  and adds `metadata.media` for detected audio/video files.
+  report's `issues`. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
+  and 3GP, flat `media_*` columns from the ISO BMFF parser (a parse failure sets `media_error`).
+  `--metadata media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
+  and fills those columns for other audio/video files and ISO failures. A completed registry omits
+  metadata columns that are empty in every row ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)).
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
@@ -82,8 +87,8 @@ below it, in walk order. It performs no type detection and writes no output.
   Directories wholly before the cursor are pruned with `SkipDir` and never listed; directories on
   the cursor's path are descended silently. Resuming near the end of a 20k-entry tree costs about
   0.1 ms instead of 33 ms for the full walk.
-- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-videos.md`; the
-  `.arxgo-part` suffix at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
+- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`; the
+  `.arxgo-part` suffix and preview part files `<stem>.arxgo-part.<ext>` at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
   `--registry` or a nested video archive); and `Options.Exclude` globs compiled by `CompileGlob`
   (anchored at the root, `path.Match` per segment, `**` for zero or more segments, linear-time
   matching). Excluded directories are pruned. `cli` validates `--exclude` with the same
@@ -99,8 +104,6 @@ below it, in walk order. It performs no type detection and writes no output.
   cursor. A missing, non-directory or unlistable root, a context cancellation, or a callback error
   ends the walk with an error; `ErrStop` from the callback ends it cleanly. `fs.SkipDir` and
   `fs.SkipAll` from the callback are rejected because the held-back directory makes them ambiguous.
-- `Stats.Count(Entry)` accumulates directories, files, symlinks, special entries and skipped counts
-  by reason; the scan operation will persist it in the checkpoint so resumed runs keep counting.
 
 Measured on the development host (i9-14900K, NVMe ext4, Go 1.27.1): 20,420-entry generated tree
 in about 33 ms per full walk (about 20% over bare `WalkDir` plus `Info`); `/usr/share`
@@ -127,7 +130,11 @@ row; `Classify(head, name, opts)` is the pure part over already-read bytes. Neit
   CSV, NDJSON, shell scripts and UTF-8/UTF-16 text with a BOM are text.
 - `IsVideo` is a `video/` type, or `application/octet-stream` with an extension in
   `BuiltinVideoExtensions` or the extras given to `NewDetectOptions` (dot and case ignored). A
-  recognized signature always wins over the extension, so text named `.mp4` is not video.
+  recognized signature always wins over the extension, so text named `.mp4` is not video. A
+  macOS AppleDouble sidecar (`._clip.MP4`, magic `00 05 16 07`) is `multipart/appledouble`,
+  binary and never video: before [0034](../records/0034-preview-repair-stage-2-preview-defects.md)
+  42 such 4 KiB files on an operator drone archive were moved as videos with previews that failed
+  on every rerun.
   `IsPicture` is an `image/` type; `IsMedia` is video, picture or `audio/`.
 - `IsLarge` is `size >= LargeThreshold` using the size recorded for the row; a threshold of zero
   marks nothing large.

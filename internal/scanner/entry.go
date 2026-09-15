@@ -7,7 +7,6 @@ const (
 	StateDirName      = ".arxgo"
 	RegistryName      = "arxgo-registry.csv"
 	VideoRegistryName = "arxgo-videos.csv"
-	VideoSummaryName  = "arxgo-videos.md"
 	PartSuffix        = ".arxgo-part" // same value as fsops.PartSuffix
 )
 
@@ -62,43 +61,4 @@ func (e Entry) SkipReason() string {
 		return ReasonSpecial
 	}
 	return ""
-}
-
-// Stats counts delivered entries. The scan operation keeps one per run and persists it in the
-// checkpoint, so a resumed walk continues the counts instead of restarting them.
-type Stats struct {
-	Dirs     int64
-	Files    int64
-	Symlinks int64
-	Special  int64
-	Skipped  map[string]int64 // by reason, see Entry.SkipReason
-}
-
-// Count adds e. An unreadable directory counts both as a directory and as skipped.
-func (s *Stats) Count(e Entry) {
-	switch e.Kind {
-	case KindDir:
-		s.Dirs++
-	case KindFile:
-		s.Files++
-	case KindSymlink:
-		s.Symlinks++
-	case KindSpecial:
-		s.Special++
-	}
-	if reason := e.SkipReason(); reason != "" {
-		if s.Skipped == nil {
-			s.Skipped = map[string]int64{}
-		}
-		s.Skipped[reason]++
-	}
-}
-
-// SkippedTotal returns the number of skipped entries; a non-zero value makes the run exit 6.
-func (s *Stats) SkippedTotal() int64 {
-	var n int64
-	for _, c := range s.Skipped {
-		n += c
-	}
-	return n
 }

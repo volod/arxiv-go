@@ -20,7 +20,7 @@ func TestRestoreCrashPointsConverge(t *testing.T) {
 		{"auto", crashtest.RestoreRenamePoints},
 		{"copy", []string{
 			"wal:begin", "fs:copy", "wal:copied", "wal:verified", "fs:place",
-			"wal:placed", "fs:stub", "wal:stub_removed", "wal:commit",
+			"wal:placed", "fs:description", "wal:description_removed", "wal:commit",
 		}},
 	}
 	for _, tc := range cases {
@@ -50,7 +50,7 @@ func TestRestoreCrashPointsConverge(t *testing.T) {
 					t.Fatal("source remains after auto restore")
 				}
 				if exists(src + ".md") {
-					t.Fatal("stub remains after resume")
+					t.Fatal("description remains after resume")
 				}
 			})
 		}
@@ -93,7 +93,7 @@ func TestRestoreCrossDeviceCrashPointsConverge(t *testing.T) {
 				t.Fatal("restored bytes differ")
 			}
 			if exists(dst) || exists(fsops.PartPath(src)) || exists(src+".md") {
-				t.Fatalf("source %v, part %v or stub %v remains", exists(dst), exists(fsops.PartPath(src)), exists(src+".md"))
+				t.Fatalf("source %v, part %v or description %v remains", exists(dst), exists(fsops.PartPath(src)), exists(src+".md"))
 			}
 		})
 	}

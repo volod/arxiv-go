@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -103,7 +104,7 @@ func TestScanEmptyArchiveWritesHeaderOnly(t *testing.T) {
 		t.Fatalf("status = %v (%v)", res.Status, res.Err)
 	}
 	got := string(mustRead(t, filepath.Join(r.archive, "arxgo-registry.csv")))
-	if got != "rel_path,file_name,file_size,file_type,file_mime,is_binary,is_media,is_picture,is_video,is_large,metadata\n" {
+	if got != strings.Join(report.RegistryHeader[:report.FileRegistryKeep], ",")+"\n" {
 		t.Errorf("registry = %q", got)
 	}
 }

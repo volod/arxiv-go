@@ -15,6 +15,10 @@ const probeHelperEnv = "ARXGO_TEST_PROBE_HELPER"
 const ffprobeHelperEnv = "ARXGO_TEST_FFPROBE_HELPER"
 
 func TestMain(m *testing.M) {
+	if mode := os.Getenv(ffmpegHelperEnv); mode != "" {
+		runFFmpegHelper(mode)
+		os.Exit(0)
+	}
 	if mode := os.Getenv(ffprobeHelperEnv); mode != "" {
 		if len(os.Args) != 10 || os.Args[1] != "-v" || os.Args[2] != "error" || os.Args[3] != "-hide_banner" || os.Args[4] != "-print_format" || os.Args[5] != "json" || os.Args[6] != "-show_format" || os.Args[7] != "-show_streams" || os.Args[8] != "--" {
 			os.Exit(18)

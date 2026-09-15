@@ -11,11 +11,11 @@ arxiv-go/
 |-- internal/
 |   |-- cli/                     flag parsing, validation, exit codes, logger setup, op dispatch
 |   |-- scanner/                 walker.go, order.go, entry.go, relpath.go (traversal, reserved and local paths); mimetype.go (detection and flags)
-|   |-- media/                   tools.go, guidance.go (discovery), metadata.go (stage 1); ffmpeg.go, preview.go (stage 2)
+|   |-- media/                   tools.go, guidance.go (discovery); metadata.go, isobmff*.go, ffprobe.go (metadata); ffmpeg*.go (runner); preview.go, preview_plan.go, samples*.go, frames.go (previews)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock.go, checkpoint.go, scanstats.go, report.go, runlog.go, wal.go, recovery.go
-|   |-- archive/                 session.go, session_state.go, resume.go, resume_replaced.go, finish.go, progress.go, preflight.go, preflight_run.go, scan.go, scan_pipeline.go, candidates.go; split.go, split_transfer.go, split_recovery.go, split_stub.go, split_report.go, restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go
-|   |-- report/                  csv.go, csv_read.go (file registry); markdown.go, frontmatter.go, names.go, videos.go, summary.go
+|   |-- state/                   rundir.go, lock*.go, checkpoint.go, committed.go, scanstats.go, report.go, runlog.go, wal.go, wal_read.go, wal_preview.go, recovery.go
+|   |-- archive/                 session*.go, resume*.go, finish.go, progress.go, preflight*.go, scan*.go, candidates.go; history.go (WAL of every run), transfer.go (placement shared by split and restore); split.go, split_exec.go, split_recovery.go, split_description.go, split_report.go; restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go; previews_index.go, previews_plan.go, previews_exec.go, previews_restore.go
+|   |-- report/                  csv.go, csv_read.go, csv_compact.go, metadata_csv.go (file registry); description.go, names.go, url.go, format.go, videos.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status
 |-- tools/plancheck/             dev-only Go command wrapping internal/devtools/planning
@@ -42,6 +42,7 @@ flowchart TD
     archive --> state
     archive --> report
     archive --> fsops
+    media --> fsops
     state --> fsops
     scanner --> media
     report --> media
@@ -56,8 +57,9 @@ Rules:
 - `scanner`, `media`, `report` and `fsops` do not import `archive` or `state`.
 - `media` is the only package that runs external processes. `cli` calls `media` only for tool
   discovery, which must finish before the run session starts.
-- `fsops` is the only package with build-tagged platform files; it also holds the process liveness
-  check used by the run lock.
+- `fsops` owns platform filesystem primitives and the process liveness check used by the run lock.
+  `media` owns build-tagged ffmpeg process-tree supervision. It uses `fsops.Rename` to publish
+  previews without replacing a file.
 - `cli` maps validated options onto `archive.Config` and exit codes onto `archive.Status`; it does
   not import `state` directly.
 - All long-running functions accept a `context.Context`; cancellation (Ctrl+C) stops at the next
@@ -73,8 +75,8 @@ flowchart LR
     P -->|plan: videos, bytes, devices| X[executor]
     X -->|WAL begin/step/commit| W[(.arxgo/runs/ID/wal.jsonl)]
     X -->|move or copy+verify+delete| V[(video archive root)]
-    X -->|stub .md| A
-    X --> VR[video registry CSV + summary.md]
+    X -->|description .md| A
+    X --> VR[video registry CSV]
     X -.->|stage 2| FF[ffmpeg previews]
     X -.->|stage 3| C[cloud target]
 ```
@@ -87,12 +89,12 @@ flowchart LR
 | 2. Lock and recover | `.arxgo/lock`, last run WAL | recovered WAL, checkpoint | lock ownership rules |
 | 3. Scan | archive tree | `arxgo-registry.csv`, candidate list in run dir | checkpoint cursor |
 | 4. Preflight | candidate list, statfs | preflight report in run log | rerun (read-only) |
-| 5. Execute | candidate list | videos, stubs, WAL | committed transaction set |
-| 6. Report | WAL, candidate list | `arxgo-videos.csv`, `arxgo-videos.md` | regenerate from WAL |
+| 5. Execute | candidate list | videos, descriptions, WAL | committed transaction set |
+| 6. Report | WAL, candidate list | `arxgo-videos.csv` | regenerate from WAL |
 
 Restore uses the same phases with the roots swapped for scanning (it scans the video archive;
-the file registry for that scan stays in the run directory). Phase 5 uses `stub_removed` instead
-of `stubbed`. Phase 6 marks matching video-registry rows `restored`.
+the file registry for that scan stays in the run directory). Phase 5 uses `description_removed` instead
+of `described`. Phase 6 marks matching video-registry rows `restored`.
 `scan` runs phases 1-3 only and takes only the archive lock (exclusive, since it writes the
 registry); its free-space preflight runs before traversal. Within phase 3 the walker feeds a
 bounded detection worker pool and a writer that takes entries back in walk order, so the registry,
@@ -110,9 +112,9 @@ stateDiagram-v2
     begun --> copied: other device: copy to dst.arxgo-part + fsync
     copied --> verified: size (+sha256 when --verify=hash) match
     verified --> placed: rename(dst.arxgo-part, dst) + fsync dir
-    placed --> stubbed: write stub.md (temp + rename)
-    stubbed --> source_removed: other device: remove(src)
-    stubbed --> committed: same device
+    placed --> described: write description.md (temp + rename)
+    described --> source_removed: other device: remove(src)
+    described --> committed: same device
     source_removed --> committed
     committed --> [*]
 ```
@@ -122,7 +124,7 @@ Recovery rules for a transaction without `commit` (full table in
 
 - Before `placed`: delete any `.arxgo-part`, keep the source, mark the transaction `aborted`; the
   file is retried in the resumed run.
-- At or after `placed`: the destination is complete; roll forward (write stub, remove source if it
+- At or after `placed`: the destination is complete; roll forward (write description, remove source if it
   still exists and the destination verifies), then `commit`.
 
 ## Concurrency
@@ -131,7 +133,9 @@ Recovery rules for a transaction without `commit` (full table in
   pool whose results are re-ordered before writing.
 - Transfers run sequentially in stage 1. A `--jobs` flag for parallel cross-device copies is a
   later refinement and must keep WAL ordering per transaction.
-- Stage 2 previews run in a bounded ffmpeg worker pool (default 1) after the owning video commits.
+- Stage 2 previews run on one ffmpeg worker goroutine that reads committed videos from the video
+  archive while the split loop moves the next ones; its first fatal error stops the loop at the
+  next transaction boundary.
 
 ## Cross-platform notes
 

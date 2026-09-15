@@ -8,7 +8,7 @@ test: ## Run unit tests
 test-race: ## Run unit tests with the race detector (requires cgo on the host)
 	CGO_ENABLED=1 $(GO) test -race ./...
 
-test-integration: ## Run end-to-end tests (build tag integration), including the stage-1 proof
+test-integration: ## Run end-to-end tests (build tag integration), including the archive round-trip proof
 	$(GO) test -count=1 -tags integration ./test/integration/...
 
 fmt: ## Format Go sources

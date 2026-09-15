@@ -2,13 +2,8 @@ package state
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"os"
-
-	"github.com/volod/arxiv-go/internal/fsops"
 )
 
 // Recovery is the summary of one Recover pass.
@@ -32,11 +27,11 @@ func (o Observation) DstMatches(begin Record) bool {
 }
 
 // Resolver applies operation-specific filesystem effects during recovery. Split and restore
-// supply their own; tests use a fake or FSResolver.
+// supply their own; tests use the filesystem resolver of test/fixtures/crashtest.
 type Resolver interface {
 	Inspect(tx Tx) (Observation, error)
 	DeletePart(tx Tx) error
-	WriteStub(tx Tx) error
+	WriteDescription(tx Tx) error
 	RemoveSource(tx Tx) error
 }
 
@@ -79,8 +74,8 @@ func recoverOne(w *WAL, res Resolver, log *slog.Logger, tx Tx) (Recovery, error)
 		return recoverUnplaced(w, res, log, tx, obs)
 	case StepPlaced:
 		return recoverPlaced(w, res, log, tx, obs)
-	case StepStubbed, StepStubRemoved:
-		return recoverStubbed(w, res, log, tx, obs)
+	case StepDescribed, StepDescriptionRemoved:
+		return recoverDescribed(w, res, log, tx)
 	case StepSourceRemoved:
 		return commitTx(w, log, tx)
 	default:
@@ -133,26 +128,26 @@ func recoverPlaced(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observatio
 		return Recovery{}, fmt.Errorf("%w: destination missing or wrong size after placed in %s (size %d, want %d, exists %v)",
 			ErrStateCorrupt, tx.Begin.TxID, obs.DstSize, tx.Begin.Size, obs.DstExists)
 	}
-	step := StepStubbed
+	step := StepDescribed
 	if tx.Begin.Op == "restore" {
-		step = StepStubRemoved
+		step = StepDescriptionRemoved
 	}
-	// The path is chosen before the effect: a removed stub can no longer be found afterwards.
-	path := stubPath(tx.Begin)
-	if namer, ok := res.(interface{ StubPath(Tx) string }); ok {
-		path = namer.StubPath(tx)
+	// The path is chosen before the effect: a removed description can no longer be found afterwards.
+	path := descriptionPath(tx.Begin)
+	if namer, ok := res.(interface{ DescriptionPath(Tx) string }); ok {
+		path = namer.DescriptionPath(tx)
 	}
-	if err := res.WriteStub(tx); err != nil {
+	if err := res.WriteDescription(tx); err != nil {
 		return Recovery{}, err
 	}
-	if _, err := w.Append(tx.Begin.TxID, step, Record{Stub: path}); err != nil {
+	if _, err := w.Append(tx.Begin.TxID, step, Record{Description: path}); err != nil {
 		return Recovery{}, err
 	}
 	tx.Last.Step = step
-	return recoverStubbed(w, res, log, tx, obs)
+	return recoverDescribed(w, res, log, tx)
 }
 
-func recoverStubbed(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observation) (Recovery, error) {
+func recoverDescribed(w *WAL, res Resolver, log *slog.Logger, tx Tx) (Recovery, error) {
 	obs, err := res.Inspect(tx)
 	if err != nil {
 		return Recovery{}, err
@@ -187,88 +182,9 @@ func commitTx(w *WAL, log *slog.Logger, tx Tx) (Recovery, error) {
 	return Recovery{Committed: 1}, nil
 }
 
-func stubPath(b Record) string {
+func descriptionPath(b Record) string {
 	if b.Op == "restore" {
 		return b.Dst + ".md"
 	}
 	return b.Src + ".md"
-}
-
-// FSResolver implements Resolver with the process filesystem. Stub writing uses Src+".md" for
-// split and removes Dst+".md" for restore. Operations replace this with their own resolver.
-type FSResolver struct {
-	Crash CrashHook
-}
-
-func (r FSResolver) hit(point string) error {
-	if r.Crash == nil {
-		return nil
-	}
-	return r.Crash(point)
-}
-
-// Inspect stats src, dst and the destination part file.
-func (r FSResolver) Inspect(tx Tx) (Observation, error) {
-	var o Observation
-	var err error
-	if o.SrcExists, o.SrcSize, err = inspectPath(tx.Begin.Src); err != nil {
-		return Observation{}, err
-	}
-	if o.DstExists, o.DstSize, err = inspectPath(tx.Begin.Dst); err != nil {
-		return Observation{}, err
-	}
-	if o.PartExists, _, err = inspectPath(fsops.PartPath(tx.Begin.Dst)); err != nil {
-		return Observation{}, err
-	}
-	return o, nil
-}
-
-// DeletePart removes dst.arxgo-part if it exists.
-func (r FSResolver) DeletePart(tx Tx) error {
-	if err := removeIfPresent(fsops.PartPath(tx.Begin.Dst)); err != nil {
-		return err
-	}
-	return r.hit("fs:delete_part")
-}
-
-// WriteStub writes or removes the Markdown stub for the operation.
-func (r FSResolver) WriteStub(tx Tx) error {
-	path := stubPath(tx.Begin)
-	var err error
-	if tx.Begin.Op == "restore" {
-		err = removeIfPresent(path)
-	} else {
-		err = fsops.AtomicWriteFile(path, []byte("rel_path: "+tx.Begin.RelPath+"\n"), 0o644)
-	}
-	if err != nil {
-		return err
-	}
-	return r.hit("fs:stub")
-}
-
-// RemoveSource deletes the source file if it is still present.
-func (r FSResolver) RemoveSource(tx Tx) error {
-	if err := removeIfPresent(tx.Begin.Src); err != nil {
-		return err
-	}
-	return r.hit("fs:source_removed")
-}
-
-func inspectPath(path string) (bool, int64, error) {
-	fi, err := os.Lstat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, 0, nil
-	}
-	if err != nil {
-		return false, 0, err
-	}
-	return true, fi.Size(), nil
-}
-
-func removeIfPresent(path string) error {
-	err := os.Remove(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	return err
 }

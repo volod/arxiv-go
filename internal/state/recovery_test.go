@@ -12,9 +12,9 @@ import (
 )
 
 type recovEnv struct {
-	dir, src, dst, part, stub string
-	w                         *WAL
-	res                       FSResolver
+	dir, src, dst, part, description string
+	w                                *WAL
+	res                              fsResolver
 }
 
 func setupRecov(t *testing.T, op, transfer string, size int) recovEnv {
@@ -43,8 +43,8 @@ func setupRecov(t *testing.T, op, transfer string, size int) recovEnv {
 		t.Fatal(begin)
 	}
 	return recovEnv{
-		dir: dir, src: src, dst: dst, part: fsops.PartPath(dst), stub: src + ".md",
-		w: w, res: FSResolver{},
+		dir: dir, src: src, dst: dst, part: fsops.PartPath(dst), description: src + ".md",
+		w: w, res: fsResolver{},
 	}
 }
 
@@ -93,8 +93,8 @@ func TestRecoveryTable(t *testing.T) {
 		if err != nil || got.Committed != 1 {
 			t.Fatalf("got %+v err %v", got, err)
 		}
-		if exists(e.src) || !exists(e.dst) || !exists(e.stub) {
-			t.Fatalf("src=%v dst=%v stub=%v", exists(e.src), exists(e.dst), exists(e.stub))
+		if exists(e.src) || !exists(e.dst) || !exists(e.description) {
+			t.Fatalf("src=%v dst=%v description=%v", exists(e.src), exists(e.dst), exists(e.description))
 		}
 		if !e.w.Committed().Has("clip.mp4") {
 			t.Fatal("not committed")
@@ -142,7 +142,7 @@ func TestRecoveryTable(t *testing.T) {
 		if err != nil || got.Committed != 1 {
 			t.Fatalf("got %+v err %v", got, err)
 		}
-		if exists(e.src) || !exists(e.dst) || !exists(e.stub) {
+		if exists(e.src) || !exists(e.dst) || !exists(e.description) {
 			t.Fatal("placed roll-forward")
 		}
 	})
@@ -174,23 +174,23 @@ func TestRecoveryTable(t *testing.T) {
 		}
 	})
 
-	t.Run("stubbed removes source and commits", func(t *testing.T) {
+	t.Run("described removes source and commits", func(t *testing.T) {
 		e := setupRecov(t, "split", TransferCopy, 4)
 		body, _ := os.ReadFile(e.src)
 		if err := os.WriteFile(e.dst, body, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(e.stub, []byte("rel_path: clip.mp4\n"), 0o644); err != nil {
+		if err := os.WriteFile(e.description, []byte("rel_path: clip.mp4\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		e.append(t, StepPlaced)
-		e.append(t, StepStubbed)
+		e.append(t, StepDescribed)
 		got, err := e.recover(t)
 		if err != nil || got.Committed != 1 {
 			t.Fatalf("got %+v err %v", got, err)
 		}
 		if exists(e.src) || !exists(e.dst) {
-			t.Fatal("stubbed")
+			t.Fatal("described")
 		}
 	})
 
@@ -200,7 +200,7 @@ func TestRecoveryTable(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.append(t, StepPlaced)
-		e.append(t, StepStubbed)
+		e.append(t, StepDescribed)
 		e.append(t, StepSourceRemoved)
 		got, err := e.recover(t)
 		if err != nil || got.Committed != 1 {
@@ -208,20 +208,20 @@ func TestRecoveryTable(t *testing.T) {
 		}
 	})
 
-	t.Run("stub_removed restore rolls forward", func(t *testing.T) {
+	t.Run("description_removed restore rolls forward", func(t *testing.T) {
 		e := setupRecov(t, "restore", TransferCopy, 4)
 		body, _ := os.ReadFile(e.src)
 		if err := os.WriteFile(e.dst, body, 0o644); err != nil {
 			t.Fatal(err)
 		}
 		e.append(t, StepPlaced)
-		e.append(t, StepStubRemoved)
+		e.append(t, StepDescriptionRemoved)
 		got, err := e.recover(t)
 		if err != nil || got.Committed != 1 {
 			t.Fatalf("got %+v err %v", got, err)
 		}
 		if exists(e.src) || !exists(e.dst) {
-			t.Fatalf("restore stub_removed src=%v dst=%v", exists(e.src), exists(e.dst))
+			t.Fatalf("restore description_removed src=%v dst=%v", exists(e.src), exists(e.dst))
 		}
 	})
 
@@ -235,7 +235,7 @@ func TestRecoveryTable(t *testing.T) {
 		if err != nil || got.Committed != 1 {
 			t.Fatalf("got %+v err %v", got, err)
 		}
-		if exists(e.src) || !exists(e.dst) || !exists(e.stub) {
+		if exists(e.src) || !exists(e.dst) || !exists(e.description) {
 			t.Fatal("copied-with-dst")
 		}
 	})
@@ -261,7 +261,7 @@ func TestRecoveryIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := mustReadFile(t, e.w.Path())
-	src, dst, stub := exists(e.src), exists(e.dst), exists(e.stub)
+	src, dst, description := exists(e.src), exists(e.dst), exists(e.description)
 	got, err := e.recover(t)
 	if err != nil || got.Aborted != 0 || got.Committed != 0 {
 		t.Fatalf("second recover %+v err %v", got, err)
@@ -270,7 +270,7 @@ func TestRecoveryIsIdempotent(t *testing.T) {
 	if !bytes.Equal(before, after) {
 		t.Fatalf("WAL changed\n%s\n%s", before, after)
 	}
-	if exists(e.src) != src || exists(e.dst) != dst || exists(e.stub) != stub {
+	if exists(e.src) != src || exists(e.dst) != dst || exists(e.description) != description {
 		t.Fatal("filesystem changed")
 	}
 }
@@ -293,7 +293,7 @@ func TestRecoverySeqOrder(t *testing.T) {
 		}
 		paths = append(paths, src)
 	}
-	got, err := Recover(context.Background(), w, FSResolver{}, nil)
+	got, err := Recover(context.Background(), w, fsResolver{}, nil)
 	if err != nil || got.Aborted != 2 {
 		t.Fatalf("got %+v err %v", got, err)
 	}

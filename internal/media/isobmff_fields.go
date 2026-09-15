@@ -84,16 +84,10 @@ func tagName(t mp4.BoxType) string {
 
 func (s *isoScan) finish(size int64) {
 	info := s.info
-	var longest float64
-	if s.timescale > 0 {
-		d := s.duration
-		if s.mehd > 0 && (d == 0 || d == math.MaxUint32 || d == math.MaxUint64) {
-			d = s.mehd
-		}
-		if d != math.MaxUint32 && d != math.MaxUint64 {
-			longest = float64(d) / float64(s.timescale)
-		}
-	}
+	// The movie header holds the presented duration, which honors edit lists: a trimmed edit keeps
+	// longer media in its tracks. Fragmented files may leave it unset; their tracks sum fragments.
+	longest := s.movieSeconds()
+	fromTracks := longest == 0 || s.fragment != nil
 	for _, t := range s.tracks {
 		t.fragmentTicks = s.fragmentTicks[t.id] + s.fragmentPending[t.id]*uint64(s.trexDefaults[t.id])
 		switch t.kind {
@@ -117,12 +111,12 @@ func (s *isoScan) finish(size int64) {
 		case "text", "sbtl", "subt", "clcp":
 			info.SubtitleStreams++
 		}
-		if t.timescale > 0 {
+		if fromTracks && (t.kind == "vide" || t.kind == "soun") && t.timescale > 0 {
 			d := t.duration
-			if d == 0 || d == math.MaxUint32 || d == math.MaxUint64 {
+			if !validTicks(d) {
 				d = t.fragmentTicks
 			}
-			if d != math.MaxUint32 && d != math.MaxUint64 {
+			if validTicks(d) {
 				longest = max(longest, float64(d)/float64(t.timescale))
 			}
 		}
@@ -133,6 +127,20 @@ func (s *isoScan) finish(size int64) {
 		info.BitRate = int64(math.Round(float64(size) * 8 / longest))
 	}
 }
+
+func (s *isoScan) movieSeconds() float64 {
+	d := s.duration
+	if s.mehd > 0 && !validTicks(d) {
+		d = s.mehd
+	}
+	if s.timescale == 0 || !validTicks(d) {
+		return 0
+	}
+	return float64(d) / float64(s.timescale)
+}
+
+// validTicks rejects unset and all-ones durations.
+func validTicks(d uint64) bool { return d != 0 && d != math.MaxUint32 && d != math.MaxUint64 }
 
 func matrixRotation(m [9]int32) int {
 	a, b, c, d := m[0], m[1], m[3], m[4]

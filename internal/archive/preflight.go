@@ -27,7 +27,7 @@ const (
 const (
 	registryRowBytes      = 256     // scan: per registry row
 	mediaMetadataBytes    = 512     // scan: per media row in media mode
-	stubBytes             = 4 << 10 // split: per Markdown stub
+	descriptionBytes      = 4 << 10 // split: per video description
 	videoRegistryRowBytes = 1 << 10 // split: per video, per registry copy
 	walBytes              = 2 << 10 // split and restore: WAL records per candidate
 )
@@ -48,8 +48,7 @@ type Candidates struct {
 	Bytes     int64 // sum of candidate sizes
 	Largest   int64 // largest candidate size
 	MediaRows int64 // scan in media mode: rows that carry media metadata
-	// PreviewBytes is the stage-2 preview estimate written to the archive device by split. It is
-	// zero until previews exist.
+	// PreviewBytes is the estimate of the previews split still has to write to the archive device.
 	PreviewBytes int64
 }
 
@@ -159,7 +158,7 @@ func Plan(c Candidates, o PreflightOptions, info DeviceInfo) Requirement {
 			add(role, "media_metadata", mulSat(nonNeg(c.MediaRows), mediaMetadataBytes))
 		}
 	case opSplit:
-		add(RoleArchive, "stubs", mulSat(count, stubBytes))
+		add(RoleArchive, "descriptions", mulSat(count, descriptionBytes))
 		add(RoleArchive, "video_registry", mulSat(count, videoRegistryRowBytes))
 		add(RoleVideoArchive, "video_registry", mulSat(count, videoRegistryRowBytes))
 		add(RoleArchive, "wal", mulSat(count, walBytes))

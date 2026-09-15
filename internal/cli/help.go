@@ -24,12 +24,12 @@ Run 'arxgo help <operation>' for the flags of one operation.
 
 var opSynopsis = map[string]string{
 	OpScan:    "arxgo [scan] --archive PATH [flags]\n\nBuild the CSV registry of every file in the archive.",
-	OpSplit:   "arxgo split --archive PATH --video-archive PATH [flags]\n\nMove video files into the mirrored video archive and leave Markdown stubs.",
+	OpSplit:   "arxgo split --archive PATH --video-archive PATH [flags]\n\nMove video files into the mirrored video archive and leave video descriptions.",
 	OpRestore: "arxgo restore --archive PATH --video-archive PATH [flags]\n\nReturn videos from the video archive to the main archive.",
 }
 
 // writeOpHelp prints the synopsis and flag table of one operation, with defaults and environment
-// variable names, followed by the flags reserved for later stages.
+// variable names, followed by flags reserved for planned features.
 func writeOpHelp(w io.Writer, op string) {
 	fmt.Fprintf(w, "Usage: %s\n", opSynopsis[op])
 	fs := newFlagSet(op, &settings{})
@@ -39,8 +39,8 @@ func writeOpHelp(w io.Writer, op string) {
 		if !d.appliesTo(op) {
 			continue
 		}
-		if d.stage > 1 {
-			later = append(later, fmt.Sprintf("--%s (stage %d)", d.name, d.stage))
+		if d.plannedFeature != "" {
+			later = append(later, fmt.Sprintf("--%s (%s)", d.name, d.plannedFeature))
 			continue
 		}
 		if d.group != current {
@@ -51,7 +51,7 @@ func writeOpHelp(w io.Writer, op string) {
 		fmt.Fprintf(w, "  %-32s %s\n", "", flagDetails(fs.Lookup(d.name), d))
 	}
 	if len(later) > 0 {
-		fmt.Fprintf(w, "\nReserved for later stages (not available in this build):\n")
+		fmt.Fprintf(w, "\nReserved for planned features (not available in this build):\n")
 		for _, line := range wrapItems(later, 94) {
 			fmt.Fprintf(w, "  %s\n", line)
 		}

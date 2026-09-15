@@ -27,7 +27,6 @@ const (
 	ExitInsufficientDisk = 4
 	ExitLocked           = 5
 	ExitPartial          = 6
-	ExitNotImplemented   = 70
 	ExitInterrupted      = 130
 )
 
@@ -36,15 +35,13 @@ const (
 	OpScan    = "scan"
 	OpSplit   = "split"
 	OpRestore = "restore"
-	// OpPublish is reserved for stage 3.
+	// OpPublish is reserved for cloud publishing.
 	OpPublish = "publish"
 )
 
-// version is overridden at build time with -ldflags "-X .../internal/cli.version=...".
+// version is the VERSION file, stamped by make with -ldflags "-X .../internal/cli.version=...";
+// a plain go build reports dev.
 var version = "dev"
-
-// Version returns the build version string.
-func Version() string { return version }
 
 // Handlers execute validated operations and return an exit code. Handlers must return promptly
 // after ctx is canceled; the dispatcher then reports ExitInterrupted.
@@ -74,7 +71,8 @@ var defaultHandlers = Handlers{
 		resolver := splitResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
-			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Stubs: resolver.Stubs,
+			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Descriptions: resolver.Descriptions,
+			Preview: o.Preview, Tools: o.Tools,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
@@ -91,7 +89,8 @@ var defaultHandlers = Handlers{
 			},
 			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
-			KeepStubs: resolver.KeepStubs, KeepSource: resolver.KeepSource,
+			KeepDescriptions: resolver.KeepDescriptions, KeepSource: resolver.KeepSource,
+			DeletePreviews: o.Previews == PolicyDelete,
 		}))
 	},
 }
@@ -186,7 +185,8 @@ func run(ctx context.Context, args []string, e env) int {
 		}
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
-		if o.Tools, code, ok = requireTools(ctx, e, log, scanNeeds(o.ScanSettings)); ok {
+		if o.Tools, code, ok = requireTools(ctx, e, log, media.Needs{MetadataMedia: o.Metadata == MetadataMedia,
+			Sample: o.Preview.SampleMode, Image: o.Preview.ImageMode}); ok {
 			code = e.handlers.Split(ctx, o, log)
 		}
 	case OpRestore:

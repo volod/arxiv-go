@@ -43,7 +43,7 @@ func TestFFprobeCapturedFormats(t *testing.T) {
 			if tc.streamsV > 0 && m.FrameRate != "25/1" {
 				t.Fatalf("frame rate = %q", m.FrameRate)
 			}
-			if tc.file == "rotated.json" && m.Rotation != 270 {
+			if tc.file == "rotated.json" && m.Rotation != 90 {
 				t.Fatalf("rotation = %d", m.Rotation)
 			}
 		})
@@ -51,7 +51,7 @@ func TestFFprobeCapturedFormats(t *testing.T) {
 }
 
 func TestFFprobeNormalizationCorners(t *testing.T) {
-	tags := map[string]string{"TITLE": strings.Repeat("a", 255) + "\u00e9", "creation_time": "2024-05-01T12:51:00+03:00"}
+	tags := map[string]string{"TITLE": strings.Repeat("a", 255) + "\u00e9", "creation_time": "2024-05-01T12:51:00+03:00", "vendor_key": "ignored"}
 	doc := probeDocument{Format: probeFormat{Name: "matroska,webm", Duration: "N/A", BitRate: "N/A", Tags: tags}}
 	doc.Streams = []probeStream{{CodecType: "video", CodecName: "h264", AvgFrameRate: "0/0", RFrameRate: "30000/1001", Duration: "2.5555"}, {CodecType: "subtitle", CodecName: "subrip"}}
 	cover := probeStream{CodecType: "video", CodecName: "mjpeg"}
@@ -66,7 +66,7 @@ func TestFFprobeNormalizationCorners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.DurationS != 2.556 || m.FrameRate != "30000/1001" || m.Rotation != 270 || m.VideoStreams != 1 || m.SubtitleStreams != 1 || m.BitRate != 0 || m.CreationTime != "2024-05-01T09:51:00Z" || len(m.Tags["title"]) != 255 {
+	if m.DurationS != 2.556 || m.FrameRate != "30000/1001" || m.Rotation != 270 || m.VideoStreams != 1 || m.SubtitleStreams != 1 || m.BitRate != 0 || m.CreationTime != "2024-05-01T09:51:00Z" || len(m.Tags["title"]) != 255 || len(m.Tags) != 1 {
 		t.Fatalf("normalized: %+v", m)
 	}
 	for _, raw := range []string{"{}", "{", `{"format":{"format_name":"avi"}}`, `{"format":{"format_name":"avi"},"streams":[{"codec_type":"audio"}]} {}`} {
@@ -81,23 +81,26 @@ func TestFFprobeReaderProcessLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only the hung helper gets the short timeout: a race-instrumented helper can take longer than
+	// that just to start, which is not the behavior under test.
 	for _, tc := range []struct {
 		mode, want string
+		timeout    time.Duration
 	}{
-		{"valid", ""},
-		{"oversize", "output limit exceeded"},
-		{"nonzero", "exit status 7"},
-		{"sleep", "deadline exceeded"},
+		{"valid", "", 30 * time.Second},
+		{"oversize", "output limit exceeded", 30 * time.Second},
+		{"nonzero", "exit status 7", 30 * time.Second},
+		{"sleep", "deadline exceeded", 250 * time.Millisecond},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			t.Setenv(ffprobeHelperEnv, tc.mode)
-			reader := FFprobeReader{Path: exe, Timeout: 250 * time.Millisecond}
+			reader := FFprobeReader{Path: exe, Timeout: tc.timeout}
 			start := time.Now()
 			m := reader.Read(context.Background(), "clip.avi", "video/x-msvideo")
 			if tc.want == "" && (m.Error != "" || m.VideoCodec != "mpeg4") || tc.want != "" && !strings.Contains(m.Error, tc.want) {
 				t.Fatalf("metadata: %+v", m)
 			}
-			if time.Since(start) > 3*time.Second {
+			if tc.mode == "sleep" && time.Since(start) > 3*time.Second {
 				t.Fatalf("process did not stop promptly: %s", time.Since(start))
 			}
 		})

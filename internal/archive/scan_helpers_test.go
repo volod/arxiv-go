@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +24,8 @@ const fixtureThreshold = 64 // --large-threshold used by the scan fixtures
 func ftypHead(major string, compatible ...string) []byte {
 	var b bytes.Buffer
 	_ = binary.Write(&b, binary.BigEndian, uint32(16+4*len(compatible)))
-	b.WriteString("ftyp" + major)
+	b.WriteString("ftyp")
+	b.WriteString(major)
 	_ = binary.Write(&b, binary.BigEndian, uint32(0x200))
 	for _, c := range compatible {
 		b.WriteString(c)
@@ -83,7 +83,6 @@ func buildEdgeCaseTree(t *testing.T, root string) {
 		"deep/l1/l2/sibling.txt":      []byte("sibling\n"),
 		"arxgo-registry.csv":          []byte("old registry\n"),
 		"arxgo-videos.csv":            []byte("reserved\n"),
-		"arxgo-videos.md":             []byte("reserved\n"),
 		"sub/left.arxgo-part":         []byte("reserved part\n"),
 		"sub/arxgo-registry.csv":      []byte("not reserved below the root\n"),
 		".hidden":                     []byte("hidden file\n"),
@@ -182,15 +181,6 @@ func scanManifest(t *testing.T, root string, skipTop ...string) map[string]strin
 		t.Fatal(err)
 	}
 	return out
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func readReport(t *testing.T, archive, runID string) state.Report {

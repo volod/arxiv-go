@@ -8,6 +8,12 @@ import (
 	"syscall"
 )
 
+// TagKeys is the fixed set of container text tags exposed in the CSV registries.
+var TagKeys = []string{
+	"title", "comment", "encoder", "artist", "album", "date", "genre",
+	"composer", "grouping", "description", "copyright",
+}
+
 // MediaInfo is the shared metadata.media representation for the pure-Go and ffprobe parsers.
 type MediaInfo struct {
 	Container       string            `json:"container,omitempty"`
@@ -85,7 +91,11 @@ func isoContainer(path, mime string) string {
 		return "mov"
 	case mime == "video/3gpp":
 		return "3gp"
+	case strings.HasSuffix(strings.ToLower(path), ".3gp"):
+		return "3gp"
 	case mime == "video/3gpp2":
+		return "3g2"
+	case strings.HasSuffix(strings.ToLower(path), ".3g2"):
 		return "3g2"
 	case mime == "audio/x-m4a" || strings.HasSuffix(strings.ToLower(path), ".m4a"):
 		return "m4a"

@@ -78,8 +78,10 @@ func TestThrottle(t *testing.T) {
 	now := time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return now }
 	th := NewThrottle(3, 30*time.Second, clock)
-	if th.Add(1) || th.Add(1) {
-		t.Fatal("due before count or interval")
+	for i := 0; i < 2; i++ {
+		if th.Add(1) {
+			t.Fatal("due before count or interval")
+		}
 	}
 	if !th.Add(1) {
 		t.Fatal("not due at count")

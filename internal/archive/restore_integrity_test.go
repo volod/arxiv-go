@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 	"github.com/volod/arxiv-go/test/fixtures/crashtest"
@@ -48,7 +49,7 @@ func TestRestoreReturnsVideoSelectedByExtension(t *testing.T) {
 		t.Fatalf("video selected by extension not restored: %v", err)
 	}
 	if exists(filepath.Join(r.video, "old", "clip.bik")) || exists(src+".md") {
-		t.Fatal("video archive copy or stub remains")
+		t.Fatal("video archive copy or description remains")
 	}
 }
 
@@ -91,7 +92,7 @@ func TestSplitAfterRestoreKeepsRestoredStatus(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	splitThen(t, r, src, dst)
 	cfg, c := restoreConfig(r, "auto")
-	c.KeepStubs = true // keeps the live registry instead of retiring it
+	c.KeepDescriptions = true // keeps the live registry instead of retiring it
 	attachRestoreRecoverer(&cfg, &c, nil)
 	if res := runRestore(t, cfg, c); res.Status != StatusCompleted {
 		t.Fatalf("restore = %+v", res)
@@ -109,10 +110,14 @@ func TestSplitAfterRestoreKeepsRestoredStatus(t *testing.T) {
 	}
 	for _, root := range []string{r.archive, r.video} {
 		old := videoRow(t, root, "nested/clip.mp4")
-		if old == nil || old[8] != "restored" || old[9] != restoreRun {
+		if old == nil || old[7] != "restored" || old[8] != restoreRun {
 			t.Fatalf("%s: restored row = %q, want status restored by %s", root, old, restoreRun)
 		}
-		if row := videoRow(t, root, "later/new.mp4"); row == nil || row[8] != "moved" {
+		wantURL := report.FileURL(filepath.ToSlash(filepath.Join(r.archive, "nested", "clip.mp4")))
+		if old[9] != wantURL {
+			t.Errorf("%s: restored local URL = %q, want %q", root, old[9], wantURL)
+		}
+		if row := videoRow(t, root, "later/new.mp4"); row == nil || row[7] != "moved" {
 			t.Fatalf("%s: new row = %q", root, row)
 		}
 	}
@@ -136,10 +141,10 @@ func TestSplitAfterRetiredRegistryKeepsHistory(t *testing.T) {
 	if res := runSplit(t, scfg, sc); res.Status != StatusCompleted {
 		t.Fatalf("split = %+v", res)
 	}
-	if row := videoRow(t, r.archive, "nested/clip.mp4"); row == nil || row[8] != "restored" {
+	if row := videoRow(t, r.archive, "nested/clip.mp4"); row == nil || row[7] != "restored" {
 		t.Fatalf("history row = %q", row)
 	}
-	if row := videoRow(t, r.archive, "later/new.mp4"); row == nil || row[8] != "moved" {
+	if row := videoRow(t, r.archive, "later/new.mp4"); row == nil || row[7] != "moved" {
 		t.Fatalf("new row = %q", row)
 	}
 }
@@ -181,7 +186,7 @@ func TestRestoreCleanupIsLimitedToRestoredDirectories(t *testing.T) {
 	}
 }
 
-func TestRestoreRemovesOwnedFallbackStubAndRecordsIt(t *testing.T) {
+func TestRestoreRemovesOwnedFallbackDescriptionAndRecordsIt(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	if err := os.WriteFile(src+".md", []byte("human notes\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -189,27 +194,27 @@ func TestRestoreRemovesOwnedFallbackStubAndRecordsIt(t *testing.T) {
 	fallback := src + ".arxgo.md"
 	cfg, c := splitConfig(r, "copy")
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted || !exists(fallback) {
-		t.Fatalf("split = %+v, fallback stub %v", res, exists(fallback))
+		t.Fatalf("split = %+v, fallback description %v", res, exists(fallback))
 	}
 	rcfg, rc := restoreConfig(r, "auto")
 	if res := runRestore(t, rcfg, rc); res.Status != StatusCompleted {
 		t.Fatalf("restore = %+v", res)
 	}
 	if exists(fallback) || string(mustRead(t, src+".md")) != "human notes\n" || exists(dst) {
-		t.Fatal("owned fallback stub kept, foreign stub changed, or video not restored")
+		t.Fatal("owned fallback description kept, foreign description changed, or video not restored")
 	}
 	recs, err := state.ReadWALRecords(filepath.Join(state.StateDir(r.archive), "runs", currentRunID(t, r.archive), state.WALFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var stub string
+	var description string
 	for _, rec := range recs {
-		if rec.Step == state.StepStubRemoved {
-			stub = rec.Stub
+		if rec.Step == state.StepDescriptionRemoved {
+			description = rec.Description
 		}
 	}
-	if stub != fallback {
-		t.Fatalf("stub_removed records %q, want %q", stub, fallback)
+	if description != fallback {
+		t.Fatalf("description_removed records %q, want %q", description, fallback)
 	}
 }
 

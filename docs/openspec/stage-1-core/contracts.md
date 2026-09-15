@@ -1,12 +1,14 @@
 # Data contracts
 
-Owners: `archive-registry` (file registry), `video-split` (video registry, stub, summary),
-`crash-safety` (run lock, run options, WAL, checkpoint, run report). A change to any format increments its version field or `format`
-column value and is a spec amendment.
+Owners: `archive-registry` (file registry), `video-split` (video registry and description),
+`crash-safety` (run lock, run options, WAL, checkpoint, run report). A change to a JSON format
+increments its version field; a CSV schema change is identified by its required columns.
+Both require a spec amendment. Metadata columns after the required columns may be omitted
+when they are empty in every row.
 
 All text outputs are UTF-8 without BOM, `\n` line endings on every platform, paths relative to the
 owning root with `/` separators. Exception: a Linux file name that is not valid UTF-8 is written to
-the CSV files as its raw bytes, while JSON (metadata, candidate list, WAL) replaces the invalid
+the CSV files as its raw bytes, while JSON (candidate list, WAL) replaces the invalid
 bytes with U+FFFD; such a video is registered but cannot be split and is reported as skipped
 (exit 6). CSV follows RFC 4180 as written by Go `encoding/csv` (quotes when
 needed). Booleans are `true`/`false`. Sizes are bytes as base-10 integers. Times are RFC 3339 UTC.
@@ -29,44 +31,32 @@ skipped entries (special files and entries that cannot be read). Symlink rows ha
 | 8 | `is_picture` | `false` | |
 | 9 | `is_video` | `true` | |
 | 10 | `is_large` | `false` | `file_size >= --large-threshold` |
-| 11 | `metadata` | `{"v":1,"mtime":"..."}` | Compact JSON, see below |
+| 11 onward | [Flat metadata columns](#flat-metadata-columns) | | Modification time and optional media details |
 
-Columns 1-9 and 11 are the requested structure; `is_large` implements "highlighting files larger
-than a specified size" as an explicit column, inserted before `metadata` so the JSON column stays
-last.
+`is_large` implements "highlighting files larger than a specified size" as an explicit column.
 
-## Metadata JSON
+## Flat metadata columns
 
-```json
-{
-  "v": 1,
-  "mtime": "2024-05-01T10:22:03Z",
-  "mode": "0644",
-  "media": {
-    "source": "go-mp4",
-    "container": "mp4",
-    "duration_s": 1834.12,
-    "width": 1920,
-    "height": 1080,
-    "frame_rate": "25/1",
-    "video_codec": "h264",
-    "audio_codec": "aac",
-    "has_audio": true,
-    "video_streams": 1,
-    "audio_streams": 1,
-    "subtitle_streams": 0,
-    "bit_rate": 3200000,
-    "rotation": 0,
-    "creation_time": "2024-05-01T09:51:00Z",
-    "tags": {"title": "Interview"}
-  }
-}
-```
+Both registries append these columns in this order: `mtime`, `link_target`, `media_source`,
+`media_container`, `media_duration_s`, `media_bit_rate`, `media_width`, `media_height`,
+`media_rotation`, `media_frame_rate`, `media_video_codec`, `media_audio_codec`, `media_has_audio`,
+`media_video_streams`, `media_audio_streams`, `media_subtitle_streams`, `media_creation_time`,
+`media_tag_title`, `media_tag_comment`, `media_tag_encoder`, `media_tag_artist`,
+`media_tag_album`, `media_tag_date`, `media_tag_genre`, `media_tag_composer`,
+`media_tag_grouping`, `media_tag_description`, `media_tag_copyright`, `media_error`.
+The former `v`, `mode` and JSON `metadata` fields are absent.
 
-`mtime` is the modification time in RFC 3339 UTC to the second; `mode` is the permission bits as
-four octal digits. `media` is present only in `media` mode for media files. Keys with zero/empty
-values are omitted. Symlink rows add `"link_target"`, the link text as read, without following it.
-The JSON is compact and does not escape `<`, `>` or `&`.
+`mtime` is RFC 3339 UTC to the second. `link_target` holds a symlink's link text without following
+it; it is empty for regular files. `media_*` values are filled when ISO BMFF metadata was collected
+(default `--metadata file` for MP4, MOV, M4A, M4V and 3GP) or when `--metadata media` ran ffprobe.
+Numeric zero values and unknown values are empty; `media_has_audio` is `true` or `false` when media
+metadata exists. `media_duration_s`, dimensions, codecs and rational `media_frame_rate` expose the
+information rendered in a video's `video:` description line as separate CSV fields. A written
+registry omits a metadata column that is empty in every row (for example `link_target` when there
+are no symlinks, or all `media_*` columns when the tree has no audio or video). Readers treat a
+missing metadata column as empty. The remaining names stay in this order. The scan part file keeps
+the full header until the scan completes, so resume offsets stay valid. Tag columns that appear
+hold the selected container text tags; other container tags are not collected.
 
 ## Candidate list
 
@@ -88,18 +78,22 @@ row, in walk order. It is run state for split and restore, not an operator outpu
 | # | Column | Notes |
 | --- | --- | --- |
 | 1 | `rel_path` | Original path in the archive |
-| 2 | `video_rel_path` | Path in the video archive (equal to `rel_path` in stage 1) |
-| 3 | `stub_rel_path` | Path of the Markdown stub in the archive |
-| 4 | `file_name` | |
-| 5 | `file_size` | |
-| 6 | `file_mime` | |
-| 7 | `sha256` | Empty unless `--verify hash` |
-| 8 | `transfer` | `rename` or `copy` |
-| 9 | `status` | `moved`, `restored`, `conflict`, `skipped` |
-| 10 | `run_id` | Run that last changed the row |
-| 11 | `url` | `--base-url` link; empty when not given |
-| 12 | `previews` | Stage 2: `;`-separated preview paths relative to the archive; empty in stage 1 |
-| 13 | `metadata` | Same JSON as the file registry |
+| 2 | `description_rel_path` | Path of the video description in the archive |
+| 3 | `file_name` | |
+| 4 | `file_size` | |
+| 5 | `file_mime` | |
+| 6 | `sha256` | Empty unless `--verify hash` |
+| 7 | `transfer` | `rename` or `copy` |
+| 8 | `status` | `moved`, `restored`, `conflict`, `skipped` |
+| 9 | `run_id` | Run that last changed the row |
+| 10 | `url` | `--base-url` link, otherwise `file://` URL of the local video |
+| 11 | `previews` | Stage 2: `;`-separated recorded preview paths relative to the archive; empty when none |
+| 12 onward | [Flat metadata columns](#flat-metadata-columns) | Same layout as the file registry |
+
+`rel_path` names the video in both roots. For a moved row without a base URL, `url` points into
+the video archive; after restore it points into the main archive. Skipped or conflict rows use the
+main archive path when they have no explicit URL. Readers accept the required columns plus any
+subset of the metadata columns in the canonical order.
 
 Rows are sorted by `rel_path` walk order key. The file is regenerated from the existing file and
 the WAL of every run, written via `.arxgo-part` and rename. Runs are replayed one after another in
@@ -109,47 +103,48 @@ any other aborted split `skipped`, unless the row is `moved`; a committed restor
 and that restore's `run_id`. A split then adds `conflict`/`skipped` rows for the videos it skipped
 before a transaction began. Restore only updates rows; it never adds one.
 
-## Markdown stub
+## Video description
 
-`<archive>/<rel_path>.md`, for example `projects/2024/interview.mp4.md`. YAML front matter is the
-machine-readable part and is what restore matches; the body is for people.
+`<archive>/<rel_path>.md`, for example `projects/2024/interview.mp4.md`, describes the original
+video that split moved: one block of `key: value` lines without blank lines. Every field is about
+that video and its move. Preview link lines follow only when previews of the video were generated;
+without previews the file holds the video's metadata alone.
 
 ```markdown
----
-arxgo_stub: 1
-rel_path: projects/2024/interview.mp4
-video_archive_path: /mnt/nas/video/projects/2024/interview.mp4
-url: https://storage.example.com/video/projects/2024/interview.mp4
-file_size: 734003200
+arxgo: projects/2024/interview.mp4
+file_size: 734003200 (700.0 MiB)
 file_mime: video/mp4
-sha256: ""
-run_id: 20260913T101500Z-1a2b3c4d
+sha256: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+created: 2024-05-01T09:51:00Z
+modified: 2024-05-01T10:22:03Z
+video: 30:34 | 1920x1080 | h264 + aac | 25 fps
 moved_at: 2026-09-13T10:17:42Z
----
-
-# interview.mp4
-
-This video was moved to the video archive by arxgo.
-
-- Video archive: [interview.mp4](../../../../mnt/nas/video/projects/2024/interview.mp4)
-- Cloud link: <https://storage.example.com/video/projects/2024/interview.mp4>
-- Size: 700.0 MiB
-- Duration: 30:34 | 1920x1080 | h264 + aac | 25 fps
-
-## Previews
-
-(stage 2: embedded PNG frames and sample clip links)
+moved_to: [interview.mp4](file:///mnt/nas/video/projects/2024/interview.mp4)
+url: https://storage.example.com/video/projects/2024/interview.mp4
+- ![interview-img01.png](interview-img01.png)
+- [interview-smpl01.mp4](interview-smpl01.mp4)
 ```
 
-Rules: relative links are URL-escaped per segment; lines absent for missing data are omitted; the
-file is written atomically; front matter keys are stable and additive.
+| Field | Content | Present |
+| --- | --- | --- |
+| `arxgo` | `rel_path` of the video, relative to the archive root | always, first line |
+| `file_size` | bytes, then the binary-unit size in parentheses | always |
+| `file_mime` | detected MIME type | when detected |
+| `sha256` | SHA-256 of the video | `--verify hash` |
+| `created` | container creation time | when media metadata exists and the file has one |
+| `modified` | file modification time | always |
+| `video` | duration, display size, codecs, frame rate | when media metadata exists |
+| `moved_at` | time the video was moved | always |
+| `moved_to` | Markdown link to the moved video: its file name and the `file://` URL of its absolute path in the video archive (`file:///D:/...` on Windows, `file://host/share/...` for UNC) | always |
+| `url` | `--base-url` link | `--base-url` |
 
-## Archive summary
-
-`arxgo-videos.md` in both roots: generation time, arxgo version, run ids, roots, base URL, totals
-(videos, bytes, total duration when known), counts by container/codec/resolution band
-(`<SD`, `SD`, `HD`, `4K+`), skipped/conflict lists, and a table of the 100 largest videos with
-links.
+Rules: the first line `arxgo: <rel_path>` marks a file as an arxgo description for that video; restore,
+recovery and description-name collision checks read only that line, from the first 64 KiB. A value is
+double-quoted, with `\"`, `\\`, `\n` and `\r` escapes, when it has leading or trailing space, a quote,
+a backslash or a line break. Times are RFC 3339 UTC. The file is written atomically. Preview files
+(PNG frames and sample clips) are written next to the description, so their `- ` lines directly after the
+fields link relatively, frames as images and samples as links, URL-escaped per segment; arxgo rewrites only those lines and removes them when no
+preview remains.
 
 ## WAL record
 
@@ -161,8 +156,15 @@ links.
 ```
 
 `mtime` keeps full precision (RFC 3339 with nanoseconds when present) because a copy compares it
-exactly. Later steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
-`verified`, `stub` on `stubbed`/`stub_removed`: the stub written, or the owned stub restore removed
+exactly. Stage-1 transaction records remain version 1. Stage-2 preview events use version 2 in
+the same JSON Lines WAL and the same `txid` and `seq` scheme. They use `rel_path` for the owning
+video, `dst` for the absolute path in the main archive, `size` on completion or deletion, and
+`reason` on failure. `preview_begin`/`preview_done`/`preview_failed` surround generation;
+`preview_delete`/`preview_deleted` surround size-checked restore cleanup. A preview event may
+belong to a later run than the video move it serves. Readers of earlier runs resolve absolute `src`,
+`dst` and `description` paths against the `archive` and `video_archive` roots in that run's
+`options.json`, so the registries stay correct after a root is mounted or renamed elsewhere. Later stage-1 steps carry only `v`, `txid`, `seq`, `step`, `ts` and step data (`sha256` on
+`verified`, `description` on `described`/`description_removed`: the description written, or the owned description restore removed
 or kept, omitted when there is none; `reason` on `aborted`). `txid` is `{run-id}-{6-digit}`; `seq`
 increases by one for each record in the file. Records are shown wrapped here; on disk each is one
 line. Recovery writes `aborted` with `reason` `unplaced` when work had not reached `placed`.
@@ -211,8 +213,8 @@ types, durations in nanoseconds and sizes in bytes. `dry_run` is present only fo
 empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
 `candidates.jsonl`, omitted when zero) and `scan`: the scan statistics matching the cursor and
 offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`large`
-as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos) and the per-root `*_bytes_written`/`*_bytes_freed`
-counters are omitted when zero. `elapsed_s` accumulates across resumed processes.
+as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
+counters and the split preview counters `previews_done`/`previews_failed` are omitted when zero. `elapsed_s` accumulates across resumed processes.
 
 ## Run report
 

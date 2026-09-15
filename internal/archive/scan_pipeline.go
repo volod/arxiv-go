@@ -99,8 +99,8 @@ func (r *scanRun) inspect(ctx context.Context, it *scanItem) {
 	switch it.e.Kind {
 	case scanner.KindFile:
 		it.ft, it.err = scanner.Detect(it.e.Path, it.e.Info.Size(), r.detect)
-		if it.err == nil && r.cfg.Metadata == "media" && it.ft.IsMedia && !it.ft.IsPicture {
-			it.media = media.ReadMetadata(ctx, it.e.Path, it.ft.MIME, media.FFprobeReader{Path: r.cfg.FFprobePath, Log: r.s.Log})
+		if it.err == nil && it.ft.IsMedia && !it.ft.IsPicture {
+			it.media = r.readMedia(ctx, it.e.Path, it.ft.MIME)
 		}
 	case scanner.KindSymlink:
 		it.link, it.err = os.Readlink(it.e.Path)
@@ -159,7 +159,7 @@ func (r *scanRun) write(it *scanItem) error {
 		if it.err != nil {
 			r.s.Log.Warn("cannot read symlink target", "rel_path", e.Rel, "error", it.err)
 		}
-		meta := report.FileMetadata(e.Info.ModTime(), e.Info.Mode())
+		meta := report.FileMetadata(e.Info.ModTime())
 		meta.LinkTarget = it.link
 		st.Symlinks++
 		r.s.Stats.Files.Add(1)
@@ -183,7 +183,7 @@ func (r *scanRun) write(it *scanItem) error {
 	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Large: ft.IsLarge})
 	r.s.Stats.Files.Add(1)
 	r.s.Stats.Bytes.Add(size)
-	meta := report.FileMetadata(e.Info.ModTime(), e.Info.Mode())
+	meta := report.FileMetadata(e.Info.ModTime())
 	meta.Media = it.media
 	row := report.RegistryRow{
 		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: size, FileType: ft.Type, FileMIME: ft.MIME,
@@ -197,6 +197,18 @@ func (r *scanRun) write(it *scanItem) error {
 		return nil
 	}
 	return r.cand.write(Candidate{RelPath: e.Rel, Size: size, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})
+}
+
+// readMedia collects container metadata. File mode uses the pure-Go ISO parser only; media mode
+// also runs ffprobe for other formats and ISO failures.
+func (r *scanRun) readMedia(ctx context.Context, path, mime string) *media.MediaInfo {
+	if r.cfg.Metadata == "media" {
+		return media.ReadMetadata(ctx, path, mime, media.FFprobeReader{Path: r.cfg.FFprobePath, Log: r.s.Log})
+	}
+	if media.IsISOBMFF(mime) {
+		return media.ReadISO(ctx, path, mime)
+	}
+	return nil
 }
 
 // skip counts an entry without a row; the walker or write already logged its warning.

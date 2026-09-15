@@ -24,6 +24,9 @@ type Counters struct {
 	ArchiveFreed   int64 `json:"archive_bytes_freed,omitempty"`
 	VideoWritten   int64 `json:"video_archive_bytes_written,omitempty"`
 	VideoFreed     int64 `json:"video_archive_bytes_freed,omitempty"`
+	// Previews generated and failed by split; a failed preview never counts as a failed video.
+	PreviewsDone   int64 `json:"previews_done,omitempty"`
+	PreviewsFailed int64 `json:"previews_failed,omitempty"`
 }
 
 // Sub returns c - o, the counters accumulated since o.
@@ -34,6 +37,7 @@ func (c Counters) Sub(o Counters) Counters {
 		VideosFailed: c.VideosFailed - o.VideosFailed, VideoBytes: c.VideoBytes - o.VideoBytes,
 		ArchiveWritten: c.ArchiveWritten - o.ArchiveWritten, ArchiveFreed: c.ArchiveFreed - o.ArchiveFreed,
 		VideoWritten: c.VideoWritten - o.VideoWritten, VideoFreed: c.VideoFreed - o.VideoFreed,
+		PreviewsDone: c.PreviewsDone - o.PreviewsDone, PreviewsFailed: c.PreviewsFailed - o.PreviewsFailed,
 	}
 }
 

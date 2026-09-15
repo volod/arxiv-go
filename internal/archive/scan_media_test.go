@@ -1,10 +1,10 @@
 package archive
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/csv"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +44,11 @@ func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
 	for _, row := range rows[1:] {
 		byName[row[0]] = row
 	}
+	parsed, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byParsed := report.RegistryByPath(parsed)
 	for name, wantVideo := range map[string]string{"video.mp4": "true", "audio-only.mp4": "false", "broken.mp4": "true"} {
 		row := byName[name]
 		if row == nil || row[8] != wantVideo {
@@ -52,10 +57,7 @@ func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
 		if name == "audio-only.mp4" && row[4] != "video/mp4" {
 			t.Fatalf("audio-only MIME = %q; fixture must exercise video flag refinement", row[4])
 		}
-		var m report.Metadata
-		if err := json.Unmarshal([]byte(row[10]), &m); err != nil {
-			t.Fatal(err)
-		}
+		m := byParsed[name].Metadata
 		if m.Media == nil || m.Media.Source != "go-mp4" {
 			t.Fatalf("%s media = %+v", name, m.Media)
 		}
@@ -75,6 +77,37 @@ func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
 	}
 	if strings.Join(candidates, ",") != "broken.mp4,video.mp4" {
 		t.Fatalf("candidates = %v", candidates)
+	}
+}
+
+func TestScanFileModeCollectsISOWithoutFFprobe(t *testing.T) {
+	r := newRoots(t)
+	video := testmp4.File(testmp4.Options{Tracks: []testmp4.Track{{Kind: "vide", Codec: "avc1", Width: 640, Height: 360}, {Kind: "soun", Codec: "mp4a"}}})
+	writeScanFile(t, r.archive, "clip.mp4", video)
+	writeScanFile(t, r.archive, "movie.avi", []byte{'R', 'I', 'F', 'F', 4, 0, 0, 0, 'A', 'V', 'I', ' ', 'L', 'I', 'S', 'T'})
+	writeScanFile(t, r.archive, "tape.mts", bytes.Repeat([]byte{0x47, 0x40, 0x00, 0x10}, 20))
+	sc := testScanConfig(r)
+	sc.Metadata, sc.FFprobePath = "file", "must-not-run"
+	res, _ := runScan(t, context.Background(), scanSessionConfig(r, newClock(), 5), sc)
+	if res.Status != StatusCompleted {
+		t.Fatalf("scan: %v: %v", res.Status, res.Err)
+	}
+	parsed, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byParsed := report.RegistryByPath(parsed)
+	clip := byParsed["clip.mp4"].Metadata.Media
+	if clip == nil || clip.Source != "go-mp4" || clip.Error != "" || clip.VideoCodec != "h264" || clip.Width != 640 || clip.Height != 360 || !clip.HasAudio {
+		t.Fatalf("clip media = %+v", clip)
+	}
+	for _, name := range []string{"movie.avi", "tape.mts"} {
+		if byParsed[name].Metadata.Media != nil {
+			t.Fatalf("%s media = %+v", name, byParsed[name].Metadata.Media)
+		}
+		if !byParsed[name].IsVideo {
+			t.Fatalf("%s is_video = false", name)
+		}
 	}
 }
 
@@ -107,11 +140,13 @@ func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	parsed, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byParsed := report.RegistryByPath(parsed)
 	for _, row := range rows[1:] {
-		var m report.Metadata
-		if err := json.Unmarshal([]byte(row[10]), &m); err != nil {
-			t.Fatal(err)
-		}
+		m := byParsed[row[0]].Metadata
 		if m.Media == nil || m.Media.Source != "ffprobe" || m.Media.Error != "" {
 			t.Fatalf("%s media = %+v", row[0], m.Media)
 		}

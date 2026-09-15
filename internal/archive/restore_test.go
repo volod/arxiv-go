@@ -32,9 +32,8 @@ func restoreConfig(r roots, mode string) (Config, RestoreConfig) {
 func attachRestoreRecoverer(cfg *Config, c *RestoreConfig, crash state.CrashHook) {
 	r := NewRestoreResolver(RestoreResolver{
 		FS: cfg.FS, Verify: c.Verify, Crash: crash,
-		KeepStubs: c.KeepStubs, KeepSource: c.KeepSource, Archive: cfg.Archive,
+		KeepDescriptions: c.KeepDescriptions, KeepSource: c.KeepSource, Archive: cfg.Archive,
 	})
-	c.Resolver = &r
 	cfg.Recoverer = r
 	cfg.Crash = crash
 }
@@ -99,7 +98,7 @@ func TestRestoreRoundTripPreservesBytesMtimeAndHash(t *testing.T) {
 				t.Fatal("sha256 differs")
 			}
 			if exists(src + ".md") {
-				t.Fatal("owned stub still present")
+				t.Fatal("owned description still present")
 			}
 			if mode == "copy" {
 				if got := mustRead(t, dst); !bytes.Equal(got, videoFixture) {
@@ -166,7 +165,7 @@ func TestRestoreConflictSkippedVsOverwrite(t *testing.T) {
 	}
 }
 
-func TestRestoreNeverDeletesForeignStub(t *testing.T) {
+func TestRestoreNeverDeletesForeignDescription(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	splitThen(t, r, src, dst)
 	if err := os.WriteFile(src+".md", []byte("human notes\n"), 0o644); err != nil {
@@ -177,24 +176,24 @@ func TestRestoreNeverDeletesForeignStub(t *testing.T) {
 		t.Fatalf("restore = %+v", res)
 	}
 	if got := string(mustRead(t, src+".md")); got != "human notes\n" {
-		t.Fatalf("foreign stub = %q", got)
+		t.Fatalf("foreign description = %q", got)
 	}
 	if !bytes.Equal(mustRead(t, src), videoFixture) {
-		t.Fatal("video not restored beside foreign stub")
+		t.Fatal("video not restored beside foreign description")
 	}
 }
 
-func TestRestoreKeepStubsLeavesOwnedStub(t *testing.T) {
+func TestRestoreKeepDescriptionsLeavesOwnedDescription(t *testing.T) {
 	r, src, dst := splitFixture(t)
 	splitThen(t, r, src, dst)
 	cfg, c := restoreConfig(r, "auto")
-	c.KeepStubs = true
+	c.KeepDescriptions = true
 	attachRestoreRecoverer(&cfg, &c, nil)
 	if res := runRestore(t, cfg, c); res.Status != StatusCompleted {
 		t.Fatalf("restore = %+v", res)
 	}
 	if !exists(src + ".md") {
-		t.Fatal("kept stub was deleted")
+		t.Fatal("kept description was deleted")
 	}
 }
 

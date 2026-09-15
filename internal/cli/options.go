@@ -22,8 +22,8 @@ const (
 	TransferCopy  = "copy"
 	VerifySize    = "size"
 	VerifyHash    = "hash"
-	StubsDelete   = "delete"
-	StubsKeep     = "keep"
+	PolicyDelete  = "delete" // --descriptions and --previews
+	PolicyKeep    = "keep"
 	LogText       = "text"
 	LogJSON       = "json"
 )
@@ -74,6 +74,7 @@ type SplitOptions struct {
 	Transfer string // TransferAuto or TransferCopy
 	Verify   string // VerifySize or VerifyHash
 	BaseURL  string // empty, or absolute http(s) URL without a trailing slash
+	Preview  media.PreviewOptions
 	// CreateVideoArchive is true when the video archive root does not exist yet; its parent does,
 	// and the split operation creates it after taking the lock.
 	CreateVideoArchive bool
@@ -84,10 +85,11 @@ type RestoreOptions struct {
 	Common
 	Transfer       string
 	Verify         string
-	Stubs          string // StubsDelete or StubsKeep
+	Descriptions   string // PolicyDelete or PolicyKeep
 	CreateDirs     bool
 	Overwrite      bool
 	RegistryUpdate bool
+	Previews       string // keep or delete
 }
 
 // validator accumulates validation errors so the operator sees all of them at once.
@@ -180,6 +182,22 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	o := SplitOptions{Common: common, CreateVideoArchive: videoMissing}
 	o.ScanSettings = buildScan(s, o.Archive, fsys, v)
 	o.Transfer, o.Verify = s.transfer, s.verify
+	o.Preview = media.PreviewOptions{SampleMode: s.sampleMode, ImageMode: s.imageMode,
+		SampleDuration: s.sampleDuration, SampleEvery: s.sampleEvery, ImageEvery: s.imageEvery,
+		SampleResolution: s.sampleResolution, ImageResolution: s.imageResolution,
+		SampleQuality: s.sampleQuality, ImageQuality: s.imageQuality, MaxItems: s.previewMaxItems}
+	if o.Preview.SampleDuration <= 0 {
+		v.addf("--sample-duration must be positive")
+	}
+	if o.Preview.SampleEvery <= 0 {
+		v.addf("--sample-every must be positive")
+	}
+	if o.Preview.ImageEvery <= 0 {
+		v.addf("--image-every must be positive")
+	}
+	if o.Preview.MaxItems < 1 {
+		v.addf("--preview-max-items must be at least 1")
+	}
 	if s.baseURL != "" {
 		u, err := validateBaseURL(s.baseURL)
 		if err != nil {
@@ -197,10 +215,11 @@ func buildRestoreOptions(s *settings, fsys rootFS) (RestoreOptions, error) {
 		Common:         common,
 		Transfer:       s.transfer,
 		Verify:         s.verify,
-		Stubs:          s.stubs,
+		Descriptions:   s.descriptions,
 		CreateDirs:     s.createDirs,
 		Overwrite:      s.overwrite,
 		RegistryUpdate: s.registryUpdate,
+		Previews:       s.previews,
 	}
 	return o, v.err()
 }
@@ -212,7 +231,7 @@ func parseLevel(s string) slog.Level {
 }
 
 // validateBaseURL requires an absolute http or https URL with a host and no credentials, query
-// or fragment, because stubs append /<rel_path> to it. It returns the URL without trailing slashes.
+// or fragment, because descriptions append /<rel_path> to it. It returns the URL without trailing slashes.
 func validateBaseURL(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {

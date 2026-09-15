@@ -3,7 +3,7 @@
 ## Goal
 
 Everything in [stage 2](../stage-2-previews/README.md), plus publishing the video archive to Google
-Drive or Microsoft SharePoint and writing the real per-file share links into stubs and registries.
+Drive or Microsoft SharePoint and writing the real per-file share links into descriptions and registries.
 In stages 1-2, `--base-url` is informational: it only composes link text.
 
 ## Capabilities
@@ -15,7 +15,7 @@ In stages 1-2, `--base-url` is informational: it only composes link text.
 ## Status
 
 This stage is specified at the interface and behavior level so stages 1-2 keep compatible seams
-(`url` column, stub `url` key, WAL `published` step). Its tasks start with a research task and
+(`url` column, description `url` key, WAL `published` step). Its tasks start with a research task and
 depend on human-provided test tenants and credentials.
 
 ## Implementation order
@@ -36,5 +36,5 @@ flowchart LR
 
 - `arxgo split --publish gdrive|sharepoint` uploads videos resumably, records real links, and a
   rerun uploads nothing new.
-- Credentials are never written to logs, registries, stubs or state files.
+- Credentials are never written to logs, registries, descriptions or state files.
 - The binary remains a single static executable.

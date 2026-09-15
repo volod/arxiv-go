@@ -38,6 +38,19 @@ func TestISOTracksTagsAndDuration(t *testing.T) {
 	}
 }
 
+// A trimmed QuickTime edit keeps its untrimmed media, here in a timecode track; the movie header
+// holds the presented duration that players and ffmpeg use.
+func TestISODurationIsThePresentedMovie(t *testing.T) {
+	p := fixtureFile(t, "trimmed.mov", testmp4.File(testmp4.Options{QuickTime: true, Tracks: []testmp4.Track{
+		{Kind: "vide", Codec: "avc1", Width: 1920, Height: 1080, MediaMs: 10256},
+		{Kind: "soun", Codec: "mp4a"},
+		{Kind: "tmcd", Codec: "tmcd", MediaMs: 23269},
+	}}))
+	if m := ReadISO(context.Background(), p, "video/quicktime"); m.Error != "" || m.DurationS != 5 || m.VideoStreams != 1 || m.AudioStreams != 1 {
+		t.Fatalf("metadata: %+v", m)
+	}
+}
+
 func TestISOAudioOnlyAndRotation(t *testing.T) {
 	for _, tc := range []struct {
 		name, mime                   string

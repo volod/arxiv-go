@@ -66,7 +66,7 @@ Otherwise (other defining options, another operation, or `--new-run`) the incomp
 place, but first its unfinished WAL transactions are recovered, so `current` never moves away from
 them. `archive.Config.RecovererFor` rebuilds that run's resolver from its `options.json`
 (`cli.recovererFor` decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
-gets the stub with its own `--base-url` and `--verify`, and a restore keeps its `--stubs` and
+gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
 `--transfer` policies. The recovery is logged to the console and appended to the earlier run's
 `run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run on
 another video archive stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
@@ -121,10 +121,10 @@ fsynced. Opening the file truncates a torn final line; a corrupt middle line or 
 version is `ErrStateCorrupt` (exit 5).
 
 Recovery walks open transactions in begin `seq` order through an operation-supplied `Resolver`
-(inspect, delete part, write or remove stub, remove source). The engine applies the
+(inspect, delete part, write or remove description, remove source). The engine applies the
 [recovery table](../../openspec/stage-1-core/integrity.md#recovery): unplaced work is aborted and
 retried; at or after `placed` it rolls forward; a missing or wrong-size destination after `placed`
-stops for the operator. `stub_removed` is the restore counterpart of `stubbed`. A second recover
+stops for the operator. `description_removed` is the restore counterpart of `described`. A second recover
 pass is a no-op. Resume skips `rel_path`s in the committed-set hash index.
 
 `test/fixtures/crashtest` injects a crash after each WAL step and filesystem effect. Fake split
@@ -134,13 +134,13 @@ and restore operations (copy and rename) recover to the same tree as an uninterr
 ## Disk-space preflight (`internal/archive`)
 
 `preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
-`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the stage-2 hook
-that stays zero until previews exist). `DeviceInfo` lists devices with their roles (`archive`,
+`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the split
+estimate of previews not yet published). `DeviceInfo` lists devices with their roles (`archive`,
 `video_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
 device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
 
 - Estimates follow the [preflight table](../../openspec/stage-1-core/integrity.md#preflight):
-  registry 256 B per row plus 512 B per media row (scan); stubs 4 KiB, video registry 1 KiB per
+  registry 256 B per row plus 512 B per media row (scan); descriptions 4 KiB, video registry 1 KiB per
   copy, WAL 2 KiB per candidate (split); all candidate bytes on another device; only the largest
   candidate for `--transfer copy` on a shared device; nothing for same-device `restore` renames
   except WAL, and all candidate bytes for `restore` across devices or with `copy`.
@@ -163,7 +163,7 @@ device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `S
 Example on the development host (ext4 archive, tmpfs video archive, 500 videos, 40 GiB):
 
 ```text
-level=INFO msg="preflight device" roles=archive path=/home/.../archive required=3.4MiB min_free=1.0GiB available=992.4GiB shortfall=0B needs="stubs=2.0MiB video_registry=500.0KiB wal=1000.0KiB" ...
+level=INFO msg="preflight device" roles=archive path=/home/.../archive required=3.4MiB min_free=1.0GiB available=992.4GiB shortfall=0B needs="descriptions=2.0MiB video_registry=500.0KiB wal=1000.0KiB" ...
 level=INFO msg="preflight device" roles=video_archive path=/dev/shm/video required=40.0GiB min_free=1.0GiB available=62.0GiB shortfall=0B needs="video_registry=500.0KiB videos=40.0GiB" ...
 level=INFO msg="preflight passed" op=split devices=2
 ```
@@ -180,8 +180,8 @@ level=INFO msg="preflight passed" op=split devices=2
 - A `Start` refused with exit 5 (corrupt run state, an interrupted run it may not recover)
   releases the locks it took, so the rerun that fixes the cause needs no `--force-unlock`; exit 5
   after the run started (a lost lock) keeps them. The integrity specification states both.
-- `FSResolver` writes a marker stub (`rel_path: ...`); split writes the full Markdown stub
-  through `archive.MarkdownStub`; restore removes an owned stub through `archive.RestoreResolver`.
+- `FSResolver` writes a marker description (`rel_path: ...`); split writes the full video description
+  through `archive.MarkdownDescription`; restore removes an owned description through `archive.RestoreResolver`.
   Crash injection in tests uses a hook (error or panic), not a killed process; the stage-1 review's
   declared run killed `split` and `restore` with SIGKILL at seeded random points and resumed them
   with changed options ([0021](../records/0021-restore-review-stage-1-integrity.md)).

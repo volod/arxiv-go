@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/volod/arxiv-go/internal/media"
 )
 
 // fixture creates an archive and a sibling video archive in a temporary directory.
@@ -81,6 +83,7 @@ func TestDefaults(t *testing.T) {
 	wantSplit := SplitOptions{
 		Common: defaultCommon(archive, video), ScanSettings: defaultScan,
 		Transfer: TransferAuto, Verify: VerifySize,
+		Preview: media.DefaultPreviewOptions(),
 	}
 	if !reflect.DeepEqual(split, wantSplit) {
 		t.Errorf("split defaults\n got %+v\nwant %+v", split, wantSplit)
@@ -96,7 +99,7 @@ func TestDefaults(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferAuto, Verify: VerifySize,
-		Stubs: StubsDelete, RegistryUpdate: true,
+		Descriptions: PolicyDelete, RegistryUpdate: true, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore defaults\n got %+v\nwant %+v", restore, wantRestore)
@@ -133,6 +136,7 @@ func TestEveryFlagParses(t *testing.T) {
 			Exclude: []string{"*.tmp", "cache/**"}, VideoExtensions: []string{".mts", ".m2ts"},
 		},
 		Transfer: TransferCopy, Verify: VerifyHash, BaseURL: "https://cdn.example.com/v",
+		Preview: media.DefaultPreviewOptions(),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("split options\n got %+v\nwant %+v", got, want)
@@ -140,7 +144,7 @@ func TestEveryFlagParses(t *testing.T) {
 
 	s, err = parseFlags(OpRestore, []string{
 		"--archive", archive, "--video-archive", video, "--transfer", "copy", "--verify", "hash",
-		"--stubs", "keep", "--create-dirs", "--overwrite", "--registry-update=false",
+		"--descriptions", "keep", "--create-dirs", "--overwrite", "--registry-update=false",
 	}, noEnv)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +155,7 @@ func TestEveryFlagParses(t *testing.T) {
 	}
 	wantRestore := RestoreOptions{
 		Common: defaultCommon(archive, video), Transfer: TransferCopy, Verify: VerifyHash,
-		Stubs: StubsKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false,
+		Descriptions: PolicyKeep, CreateDirs: true, Overwrite: true, RegistryUpdate: false, Previews: PolicyKeep,
 	}
 	if !reflect.DeepEqual(restore, wantRestore) {
 		t.Errorf("restore options\n got %+v\nwant %+v", restore, wantRestore)
@@ -170,13 +174,13 @@ func TestParseErrors(t *testing.T) {
 		{OpScan, []string{"--metadata", "full"}, "--metadata"},
 		{OpSplit, []string{"--transfer", "move"}, "--transfer"},
 		{OpSplit, []string{"--verify", "md5"}, "--verify"},
-		{OpRestore, []string{"--stubs", "archive"}, "--stubs"},
+		{OpRestore, []string{"--descriptions", "archive"}, "--descriptions"},
 		{OpScan, []string{"--min-free", "1XB"}, "--min-free"},
 		{OpScan, []string{"--large-threshold", "-1"}, "--large-threshold"},
 		{OpScan, []string{"--progress-interval", "10"}, "--progress-interval"},
 		{OpScan, []string{"--checkpoint-every", "many"}, "--checkpoint-every"},
 		{OpScan, []string{"--no-such-flag"}, "flag provided but not defined: --no-such-flag"},
-		{OpScan, []string{"--stubs", "keep"}, "not defined: --stubs"},
+		{OpScan, []string{"--descriptions", "keep"}, "not defined: --descriptions"},
 		{OpRestore, []string{"--metadata", "file"}, "not defined: --metadata"},
 		{OpScan, []string{"--archive"}, "flag needs an argument"},
 		{OpScan, []string{"--archive", archive, "extra"}, `unexpected argument "extra"`},

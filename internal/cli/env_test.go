@@ -53,7 +53,7 @@ func TestEnvironmentOverrides(t *testing.T) {
 
 	t.Run("environment for another operation's flag is ignored", func(t *testing.T) {
 		_, err := parseScan(t, []string{"--archive", archive},
-			mapEnv(map[string]string{"ARXGO_STUBS": "bogus", "ARXGO_SAMPLE": "start"}))
+			mapEnv(map[string]string{"ARXGO_DESCRIPTIONS": "bogus", "ARXGO_SAMPLE": "start"}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +77,7 @@ func TestEnvironmentOverrides(t *testing.T) {
 func TestReservedFlagsRejected(t *testing.T) {
 	archive, video := fixture(t)
 	for _, d := range flagTable {
-		if d.stage == 1 {
+		if d.plannedFeature == "" {
 			continue
 		}
 		op := d.ops[0]
