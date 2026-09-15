@@ -29,8 +29,11 @@ const (
 	LogJSON       = "json"
 )
 
-// PayloadVideo is the payload kind of split and restore in this build.
-const PayloadVideo = string(archive.PayloadVideo)
+// Payload kinds of split and restore.
+const (
+	PayloadVideo = string(archive.PayloadVideo)
+	PayloadCatia = string(archive.PayloadCatia)
+)
 
 // DefaultRegistryName is the registry file created in the archive root unless --registry is set.
 const DefaultRegistryName = "arxgo-registry.csv"
@@ -39,10 +42,13 @@ const DefaultRegistryName = "arxgo-registry.csv"
 // the spelling the operator gave; symlinks are resolved only for the nesting check.
 type Common struct {
 	Archive string
-	// Payload is the kind split and restore move (PayloadVideo); empty for scan. It is a defining
-	// option, so a run of one payload never resumes a run of another.
-	Payload            string
-	VideoArchive       string // empty for scan
+	// Payload is the kind split and restore move (PayloadVideo or PayloadCatia); empty for scan. It
+	// is a defining option, so a run of one payload never resumes a run of another.
+	Payload string
+	// VideoArchive or CatiaArchive is the mirror root of the payload; the other is empty, and both
+	// are empty for scan.
+	VideoArchive       string
+	CatiaArchive       string
 	LogLevel           slog.Level
 	LogFormat          string
 	ProgressInterval   time.Duration
@@ -82,9 +88,9 @@ type SplitOptions struct {
 	Verify   string // VerifySize or VerifyHash
 	BaseURL  string // empty, or absolute http(s) URL without a trailing slash
 	Preview  media.PreviewOptions
-	// CreateVideoArchive is true when the video archive root does not exist yet; its parent does,
-	// and the split operation creates it after taking the lock.
-	CreateVideoArchive bool
+	// CreateMirror is true when the payload's mirror root does not exist yet; its parent does, and
+	// the split operation creates it after taking the lock.
+	CreateMirror bool
 }
 
 // RestoreOptions configures the restore operation.
@@ -132,12 +138,19 @@ func buildCommon(op string, s *settings, fsys rootFS, v *validator) (Common, boo
 	if c.MinFree < 0 {
 		v.addf("--min-free must not be negative")
 	}
-	var videoMissing bool
-	c.Archive, c.VideoArchive, videoMissing = checkRoots(op, s, fsys, v)
-	if op != OpScan {
-		c.Payload = PayloadVideo
+	if op == OpScan {
+		c.Archive, _, _ = checkRoots(op, "", s, fsys, v)
+		return c, false
 	}
-	return c, videoMissing
+	c.Payload = selectPayload(s, v)
+	archive, mirror, missing := checkRoots(op, c.Payload, s, fsys, v)
+	c.Archive = archive
+	if c.Payload == PayloadCatia {
+		c.CatiaArchive = mirror
+	} else {
+		c.VideoArchive = mirror
+	}
+	return c, missing
 }
 
 func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSettings {
@@ -193,8 +206,8 @@ func buildScanOptions(s *settings, fsys rootFS) (ScanOptions, error) {
 
 func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	v := &validator{}
-	common, videoMissing := buildCommon(OpSplit, s, fsys, v)
-	o := SplitOptions{Common: common, CreateVideoArchive: videoMissing}
+	common, missing := buildCommon(OpSplit, s, fsys, v)
+	o := SplitOptions{Common: common, CreateMirror: missing}
 	o.ScanSettings = buildScan(s, o.Archive, fsys, v)
 	o.Transfer, o.Verify = s.transfer, s.verify
 	o.Preview = media.PreviewOptions{SampleMode: s.sampleMode, ImageMode: s.imageMode,
@@ -212,6 +225,13 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	}
 	if o.Preview.MaxItems < 1 {
 		v.addf("--preview-max-items must be at least 1")
+	}
+	if o.Payload == PayloadCatia {
+		for _, f := range []struct{ name, mode string }{{"sample", s.sampleMode}, {"image", s.imageMode}} {
+			if f.mode != "none" {
+				v.addf("%s %s cannot be used with --catia: previews are generated for videos only", s.explicit[f.name], f.mode)
+			}
+		}
 	}
 	if s.baseURL != "" {
 		u, err := validateBaseURL(s.baseURL)

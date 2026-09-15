@@ -12,7 +12,8 @@ import (
 var flagTable = []flagDef{
 	// Common flags.
 	{name: "archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the main archive (required)", bind: str("")},
-	{name: "video-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the video archive (required for split and restore; unused by scan)", bind: str("")},
+	{name: "video-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the video archive (required for video split and restore; unused by scan)", bind: str("")},
+	{name: "catia-archive", ops: scanSplitOps, group: groupCommon, arg: "PATH", usage: "Root of the CATIA archive (required for split --catia; unused by scan)", bind: str("")},
 	{name: "log-level", ops: allOps, group: groupCommon, arg: "LEVEL", usage: "Console log level: debug, info, warn, error", bind: enum("info", logLevels)},
 	{name: "log-format", ops: allOps, group: groupCommon, arg: "FORMAT", usage: "Console log format: text or json", bind: enum("text", logFormats)},
 	{name: "progress-interval", ops: allOps, group: groupCommon, arg: "DURATION", usage: "Minimum interval between progress lines", bind: duration(defaultProgress, func(s *settings) *time.Duration { return &s.progressInterval })},
@@ -36,9 +37,11 @@ var flagTable = []flagDef{
 	{name: "follow-symlinks", ops: scanSplitOps, group: groupScan, usage: "Reserved; symlinks are recorded but never followed by scan", bind: boolean(false)},
 
 	// Split flags.
+	{name: "video", ops: splitOnly, group: groupSplit, usage: "Move video files into --video-archive (the default payload)", bind: boolean(false)},
+	{name: "catia", ops: splitOnly, group: groupSplit, usage: "Move CATIA files into --catia-archive instead of videos", bind: boolean(false)},
 	{name: "transfer", ops: splitOnly, group: groupSplit, arg: "MODE", usage: "auto: rename on the same device, copy+verify+delete otherwise; copy: always copy+verify+delete", bind: enum(TransferAuto, transferModes)},
 	{name: "verify", ops: splitOnly, group: groupSplit, arg: "MODE", usage: "size or hash (SHA-256 while copying and re-read from the destination)", bind: enum(VerifySize, verifyModes)},
-	{name: "base-url", ops: splitOnly, group: groupSplit, arg: "URL", usage: "Absolute http(s) URL of the uploaded video archive; descriptions link to URL/<rel_path>", bind: str("")},
+	{name: "base-url", ops: splitOnly, group: groupSplit, arg: "URL", usage: "Absolute http(s) URL of the published video or CATIA archive; descriptions link to URL/<rel_path>", bind: str("")},
 	{name: "sample", ops: splitOnly, group: groupSplit, arg: "MODE", usage: "Sample clips: none, start, middle, end, series", bind: enum("none", previewModes)},
 	{name: "sample-duration", ops: splitOnly, group: groupSplit, arg: "DURATION", usage: "Clip length, or fragment length for series", bind: duration(5*time.Second, func(s *settings) *time.Duration { return &s.sampleDuration })},
 	{name: "sample-every", ops: splitOnly, group: groupSplit, arg: "DURATION", usage: "Fragment spacing for series", bind: duration(5*time.Minute, func(s *settings) *time.Duration { return &s.sampleEvery })},

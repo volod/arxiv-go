@@ -56,10 +56,13 @@ Measured on the development host (4 GiB file, NVMe ext4 and tmpfs): size-verifie
 `wal.jsonl` when a mutating run writes transactions, and, when the run reaches a final state,
 `report.json`. `<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` in UTC.
 Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock). Split and restore
-record `payload` (`video` in this build) and that payload's mirror root (`video_archive`) in
+record `payload` (`video` or `catia`) and that payload's mirror root (`video_archive` or
+`catia_archive`) in
 `options.json`; `scan` records neither. `archive.Config.Payload` carries the kind and mirror root,
 and `archive.Start` refuses a split or restore without a known payload, or a scan with one, before
-taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)).
+taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)); a CATIA restore is
+also refused there until it ships ([0046](../records/0046-catia-implement-catia-split.md)). A run
+resumes only when the recorded payload and mirror root match too.
 
 A later process resumes `current` when that run has no report and the operation plus defining
 options match (roots, payload and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
@@ -73,16 +76,19 @@ them. `archive.Config.RecovererFor` rebuilds that run's resolver from the payloa
 one, and decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
 gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
 `--transfer` policies. The recovery is logged to the console and appended to the earlier run's
-`run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run with
-another payload or mirror root stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
-directory, names the run, the archive and the mirror flag and root to rerun with, and releases its
-locks. An interrupted split or restore whose `options.json` names no payload is corrupt state
+`run.log.jsonl`. It needs the locks of that run's roots. A split or restore replacing a run of the
+other payload takes the lock of that run's recorded mirror root for the recovery and releases it
+afterwards, so a video split rolls an interrupted CATIA split forward with its CATIA description
+([0046](../records/0046-catia-implement-catia-split.md)); a missing root, or a refused lock, exits 5.
+`scan` (archive lock only) or a run of the same payload on another mirror root stops with exit 5
+(`archive.ErrUnrecoveredRun`) before creating a run directory, names the run, the archive and the
+mirror flag and root to rerun with, and releases its locks. An interrupted split or restore whose `options.json` names no payload is corrupt state
 (exit 5).
 
 ## Run lock
 
 - Created with `O_CREATE|O_EXCL` in the archive root, then in the payload's mirror root (the video
-  archive). `scan` takes only the archive lock. If the mirror lock is refused, the archive lock is
+  or CATIA archive). `scan` takes only the archive lock. If the mirror lock is refused, the archive lock is
   released and no run directory is created. `split` creates a missing mirror root after the archive
   lock, not in `--dry-run`.
 - A second process exits 5 and prints the owner (`pid`, `host`, `run_id`, `op`).

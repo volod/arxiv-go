@@ -69,7 +69,7 @@ func (s *Session) tryResume(ctx context.Context, defining json.RawMessage) (bool
 	if err := state.ReadJSON(rd.File(state.OptionsFile), &prev); err != nil {
 		return false, err
 	}
-	if s.cfg.NewRun || !prev.SameDefinition(s.cfg.Op, defining) {
+	if s.cfg.NewRun || !prev.SameDefinition(s.cfg.Op, defining) || runPayload(prev) != s.cfg.Payload {
 		if err := s.recoverReplaced(ctx, rd, prev); err != nil {
 			return false, err
 		}
@@ -109,6 +109,7 @@ func (s *Session) recoverWAL(ctx context.Context) error {
 	if s.cfg.Recoverer == nil {
 		return nil
 	}
+	resolverLog(s.cfg.Recoverer, s.Log)
 	_, err = state.Recover(ctx, w, s.cfg.Recoverer, s.Log)
 	return err
 }

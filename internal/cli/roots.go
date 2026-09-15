@@ -27,29 +27,104 @@ func osRootFS() rootFS {
 	}
 }
 
-// checkRoots validates --archive and, for split and restore, --video-archive. It returns the
-// absolute root paths and whether the split video archive root still has to be created.
-func checkRoots(op string, s *settings, fsys rootFS, v *validator) (archive, video string, videoMissing bool) {
+// selectPayload resolves --video and --catia (default video) and checks that the mirror root flags
+// given on the command line match the payload. A root of the other payload that comes only from
+// the environment is ignored.
+func selectPayload(s *settings, v *validator) string {
+	payload := PayloadVideo
+	switch {
+	case s.video && s.catia:
+		v.addf("%s and %s are mutually exclusive; select one payload", s.explicit["video"], s.explicit["catia"])
+	case s.catia:
+		payload = PayloadCatia
+	}
+	switch {
+	case payload == PayloadCatia && s.explicit["video-archive"] == "--video-archive":
+		v.addf("--video-archive cannot be used with --catia; use --catia-archive for the CATIA archive")
+	case payload != PayloadCatia && s.explicit["catia-archive"] == "--catia-archive":
+		v.addf("--catia-archive requires --catia; use --video-archive for the video archive")
+	}
+	return payload
+}
+
+// root is one validated root flag: its absolute path and the symlink-resolved path compared for
+// nesting ("" when it could not be determined).
+type root struct {
+	flag, abs, real string
+}
+
+// mirrorFlag is the command-line flag of a payload's mirror root.
+func mirrorFlag(payload string) string {
+	if payload == PayloadCatia {
+		return "--catia-archive"
+	}
+	return "--video-archive"
+}
+
+// checkRoots validates --archive and, for split and restore, the mirror root of the selected
+// payload (--video-archive or --catia-archive). It returns the absolute archive and selected mirror
+// root, and whether a split mirror root still has to be created. The mirror root of the other
+// payload is only compared for nesting when it is set; it need not exist.
+func checkRoots(op, payload string, s *settings, fsys rootFS, v *validator) (archive, mirror string, missing bool) {
 	archive, archiveReal, ok, _ := checkDir(fsys, "--archive", s.archive, false, v)
 	if op == OpScan {
 		return archive, "", false
 	}
-	video, videoReal, videoOK, videoMissing := checkDir(fsys, "--video-archive", s.videoArchive, op == OpSplit, v)
-	if ok && videoOK {
-		a, b := archiveReal, videoReal
-		if fsys.foldCase {
-			a, b = strings.ToLower(a), strings.ToLower(b)
+	values := map[string]string{"--video-archive": s.videoArchive, "--catia-archive": s.catiaArchive}
+	selected := mirrorFlag(payload)
+	mirror, mirrorReal, mirrorOK, missing := checkDir(fsys, selected, values[selected], op == OpSplit, v)
+	roots := []root{}
+	if ok {
+		roots = append(roots, root{"--archive", archive, archiveReal})
+	}
+	if mirrorOK {
+		roots = append(roots, root{selected, mirror, mirrorReal})
+	}
+	for _, other := range []string{"--video-archive", "--catia-archive"} {
+		if other == selected || values[other] == "" {
+			continue
 		}
-		switch {
-		case a == b:
-			v.addf("--archive and --video-archive resolve to the same directory %q", archiveReal)
-		case within(a, b):
-			v.addf("--video-archive %q is inside --archive %q", video, archive)
-		case within(b, a):
-			v.addf("--archive %q is inside --video-archive %q", archive, video)
+		if r, ok := pathOnly(fsys, other, values[other]); ok {
+			roots = append(roots, r)
 		}
 	}
-	return archive, video, videoMissing
+	for i := range roots {
+		for j := i + 1; j < len(roots); j++ {
+			checkApart(fsys, roots[i], roots[j], v)
+		}
+	}
+	return archive, mirror, missing
+}
+
+// pathOnly makes a root that is not selected absolute and resolves its symlinks when it exists.
+func pathOnly(fsys rootFS, flagName, value string) (root, bool) {
+	abs, err := fsys.abs(value)
+	if err != nil {
+		return root{}, false
+	}
+	real := abs
+	if resolved, err := fsys.evalSymlinks(abs); err == nil {
+		real = resolved
+	} else if parent, err := fsys.evalSymlinks(filepath.Dir(abs)); err == nil {
+		real = filepath.Join(parent, filepath.Base(abs))
+	}
+	return root{flagName, abs, real}, true
+}
+
+// checkApart requires two roots to be neither equal nor nested in either direction.
+func checkApart(fsys rootFS, a, b root, v *validator) {
+	x, y := a.real, b.real
+	if fsys.foldCase {
+		x, y = strings.ToLower(x), strings.ToLower(y)
+	}
+	switch {
+	case x == y:
+		v.addf("%s and %s resolve to the same directory %q", a.flag, b.flag, a.real)
+	case within(x, y):
+		v.addf("%s %q is inside %s %q", b.flag, b.abs, a.flag, a.abs)
+	case within(y, x):
+		v.addf("%s %q is inside %s %q", a.flag, a.abs, b.flag, b.abs)
+	}
 }
 
 // checkDir requires value to name an existing directory. With allowMissing, a missing final

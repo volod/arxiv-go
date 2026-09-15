@@ -27,6 +27,13 @@ type Counters struct {
 	// Previews generated and failed by split; a failed preview never counts as a failed video.
 	PreviewsDone   int64 `json:"previews_done,omitempty"`
 	PreviewsFailed int64 `json:"previews_failed,omitempty"`
+	// CATIA split and restore counters; a CATIA run never updates the video counters.
+	CatiaDone    int64 `json:"catia_done,omitempty"`
+	CatiaSkipped int64 `json:"catia_skipped,omitempty"`
+	CatiaFailed  int64 `json:"catia_failed,omitempty"`
+	CatiaBytes   int64 `json:"catia_bytes,omitempty"`
+	CatiaWritten int64 `json:"catia_archive_bytes_written,omitempty"`
+	CatiaFreed   int64 `json:"catia_archive_bytes_freed,omitempty"`
 }
 
 // Sub returns c - o, the counters accumulated since o.
@@ -38,6 +45,9 @@ func (c Counters) Sub(o Counters) Counters {
 		ArchiveWritten: c.ArchiveWritten - o.ArchiveWritten, ArchiveFreed: c.ArchiveFreed - o.ArchiveFreed,
 		VideoWritten: c.VideoWritten - o.VideoWritten, VideoFreed: c.VideoFreed - o.VideoFreed,
 		PreviewsDone: c.PreviewsDone - o.PreviewsDone, PreviewsFailed: c.PreviewsFailed - o.PreviewsFailed,
+		CatiaDone: c.CatiaDone - o.CatiaDone, CatiaSkipped: c.CatiaSkipped - o.CatiaSkipped,
+		CatiaFailed: c.CatiaFailed - o.CatiaFailed, CatiaBytes: c.CatiaBytes - o.CatiaBytes,
+		CatiaWritten: c.CatiaWritten - o.CatiaWritten, CatiaFreed: c.CatiaFreed - o.CatiaFreed,
 	}
 }
 

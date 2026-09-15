@@ -7,11 +7,12 @@ import (
 	"strings"
 )
 
-const generalUsage = `arxgo - separate video files from a file archive and restore them
+const generalUsage = `arxgo - separate video and CATIA files from a file archive and restore them
 
 Usage:
   arxgo [scan]  --archive PATH [flags]    build the CSV file registry (default operation)
   arxgo split   --archive PATH --video-archive PATH [flags]
+  arxgo split   --catia --archive PATH --catia-archive PATH [flags]
   arxgo restore --archive PATH --video-archive PATH [flags]
   arxgo version
   arxgo help [operation]
@@ -24,7 +25,7 @@ Run 'arxgo help <operation>' for the flags of one operation.
 
 var opSynopsis = map[string]string{
 	OpScan:    "arxgo [scan] --archive PATH [flags]\n\nBuild the CSV registry of every file in the archive.",
-	OpSplit:   "arxgo split --archive PATH --video-archive PATH [flags]\n\nMove video files into the mirrored video archive and leave video descriptions.",
+	OpSplit:   "arxgo split --archive PATH --video-archive PATH [flags]\n       arxgo split --catia --archive PATH --catia-archive PATH [flags]\n\nMove video files (or, with --catia, CATIA files) into their mirrored archive and leave descriptions.",
 	OpRestore: "arxgo restore --archive PATH --video-archive PATH [flags]\n\nReturn videos from the video archive to the main archive.",
 }
 

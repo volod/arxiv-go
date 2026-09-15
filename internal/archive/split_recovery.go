@@ -28,6 +28,9 @@ type SplitDescriptionWriter interface {
 	Path(state.Tx) string
 	Write(state.Tx) error
 	RememberSHA256(rel, sum string)
+	// Catia returns and forgets the CATIA summary of the description last written for rel; nil for
+	// other payloads.
+	Catia(rel string) *state.CatiaSummary
 }
 
 func NewSplitResolver(ops fsops.Ops, verify fsops.VerifyMode, crash state.CrashHook) SplitResolver {
@@ -83,6 +86,11 @@ func (r SplitResolver) DescriptionPath(tx state.Tx) string {
 
 func (r SplitResolver) WriteDescription(tx state.Tx) error {
 	return r.Descriptions.Write(tx)
+}
+
+// DescribedCatia is the CATIA summary for the described record of a recovered transaction.
+func (r SplitResolver) DescribedCatia(tx state.Tx) *state.CatiaSummary {
+	return r.Descriptions.Catia(tx.Begin.RelPath)
 }
 
 func (r SplitResolver) RemoveSource(tx state.Tx) error {
@@ -165,4 +173,7 @@ func hashFile(path string) ([sha256.Size]byte, error) {
 	return sum, nil
 }
 
-var _ state.Resolver = SplitResolver{}
+var (
+	_ state.Resolver           = SplitResolver{}
+	_ state.DescribedAnnotator = SplitResolver{}
+)

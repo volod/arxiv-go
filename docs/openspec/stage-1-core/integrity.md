@@ -38,10 +38,13 @@ same defining options (the roots, payload kind, `--catia-text` and other operati
 created and `current` points at it; an incomplete run with different options, or one replaced with
 `--new-run`, is left in place with a warning. Before that, its unfinished WAL transactions are
 [recovered](#recovery) with a resolver rebuilt from its own `options.json` (including its payload kind), so `current` never
-moves away from unfinished transactions. Recovery needs the locks of that run's roots: a process
-that does not hold them (`scan`, which locks only the archive, or a run on another video or CATIA archive)
-exits 5 before creating a run directory, names the interrupted run and the roots that recover it,
-and releases its locks. `--dry-run` always creates its own run directory, never resumes, recovers
+moves away from unfinished transactions. Recovery needs the locks of that run's roots. A split or
+restore of the other payload takes the lock of the mirror root that run recorded for the duration
+of the recovery (with the same `--force-unlock` rules), so a video command rolls an interrupted
+CATIA run forward and the reverse; when that root is missing or its lock is refused, the process
+exits 5. A process that cannot recover the run (`scan`, which locks only the archive, or a run of
+the same payload on another mirror root) exits 5 before creating a run directory, names the
+interrupted run and the roots that recover it, and releases its locks. `--dry-run` always creates its own run directory, never resumes, recovers
 nothing and never changes `current`, so it cannot hide an interrupted real run from recovery.
 
 ## Run lock

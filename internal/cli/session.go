@@ -40,7 +40,11 @@ func payloadOf(c Common) archive.Payload {
 	if c.Payload == "" {
 		return archive.Payload{}
 	}
-	return archive.Payload{Kind: archive.PayloadKind(c.Payload), Root: c.VideoArchive}
+	root := c.VideoArchive
+	if c.Payload == PayloadCatia {
+		root = c.CatiaArchive
+	}
+	return archive.Payload{Kind: archive.PayloadKind(c.Payload), Root: root}
 }
 
 func verifyMode(v string) fsops.VerifyMode {
@@ -56,7 +60,7 @@ func splitResolver(o SplitOptions) archive.SplitResolver {
 	r := archive.NewSplitResolver(nil, verify, nil)
 	r.Descriptions = archive.NewMarkdownDescription(archive.DescriptionConfig{
 		Archive: o.Archive, Mirror: payloadOf(o.Common).Root, BaseURL: o.BaseURL,
-		Registry: o.Registry, Version: version, Verify: verify,
+		Registry: o.Registry, Version: version, Payload: archive.PayloadKind(o.Payload), Verify: verify,
 	})
 	return r
 }
@@ -80,7 +84,7 @@ func recovererFor(op string, payload archive.PayloadKind, raw json.RawMessage) (
 	switch {
 	case payload == "":
 		return nil, fmt.Errorf("%s run has no payload", op)
-	case payload != archive.PayloadVideo:
+	case payload != archive.PayloadVideo && (payload != archive.PayloadCatia || op != OpSplit):
 		return nil, fmt.Errorf("%s run of payload %q: not available in this build", op, payload)
 	case common.Payload != string(payload):
 		return nil, fmt.Errorf("%s run options name payload %q, run payload %q", op, common.Payload, payload)
@@ -114,7 +118,7 @@ func scanConfig(root string, sc ScanSettings, probePath string, preflight bool) 
 // progress, checkpoint cadence, --min-free, --dry-run, --new-run and --force-unlock may change
 // between the interrupted process and the one resuming it.
 func definingCommon(c Common) Common {
-	return Common{Archive: c.Archive, Payload: c.Payload, VideoArchive: c.VideoArchive}
+	return Common{Archive: c.Archive, Payload: c.Payload, VideoArchive: c.VideoArchive, CatiaArchive: c.CatiaArchive}
 }
 
 // runSession starts the run, executes fn and maps the outcome to an exit code.

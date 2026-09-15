@@ -38,9 +38,11 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   positive durations and counts, `--base-url` (absolute http(s), no credentials, query or
   fragment), `--video-extensions`, `--exclude` globs and `--registry`. All errors are reported
   together and exit 2.
-- Root checks are read-only. Roots must be existing directories. A missing split video archive
-  with an existing parent sets `SplitOptions.CreateVideoArchive`. Roots must be neither equal nor
-  nested after `Abs`, `EvalSymlinks` and, on Windows, case folding.
+- Root checks are read-only. Roots must be existing directories. A missing split mirror root (video
+  or, with `--catia`, CATIA archive) with an existing parent sets `SplitOptions.CreateMirror`. The
+  archive, the selected mirror root and the other payload's root when set must be pairwise neither
+  equal nor nested after `Abs`, `EvalSymlinks` and, on Windows, case folding
+  ([CATIA split](catia-archive.md#catia-split-internalcli-internalarchive-internalreport-internalstate)).
 - Split preview flags (`--sample*`, `--image*`, `--preview-max-items`) and restore `--previews`
   are active. Cloud publishing flags (`--publish*`, `--gdrive-*`, `--share`),
   `--follow-symlinks=true` and the `publish` operation exit 2 with

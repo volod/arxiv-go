@@ -61,8 +61,8 @@ separating dots still fit. `--base-url` is composed as `base + "/" + escaped rel
 ## Video registry
 
 Phase `report` writes identical `arxgo-videos.csv` into both roots (atomic
-part file and rename). Columns 1-10 are the payload registry columns shared with the future CATIA
-registry: `rel_path`, `file_name`, `status`, `url`, `description_rel_path`, `file_size`, `sha256`,
+part file and rename). Columns 1-10 are the payload registry columns shared with the CATIA
+registry ([CATIA archive](catia-archive.md)): `rel_path`, `file_name`, `status`, `url`, `description_rel_path`, `file_size`, `sha256`,
 `transfer`, `run_id`, `file_mime`; then `previews` and the flat metadata columns. A registry in the
 earlier order does not load and stops split and restore with exit 5. The CSV starts from any
 existing registry and replays the WAL of every video run (`payload` `video` in `options.json`) in

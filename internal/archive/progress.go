@@ -20,6 +20,9 @@ type Stats struct {
 	ArchiveWritten, ArchiveFreed            atomic.Int64
 	VideoArchiveWritten, VideoArchiveFreed  atomic.Int64
 	PreviewsDone, PreviewsFailed            atomic.Int64
+	CatiaDone, CatiaSkipped, CatiaFailed    atomic.Int64
+	CatiaBytes                              atomic.Int64
+	CatiaArchiveWritten, CatiaArchiveFreed  atomic.Int64
 }
 
 // Snapshot returns the current counters.
@@ -31,6 +34,9 @@ func (s *Stats) Snapshot() state.Counters {
 		ArchiveWritten: s.ArchiveWritten.Load(), ArchiveFreed: s.ArchiveFreed.Load(),
 		VideoWritten: s.VideoArchiveWritten.Load(), VideoFreed: s.VideoArchiveFreed.Load(),
 		PreviewsDone: s.PreviewsDone.Load(), PreviewsFailed: s.PreviewsFailed.Load(),
+		CatiaDone: s.CatiaDone.Load(), CatiaSkipped: s.CatiaSkipped.Load(), CatiaFailed: s.CatiaFailed.Load(),
+		CatiaBytes:   s.CatiaBytes.Load(),
+		CatiaWritten: s.CatiaArchiveWritten.Load(), CatiaFreed: s.CatiaArchiveFreed.Load(),
 	}
 }
 
@@ -48,6 +54,12 @@ func (s *Stats) Restore(c state.Counters) {
 	s.VideoArchiveFreed.Store(c.VideoFreed)
 	s.PreviewsDone.Store(c.PreviewsDone)
 	s.PreviewsFailed.Store(c.PreviewsFailed)
+	s.CatiaDone.Store(c.CatiaDone)
+	s.CatiaSkipped.Store(c.CatiaSkipped)
+	s.CatiaFailed.Store(c.CatiaFailed)
+	s.CatiaBytes.Store(c.CatiaBytes)
+	s.CatiaArchiveWritten.Store(c.CatiaWritten)
+	s.CatiaArchiveFreed.Store(c.CatiaFreed)
 }
 
 // Totals are the known work of a phase. A phase with zero Items has an unknown total (scan): its

@@ -213,3 +213,33 @@ func mustReadFile(t *testing.T, path string) []byte {
 	}
 	return data
 }
+
+func TestCatiaSummaryOnlyOnDescribed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), WALFile)
+	w, err := OpenWAL(path, "20260915T120000Z-0badf00d", WALOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := w.Begin(Begin{Op: "split", RelPath: "cad/fixture.CATPart", Src: "/a/x", Dst: "/c/x", Size: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := &CatiaSummary{Kind: "CATPart", Format: "V5_CFV2", Release: "V5R30 SP5", Components: 2}
+	for _, step := range []Step{StepPlaced, StepDescribed, StepCommit} {
+		if _, err := w.Append(rec.TxID, step, Record{Catia: sum}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	records, err := ReadWALRecords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range records {
+		if (r.Catia != nil) != (r.Step == StepDescribed) || (r.Catia != nil && *r.Catia != *sum) {
+			t.Errorf("%s record catia = %+v", r.Step, r.Catia)
+		}
+	}
+}

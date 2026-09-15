@@ -28,7 +28,8 @@ conflict, directory and description policies as video.
   `--catia` requires `--catia-archive`, with the existence, creation and lock rules of the video
   archive. `--video-archive` on the command line together with `--catia`, or `--catia-archive`
   without it, exits 2 naming the right flag, so a CATIA run can never write into the video archive
-  by a copied command line. Environment values for the other payload's root are ignored.
+  by a copied command line. Environment values for the other payload's root do not select or
+  record a root; they are only compared by the nesting rule below.
 - The archive, the video archive and the CATIA archive are pairwise neither equal nor nested
   whenever they are set ([validation](../stage-1-core/cli.md#validation)). In this page "the mirror"
   means the CATIA archive.

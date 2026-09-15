@@ -14,8 +14,8 @@ import (
 // PayloadKind names what split and restore move. It is stored as "payload" in options.json.
 type PayloadKind string
 
-// Payload kinds. Only video has an executor in this build; a run of another kind in the state
-// directory is kept out of video history replay.
+// Payload kinds. Both split; only video restores in this build. Each kind replays only its own
+// runs from the state directory.
 const (
 	PayloadVideo PayloadKind = "video"
 	PayloadCatia PayloadKind = "catia"
@@ -90,11 +90,11 @@ type payloadSpec struct {
 	totals     func(state.Counters) payloadTotals
 	loadRows   func(path string) ([]report.PayloadRow, error)
 	newSplit   func(s *Session) splitHooks
-	newRestore func(ctx context.Context, s *Session, c *RestoreConfig) (restoreHooks, error)
+	newRestore func(ctx context.Context, s *Session, c *RestoreConfig) (restoreHooks, error) // nil: no restore
 }
 
 // payloadSpecs lists the payload kinds this build can split and restore.
-var payloadSpecs = map[PayloadKind]*payloadSpec{PayloadVideo: videoPayload}
+var payloadSpecs = map[PayloadKind]*payloadSpec{PayloadVideo: videoPayload, PayloadCatia: catiaPayload}
 
 // specOf returns the executor spec of a kind.
 func specOf(kind PayloadKind) (*payloadSpec, error) {
@@ -115,6 +115,9 @@ func sessionPayload(cfg Config) (*payloadSpec, error) {
 		spec, err := specOf(cfg.Payload.Kind)
 		if err != nil {
 			return nil, err
+		}
+		if cfg.Op == opRestore && spec.newRestore == nil {
+			return nil, fmt.Errorf("restore of payload %q: not available in this build", spec.kind)
 		}
 		if cfg.Payload.Root == "" {
 			return nil, fmt.Errorf("%s: %s mirror root is required", cfg.Op, spec.noun)

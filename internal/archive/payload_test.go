@@ -154,7 +154,8 @@ func TestStartRequiresKnownPayload(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"split without payload": func(cfg *Config) { cfg.Payload = Payload{} },
 		"split without mirror":  func(cfg *Config) { cfg.Payload.Root = "" },
-		"catia not executable":  func(cfg *Config) { cfg.Payload.Kind = PayloadCatia },
+		"catia restore":         func(cfg *Config) { cfg.Op, cfg.Payload.Kind = opRestore, PayloadCatia },
+		"unknown payload":       func(cfg *Config) { cfg.Payload.Kind = "audio" },
 		"scan with payload":     func(cfg *Config) { cfg.Op = opScan },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -172,8 +173,10 @@ func TestStartRequiresKnownPayload(t *testing.T) {
 	}
 }
 
+// A run of another payload whose recorded mirror root is gone, or a run without a payload, cannot be
+// recovered by this process.
 func TestReplacedRunOfAnotherPayloadNeedsOperator(t *testing.T) {
-	for name, payload := range map[string]string{"catia": "catia", "missing": ""} {
+	for name, payload := range map[string]string{"catia root missing": "catia", "missing": ""} {
 		t.Run(name, func(t *testing.T) {
 			r, _, dst := splitFixture(t)
 			prev := crashSplit(t, r, "auto", "wal:placed")
@@ -182,7 +185,7 @@ func TestReplacedRunOfAnotherPayloadNeedsOperator(t *testing.T) {
 			if err := state.ReadJSON(path, &o); err != nil {
 				t.Fatal(err)
 			}
-			o.Payload, o.VideoArchive, o.CatiaArchive = payload, "", r.video
+			o.Payload, o.VideoArchive, o.CatiaArchive = payload, "", filepath.Join(filepath.Dir(r.video), "gone")
 			if err := state.WriteJSON(path, o); err != nil {
 				t.Fatal(err)
 			}

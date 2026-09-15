@@ -178,8 +178,8 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 
 	c := s.Stats.Snapshot()
 	attrs := []any{"op", s.cfg.Op, "run_id", s.Run.ID, "status", res.Status.String(),
-		"wall", FormatDuration(s.cfg.Now().Sub(s.started)), "files", c.Files, "bytes", c.Bytes,
-		"videos_done", c.VideosDone, "videos_skipped", c.VideosSkipped, "videos_failed", c.VideosFailed}
+		"wall", FormatDuration(s.cfg.Now().Sub(s.started)), "files", c.Files, "bytes", c.Bytes}
+	attrs = append(attrs, s.payloadFinishAttrs(c)...)
 	if c.PreviewsDone > 0 || c.PreviewsFailed > 0 {
 		attrs = append(attrs, "previews_done", c.PreviewsDone, "previews_failed", c.PreviewsFailed)
 	}
@@ -202,6 +202,16 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 	}
 	s.Log = slog.New(s.cfg.Console)
 	return res
+}
+
+// payloadFinishAttrs are the payload counters of the finish line, keyed by the payload's counter
+// names (videos_* for video and scan, catia_* for CATIA).
+func (s *Session) payloadFinishAttrs(c state.Counters) []any {
+	if s.payload == nil || s.payload.kind == PayloadVideo {
+		return []any{"videos_done", c.VideosDone, "videos_skipped", c.VideosSkipped, "videos_failed", c.VideosFailed}
+	}
+	t, prefix := s.payload.totals(c), s.payload.plural
+	return []any{prefix + "_done", t.done, prefix + "_skipped", t.skipped, prefix + "_failed", t.failed}
 }
 
 func (s *Session) classify(ctx context.Context, err error) Status {

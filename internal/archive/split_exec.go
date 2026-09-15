@@ -94,7 +94,7 @@ func finishSplit(s *Session, w *state.WAL, r SplitResolver, rec state.Record, su
 	if description != rec.Src+".md" {
 		s.Log.Warn("description collision; wrote fallback", "rel_path", rec.RelPath, "description", description)
 	}
-	if _, err := w.Append(rec.TxID, state.StepDescribed, state.Record{Description: description}); err != nil {
+	if _, err := w.Append(rec.TxID, state.StepDescribed, state.Record{Description: description, Catia: r.DescribedCatia(tx)}); err != nil {
 		return err
 	}
 	if rec.Transfer == state.TransferCopy {

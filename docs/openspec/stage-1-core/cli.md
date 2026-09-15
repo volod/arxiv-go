@@ -2,9 +2,10 @@
 
 Owner: `project-foundation`. Split preview settings and restore preview cleanup are active.
 Cloud publishing flags are listed so the parser recognizes their names; using them exits 2 with
-`option not available in this build`. CATIA flags (`--video`, `--catia`, `--catia-archive`,
-`--catia-text`) are specified for [stage 4](../stage-4-catia/README.md); until `catia-archive` ships they are
-unknown flags (exit 2).
+`option not available in this build`. CATIA flags are specified for
+[stage 4](../stage-4-catia/README.md): `--video`, `--catia` and `--catia-archive` are active for
+`split` (and `--catia-archive` is accepted and ignored by `scan`); on `restore`, and `--catia-text`
+everywhere, they are unknown flags (exit 2) until their stage-4 tasks ship.
 
 ## Synopsis
 

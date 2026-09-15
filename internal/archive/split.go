@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -133,8 +134,8 @@ func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
 	if c.Descriptions == nil {
 		return NewMarkdownDescription(DescriptionConfig{
 			Archive: s.cfg.Archive, Mirror: s.cfg.Payload.Root, BaseURL: c.BaseURL,
-			Registry: c.Scan.Registry, Version: s.cfg.Version, Verify: c.Verify,
-			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now,
+			Registry: c.Scan.Registry, Version: s.cfg.Version, Payload: s.payload.kind, Verify: c.Verify,
+			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now, Log: s.Log,
 		})
 	}
 	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
@@ -144,8 +145,27 @@ func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
 		if m.cfg.Now == nil {
 			m.cfg.Now = s.cfg.Now
 		}
+		m.useLog(s.Log)
 	}
 	return c.Descriptions
+}
+
+// useLog gives a description writer without a logger the run log for extraction warnings.
+func (m *MarkdownDescription) useLog(log *slog.Logger) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cfg.Log == nil {
+		m.cfg.Log = log
+	}
+}
+
+// resolverLog gives the description writer of a split resolver the run log before recovery.
+func resolverLog(res Resolver, log *slog.Logger) {
+	if r, ok := res.(SplitResolver); ok {
+		if m, ok := r.Descriptions.(*MarkdownDescription); ok {
+			m.useLog(log)
+		}
+	}
 }
 
 // caseFoldGuard skips a destination that differs from an earlier one only by case on Windows,

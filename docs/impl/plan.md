@@ -28,44 +28,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-split
-
-Move CATIA files with the same safety as video and leave Markdown the operator can read.
-
-- Serves: `catia-archive` -- [Split](../openspec/stage-4-catia/split-restore.md#split)
-- Agent status: CLEAR
-- Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md);
-  [payload split and restore](records/0044-catia-generalize-payload-split-restore.md);
-  [CATIA extraction](records/0045-catia-implement-catia-extraction.md).
-- User-visible outcome: `arxgo split --catia --catia-archive PATH` moves CATIA files into the CATIA
-  archive, writes CATIA descriptions with the `catia:` line and `arxgo-catia.csv`. Default split
-  still moves only videos into `--video-archive`.
-- Scope boundary: CLI `--video`, `--catia` and `--catia-archive` for split (and accepted-and-ignored
-  on scan) with group environment resolution, payload-root matching, pairwise root nesting checks
-  and the exit-2 combinations; CATIA payload in the executor with `catia_*` counters and preflight
-  role; description written after `placed` and on recovery roll-forward; the `catia` object on
-  `described`; `arxgo-catia.csv` columns 1-10 and 12-16; conflicts and idempotency. No
-  `--catia-text`, restore or `--publish`. Update `.env.example` (`ARXGO_CATIA_ARCHIVE`) and the Linux
-  and Windows manuals.
-- Data and artifact paths: `internal/cli/`, `internal/archive/`, `internal/report/`, `.env.example`,
-  `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
-- Execution path: Generated CATIA-like files in `t.TempDir()`; same-device and injected cross-device;
-  crash after `placed`; an interrupted CATIA split recovered by a video split command.
-- Acceptance gates: Byte-identical CATIA files in the CATIA archive; videos, the video archive and
-  `arxgo-videos.csv` untouched; recovery by a video command writes a CATIA description;
-  `--catia --video`, `--catia --video-archive X`, `--catia-archive X` without `--catia`, nested video
-  and CATIA archives, `--catia --sample start` and `--catia --publish gdrive` exit 2 before the lock;
-  `ARXGO_VIDEO_ARCHIVE` set in the environment does not affect a CATIA split; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-stage-4-catia`.
-
 #### implement-catia-text-sidecars
 
 Operators want searchable text beside each moved CATIA file, also for archives split earlier.
 
 - Serves: `catia-archive` -- [Text sidecars](../openspec/stage-4-catia/split-restore.md#text-sidecars)
 - Agent status: CLEAR
-- Dependencies: `implement-catia-split`.
+- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md).
 - User-visible outcome: `split --catia --catia-text` writes owned `<rel_path>.text.md` sidecars after
   each commit and for previously moved files that lack one; failures never roll back a move.
 - Scope boundary: `--catia-text` flag and validation; `text_begin`/`text_done`/`text_failed` events
@@ -88,7 +57,7 @@ Return CATIA files without touching the video payload or deleting foreign Markdo
 
 - Serves: `catia-archive` -- [Restore](../openspec/stage-4-catia/split-restore.md#restore)
 - Agent status: CLEAR
-- Dependencies: `implement-catia-split`; `implement-catia-text-sidecars`.
+- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md); `implement-catia-text-sidecars`.
 - User-visible outcome: `arxgo restore --catia` returns CATIA files, honors directory and conflict
   policies, and deletes or keeps owned descriptions and text sidecars.
 - Scope boundary: Restore `--video`, `--catia` and `--catia-archive` with the split validation rules,

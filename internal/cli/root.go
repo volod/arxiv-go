@@ -62,12 +62,12 @@ var defaultHandlers = Handlers{
 	},
 	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
 		d := o
-		d.Common, d.CreateVideoArchive = definingCommon(o.Common), false
+		d.Common, d.CreateMirror = definingCommon(o.Common), false
 		cfg := sessionConfig(OpSplit, o.Common, o, d)
-		cfg.CreateMirror = o.CreateVideoArchive
+		cfg.CreateMirror = o.CreateMirror
 		cfg.Preflight.Transfer = o.Transfer
 		scan := scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), false)
-		scan.SkipPaths = []string{o.VideoArchive}
+		scan.SkipPaths = []string{cfg.Payload.Root}
 		resolver := splitResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{

@@ -1,7 +1,7 @@
 # arxgo practical manual: Linux
 
-`arxgo` catalogs a main archive, moves its videos to a separate video archive, and restores
-them. Try the workflow on a disposable copy of representative data before using it on an
+`arxgo` catalogs a main archive, moves its videos to a separate video archive (and, with
+`--catia`, its CATIA files to a separate CATIA archive), and restores the videos. Try the workflow on a disposable copy of representative data before using it on an
 irreplaceable archive.
 
 ## Unpack and configure the Linux bundle
@@ -149,6 +149,34 @@ have the next split regenerate it with the new options. Recorded previews and th
 temporary `*.arxgo-part.*` files are never treated as videos by later scans. macOS `._<name>`
 sidecar files are recognized as metadata, not videos.
 
+## Move CATIA files to a CATIA archive
+
+CATIA files (`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) move to their own
+archive with `--catia`. It is a separate run from the video split; one run moves one payload.
+
+```bash
+./arxgo split --catia --archive /data/archive --catia-archive /mnt/catia --dry-run
+./arxgo split --catia --archive /data/archive --catia-archive /mnt/catia --verify hash
+```
+
+`/data/archive/cad/bracket.CATPart` becomes `/mnt/catia/cad/bracket.CATPart`, and
+`cad/bracket.CATPart.md` in the main archive describes it with the usual description fields and a
+`catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
+format, release, number of referenced documents). It never lists names or other text from inside
+the file. Videos, the video archive and `arxgo-videos.csv` are not touched. Both roots get
+`arxgo-catia.csv`: the same first ten columns as `arxgo-videos.csv`, then `catia_kind`,
+`catia_format`, `catia_release`, `catia_components` and `mtime` (a column empty in every row is
+omitted). Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for
+videos. A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+
+The CATIA archive must not be the main archive, the video archive, or inside either (or contain
+them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
+`--sample` or `--image`; `--catia-archive` without `--catia` is refused too. Each of these exits 2
+before anything is written. `ARXGO_VIDEO_ARCHIVE` in `.env` does not affect a CATIA run, and
+`ARXGO_CATIA_ARCHIVE` does not affect a video run. `ARXGO_CATIA=true` makes `--catia` the default;
+a `--video` or `--catia` flag on the command line overrides it. Restoring CATIA files and
+searchable text sidecars are not available in this build.
+
 ## Restore videos
 
 ```bash
@@ -182,7 +210,9 @@ before it is considered complete. If power loss or Ctrl+C interrupts a run, reru
 command to recover unfinished transfers and resume at its checkpoint. `--new-run` recovers
 unfinished transfers first, then scans anew. Do not edit the WAL or remove a video that recovery
 may need. If options changed or a new command cannot lock the interrupted run's original roots,
-follow its exit-5 message and rerun against those roots first.
+follow its exit-5 message and rerun against those roots first. A video split recovers an
+interrupted CATIA split (and a CATIA split an interrupted video split) by locking the CATIA
+archive recorded by that run while it recovers; after a killed process add `--force-unlock`.
 
 The run state stores the roots it was started with. Moving or remounting a whole archive (for
 example a disk that mounts under another path) keeps previews and registry links working, but

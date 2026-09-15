@@ -67,6 +67,17 @@ type Record struct {
 	SHA256      string    `json:"sha256,omitempty"`
 	Description string    `json:"description,omitempty"`
 	Reason      string    `json:"reason,omitempty"`
+	// Catia is the CATIA metadata summary on the described record of a CATIA split.
+	Catia *CatiaSummary `json:"catia,omitempty"`
+}
+
+// CatiaSummary is the accessible metadata of a moved CATIA file that its registry row needs, so
+// regenerating arxgo-catia.csv never re-reads the file.
+type CatiaSummary struct {
+	Kind       string `json:"kind"`
+	Format     string `json:"format"`
+	Release    string `json:"release"`
+	Components int    `json:"components"`
 }
 
 // Begin is the payload of a begin record.
@@ -199,6 +210,9 @@ func (w *WAL) Append(txid string, step Step, extra Record) (Record, error) {
 		return Record{}, fmt.Errorf("wal: transaction %s already %s", txid, done)
 	}
 	rec := Record{TxID: txid, Step: step, SHA256: extra.SHA256, Description: extra.Description, Reason: extra.Reason}
+	if step == StepDescribed {
+		rec.Catia = extra.Catia
+	}
 	rec, err := w.appendLocked(rec)
 	w.mu.Unlock()
 	if err != nil {
