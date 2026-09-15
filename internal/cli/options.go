@@ -261,6 +261,9 @@ func buildRestoreOptions(s *settings, fsys rootFS) (RestoreOptions, error) {
 		RegistryUpdate: s.registryUpdate,
 		Previews:       s.previews,
 	}
+	if o.Payload == PayloadCatia && o.Previews == PolicyDelete {
+		v.addf("%s delete cannot be used with --catia: CATIA files have no previews", s.explicit["previews"])
+	}
 	return o, v.err()
 }
 

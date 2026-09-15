@@ -148,7 +148,14 @@ func TestCatiaUsageErrorsExitBeforeLock(t *testing.T) {
 		{"catia-text without catia", []string{"--video-archive", video, "--catia-text"}, nil, "requires --catia"},
 		{"catia-text from env without catia", []string{"--video-archive", video}, map[string]string{"ARXGO_CATIA_TEXT": "true"}, "requires --catia"},
 		{"both payload variables", []string{"--catia-archive", cat}, map[string]string{"ARXGO_VIDEO": "true", "ARXGO_CATIA": "true"}, "mutually exclusive"},
-		{"catia on restore", []string{"--catia", "--video-archive", video}, nil, "flag provided but not defined: --catia"},
+		{"restore catia with video", []string{"--catia", "--video", "--catia-archive", cat}, nil, "mutually exclusive"},
+		{"restore catia with video archive", []string{"--catia", "--catia-archive", cat, "--video-archive", video}, nil, "--video-archive cannot be used with --catia"},
+		{"restore catia archive without catia", []string{"--video-archive", video, "--catia-archive", cat}, nil, "--catia-archive requires --catia"},
+		{"restore catia with missing catia archive", []string{"--catia", "--catia-archive", filepath.Join(cat, "missing")}, nil, "does not exist"},
+		{"restore equal mirror roots", []string{"--catia", "--catia-archive", video}, map[string]string{"ARXGO_VIDEO_ARCHIVE": video}, "same directory"},
+		{"restore catia with previews delete", []string{"--catia", "--catia-archive", cat, "--previews", "delete"}, nil, "--previews delete cannot be used with --catia"},
+		{"restore catia with previews delete from env", []string{"--catia", "--catia-archive", cat}, map[string]string{"ARXGO_PREVIEWS": "delete"}, "ARXGO_PREVIEWS delete cannot be used with --catia"},
+		{"restore catia-text", []string{"--catia", "--catia-archive", cat, "--catia-text"}, nil, "flag provided but not defined: --catia-text"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

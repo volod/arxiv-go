@@ -1,7 +1,7 @@
 # arxgo practical manual: Linux
 
 `arxgo` catalogs a main archive, moves its videos to a separate video archive (and, with
-`--catia`, its CATIA files to a separate CATIA archive), and restores the videos. Try the workflow on a disposable copy of representative data before using it on an
+`--catia`, its CATIA files to a separate CATIA archive), and restores them. Try the workflow on a disposable copy of representative data before using it on an
 irreplaceable archive.
 
 ## Unpack and configure the Linux bundle
@@ -182,8 +182,28 @@ them). `--catia` cannot be combined with `--video`, `--video-archive` on the com
 `--sample` or `--image`; `--catia-archive` without `--catia` is refused too. Each of these exits 2
 before anything is written. `ARXGO_VIDEO_ARCHIVE` in `.env` does not affect a CATIA run, and
 `ARXGO_CATIA_ARCHIVE` does not affect a video run. `ARXGO_CATIA=true` makes `--catia` the default;
-a `--video` or `--catia` flag on the command line overrides it. Restoring CATIA files is not
-available in this build.
+a `--video` or `--catia` flag on the command line overrides it.
+
+## Restore CATIA files
+
+```bash
+./arxgo restore --catia --archive /data/archive --catia-archive /mnt/catia --dry-run
+./arxgo restore --catia --archive /data/archive --catia-archive /mnt/catia --create-dirs --verify hash
+```
+
+`restore --catia` scans the CATIA archive and returns CATIA files (and any other file
+`arxgo-catia.csv` records as moved) to their original relative paths, with the same
+`--create-dirs`, `--overwrite`, `--transfer`, `--verify` and empty-directory cleanup rules as
+video restore. The default `--descriptions delete` removes the arxgo-owned `.md` description and the
+owned `.text.md` sidecar (first line `arxgo-text: <rel_path>`) of each restored file; a foreign file
+at either name, or a sidecar you edited, is kept (an edited sidecar is reported, exit 6).
+`--descriptions keep` leaves both. Both `arxgo-catia.csv` copies mark restored rows; after the last
+moved row is restored with `--descriptions delete`, both are renamed to
+`arxgo-catia.restored-<run-id>.csv`. Videos, the video archive and `arxgo-videos.csv` are not
+touched. `--previews delete`, `--catia-text`, `--video-archive` on the command line and
+`--catia-archive` without `--catia` exit 2 before anything is written. If an interrupted CATIA
+restore was finished by another command (for example a video restore), the next
+`restore --catia` deletes the sidecars that run left.
 
 ## Restore videos
 
@@ -218,9 +238,9 @@ before it is considered complete. If power loss or Ctrl+C interrupts a run, reru
 command to recover unfinished transfers and resume at its checkpoint. `--new-run` recovers
 unfinished transfers first, then scans anew. Do not edit the WAL or remove a video that recovery
 may need. If options changed or a new command cannot lock the interrupted run's original roots,
-follow its exit-5 message and rerun against those roots first. A video split recovers an
-interrupted CATIA split (and a CATIA split an interrupted video split) by locking the CATIA
-archive recorded by that run while it recovers; after a killed process add `--force-unlock`.
+follow its exit-5 message and rerun against those roots first. A video split or restore
+recovers an interrupted CATIA run (and a CATIA run an interrupted video run) by locking the
+mirror root recorded by that run while it recovers; after a killed process add `--force-unlock`.
 
 The run state stores the roots it was started with. Moving or remounting a whole archive (for
 example a disk that mounts under another path) keeps previews and registry links working, but

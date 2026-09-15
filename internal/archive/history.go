@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"sort"
 	"time"
@@ -13,8 +14,9 @@ import (
 // records hold absolute paths of those roots; root-relative paths stay valid when a root is later
 // mounted or renamed elsewhere.
 type runHistory struct {
-	id              string
+	id, op          string
 	archive, mirror string
+	options         json.RawMessage // every validated option the run recorded
 	records         []state.Record
 }
 
@@ -66,7 +68,7 @@ func readHistory(root string, kind PayloadKind) ([]runHistory, error) {
 		if archive == "" {
 			archive = root
 		}
-		h := runHistory{id: id, archive: archive, mirror: runPayload(o).Root, records: records}
+		h := runHistory{id: id, op: o.Op, archive: archive, mirror: runPayload(o).Root, options: o.Options, records: records}
 		runs = append(runs, run{h, o.CreatedAt})
 	}
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].created.Before(runs[j].created) })

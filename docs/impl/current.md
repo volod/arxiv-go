@@ -20,7 +20,7 @@ linked here in the same change.
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, video descriptions and `arxgo-videos.csv` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, description and registry policies; crash recovery; the stage-1 end-to-end proof | Shipped; stage-1 checkpoint, generated-archive proof and operator archive-copy trial accepted |
 | [Media previews](current/media-previews.md) | ffmpeg runner, planning, sample and PNG encoding, split/restore WAL integration, registry/description links, release bundles | Shipped; stage-2 checkpoint accepted after repairs, including a split/restore round trip on real drone footage |
-| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars | In progress; classification, payload executor, extraction, CATIA split and text sidecars shipped; CATIA restore remains planned |
+| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars; `restore --catia` with owned description and text sidecar cleanup | In progress; classification, payload executor, extraction, CATIA split, text sidecars and CATIA restore shipped; stage-4 proof and checkpoint remain |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; default `--metadata file` fills ISO BMFF `media_*` columns for MP4, MOV, M4A, M4V and 3GP
@@ -41,6 +41,9 @@ are extracted in pure Go
 separate CATIA archive with `catia:` descriptions and `arxgo-catia.csv`, and a video split recovers
 an interrupted CATIA split ([0046](records/0046-catia-implement-catia-split.md)); `--catia-text`
 writes owned `arxgo-text:` sidecars after commit and for earlier moved files
-([0047](records/0047-catia-implement-catia-text-sidecars.md)). CATIA restore is still open. Stage 3
+([0047](records/0047-catia-implement-catia-text-sidecars.md)); `restore --catia` returns CATIA files
+and deletes owned descriptions and text sidecars
+([0048](records/0048-catia-implement-catia-restore.md)). The stage-4 proof and checkpoint are still
+open. Stage 3
 cloud publishing waits for the stage-4 checkpoint. The next work is reported by
 `make plan-status`.

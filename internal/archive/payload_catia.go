@@ -13,7 +13,8 @@ import (
 const RoleCatiaArchive Role = "catia_archive"
 
 // catiaPayload moves CATIA files into the CATIA archive with CATIA descriptions and writes
-// arxgo-catia.csv. --catia-text generates post-commit text sidecars; restore is not in this build.
+// arxgo-catia.csv. --catia-text generates post-commit text sidecars; restore removes owned
+// descriptions and sidecars with --descriptions delete.
 var catiaPayload = &payloadSpec{
 	kind: PayloadCatia, noun: "catia", plural: "catia", role: RoleCatiaArchive, registry: scanner.CatiaRegistryName,
 	candidate: func(ft scanner.FileType) bool { return ft.IsCatia },
@@ -36,7 +37,8 @@ var catiaPayload = &payloadSpec{
 		}
 		return out, nil
 	},
-	newSplit: func(s *Session) splitHooks { return &catiaSplit{s: s} },
+	newSplit:   func(s *Session) splitHooks { return &catiaSplit{s: s} },
+	newRestore: newCatiaRestore,
 }
 
 // catiaSplit is the CATIA part of split: arxgo-catia.csv and optional text sidecars.
@@ -143,19 +145,7 @@ func collectCatiaRows(s *Session, c SplitConfig, idx *eventIndex) ([]report.Cati
 		return nil, err
 	}
 	byReg := fileRegistryRows(s, c)
-	rows := report.MergeCatiaRows(nil, existing)
-	for _, run := range history {
-		split, restored := splitEvents(run)
-		incoming := make([]report.CatiaRow, 0, len(split))
-		for _, a := range split {
-			row := report.CatiaRow{PayloadRow: a.payloadRow()}
-			if a.catia != nil {
-				row.Kind, row.Format, row.Release, row.Components = a.catia.Kind, a.catia.Format, a.catia.Release, a.catia.Components
-			}
-			incoming = append(incoming, row)
-		}
-		rows = report.MarkCatiaRestored(report.MergeCatiaRows(rows, incoming), restored, run.id)
-	}
+	rows := replayCatiaRows(existing, history)
 	var skipped []report.CatiaRow
 	for _, p := range rowsFromIssues(s.Issues()) {
 		skipped = append(skipped, report.CatiaRow{PayloadRow: p})

@@ -13,7 +13,7 @@ var flagTable = []flagDef{
 	// Common flags.
 	{name: "archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the main archive (required)", bind: str("")},
 	{name: "video-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the video archive (required for video split and restore; unused by scan)", bind: str("")},
-	{name: "catia-archive", ops: scanSplitOps, group: groupCommon, arg: "PATH", usage: "Root of the CATIA archive (required for split --catia; unused by scan)", bind: str("")},
+	{name: "catia-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the CATIA archive (required for split and restore --catia; unused by scan)", bind: str("")},
 	{name: "log-level", ops: allOps, group: groupCommon, arg: "LEVEL", usage: "Console log level: debug, info, warn, error", bind: enum("info", logLevels)},
 	{name: "log-format", ops: allOps, group: groupCommon, arg: "FORMAT", usage: "Console log format: text or json", bind: enum("text", logFormats)},
 	{name: "progress-interval", ops: allOps, group: groupCommon, arg: "DURATION", usage: "Minimum interval between progress lines", bind: duration(defaultProgress, func(s *settings) *time.Duration { return &s.progressInterval })},
@@ -62,13 +62,15 @@ var flagTable = []flagDef{
 	{name: "share", ops: splitOnly, group: groupSplit, plannedFeature: "cloud publishing", arg: "SCOPE", usage: "Sharing link scope for published files", bind: reserved(false)},
 
 	// Restore flags.
-	{name: "transfer", ops: restoreOnly, group: groupRestore, arg: "MODE", usage: "auto: rename on the same device, copy then delete otherwise; copy: copy and keep the video archive copy", bind: enum(TransferAuto, transferModes)},
+	{name: "video", ops: restoreOnly, group: groupRestore, usage: "Return video files from --video-archive (the default payload)", bind: boolean(false)},
+	{name: "catia", ops: restoreOnly, group: groupRestore, usage: "Return CATIA files from --catia-archive instead of videos", bind: boolean(false)},
+	{name: "transfer", ops: restoreOnly, group: groupRestore, arg: "MODE", usage: "auto: rename on the same device, copy then delete otherwise; copy: copy and keep the video or CATIA archive copy", bind: enum(TransferAuto, transferModes)},
 	{name: "verify", ops: restoreOnly, group: groupRestore, arg: "MODE", usage: "size or hash, as for split", bind: enum(VerifySize, verifyModes)},
-	{name: "descriptions", ops: restoreOnly, group: groupRestore, arg: "POLICY", usage: "delete or keep the video descriptions at restored locations", bind: enum(PolicyDelete, policies)},
-	{name: "previews", ops: restoreOnly, group: groupRestore, arg: "POLICY", usage: "delete or keep preview files of restored videos", bind: enum(PolicyKeep, policies)},
-	{name: "create-dirs", ops: restoreOnly, group: groupRestore, usage: "Recreate a missing parent directory instead of skipping the video", bind: boolean(false)},
+	{name: "descriptions", ops: restoreOnly, group: groupRestore, arg: "POLICY", usage: "delete or keep the descriptions at restored locations (with --catia also owned text sidecars)", bind: enum(PolicyDelete, policies)},
+	{name: "previews", ops: restoreOnly, group: groupRestore, arg: "POLICY", usage: "delete or keep preview files of restored videos (delete is not valid with --catia)", bind: enum(PolicyKeep, policies)},
+	{name: "create-dirs", ops: restoreOnly, group: groupRestore, usage: "Recreate a missing parent directory instead of skipping the file", bind: boolean(false)},
 	{name: "overwrite", ops: restoreOnly, group: groupRestore, usage: "Replace an existing, different destination file instead of skipping it", bind: boolean(false)},
-	{name: "registry-update", ops: restoreOnly, group: groupRestore, usage: "Mark restored rows in arxgo-videos.csv", bind: boolean(true)},
+	{name: "registry-update", ops: restoreOnly, group: groupRestore, usage: "Mark restored rows in arxgo-videos.csv, or arxgo-catia.csv with --catia", bind: boolean(true)},
 }
 
 // splitList splits an environment value for a repeatable flag on the platform path list

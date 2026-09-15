@@ -84,7 +84,7 @@ func recovererFor(op string, payload archive.PayloadKind, raw json.RawMessage) (
 	switch {
 	case payload == "":
 		return nil, fmt.Errorf("%s run has no payload", op)
-	case payload != archive.PayloadVideo && (payload != archive.PayloadCatia || op != OpSplit):
+	case payload != archive.PayloadVideo && payload != archive.PayloadCatia:
 		return nil, fmt.Errorf("%s run of payload %q: not available in this build", op, payload)
 	case common.Payload != string(payload):
 		return nil, fmt.Errorf("%s run options name payload %q, run payload %q", op, common.Payload, payload)

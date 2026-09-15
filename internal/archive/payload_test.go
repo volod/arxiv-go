@@ -154,7 +154,6 @@ func TestStartRequiresKnownPayload(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"split without payload": func(cfg *Config) { cfg.Payload = Payload{} },
 		"split without mirror":  func(cfg *Config) { cfg.Payload.Root = "" },
-		"catia restore":         func(cfg *Config) { cfg.Op, cfg.Payload.Kind = opRestore, PayloadCatia },
 		"unknown payload":       func(cfg *Config) { cfg.Payload.Kind = "audio" },
 		"scan with payload":     func(cfg *Config) { cfg.Op = opScan },
 	} {

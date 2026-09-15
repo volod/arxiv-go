@@ -60,8 +60,8 @@ record `payload` (`video` or `catia`) and that payload's mirror root (`video_arc
 `catia_archive`) in
 `options.json`; `scan` records neither. `archive.Config.Payload` carries the kind and mirror root,
 and `archive.Start` refuses a split or restore without a known payload, or a scan with one, before
-taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)); a CATIA restore is
-also refused there until it ships ([0046](../records/0046-catia-implement-catia-split.md)). A run
+taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)); both payloads split
+and restore ([0048](../records/0048-catia-implement-catia-restore.md)). A run
 resumes only when the recorded payload and mirror root match too.
 
 A later process resumes `current` when that run has no report and the operation plus defining
@@ -75,7 +75,9 @@ them. `archive.Config.RecovererFor` rebuilds that run's resolver from the payloa
 `options.json` (`cli.recovererFor` requires the payload, checks that the stored options name the same
 one, and decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
 gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
-`--transfer` policies. The recovery is logged to the console and appended to the earlier run's
+`--transfer` policies. Post-commit sidecar cleanup is not part of that recovery; the next
+`restore --catia` deletes the text sidecars left by an earlier restore recorded with
+`--descriptions delete` (video previews of a replaced restore are not revisited). The recovery is logged to the console and appended to the earlier run's
 `run.log.jsonl`. It needs the locks of that run's roots. A split or restore replacing a run of the
 other payload takes the lock of that run's recorded mirror root for the recovery and releases it
 afterwards, so a video split rolls an interrupted CATIA split forward with its CATIA description

@@ -14,8 +14,8 @@ import (
 // PayloadKind names what split and restore move. It is stored as "payload" in options.json.
 type PayloadKind string
 
-// Payload kinds. Both split; only video restores in this build. Each kind replays only its own
-// runs from the state directory.
+// Payload kinds. Both split and restore. Each kind replays only its own runs from the state
+// directory.
 const (
 	PayloadVideo PayloadKind = "video"
 	PayloadCatia PayloadKind = "catia"
@@ -91,7 +91,7 @@ type payloadSpec struct {
 	totals     func(state.Counters) payloadTotals
 	loadRows   func(path string) ([]report.PayloadRow, error)
 	newSplit   func(s *Session) splitHooks
-	newRestore func(ctx context.Context, s *Session, c *RestoreConfig) (restoreHooks, error) // nil: no restore
+	newRestore func(ctx context.Context, s *Session, c *RestoreConfig) (restoreHooks, error)
 }
 
 // payloadSpecs lists the payload kinds this build can split and restore.
@@ -116,9 +116,6 @@ func sessionPayload(cfg Config) (*payloadSpec, error) {
 		spec, err := specOf(cfg.Payload.Kind)
 		if err != nil {
 			return nil, err
-		}
-		if cfg.Op == opRestore && spec.newRestore == nil {
-			return nil, fmt.Errorf("restore of payload %q: not available in this build", spec.kind)
 		}
 		if cfg.Payload.Root == "" {
 			return nil, fmt.Errorf("%s: %s mirror root is required", cfg.Op, spec.noun)

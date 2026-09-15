@@ -14,6 +14,7 @@ Usage:
   arxgo split   --archive PATH --video-archive PATH [flags]
   arxgo split   --catia --archive PATH --catia-archive PATH [--catia-text] [flags]
   arxgo restore --archive PATH --video-archive PATH [flags]
+  arxgo restore --catia --archive PATH --catia-archive PATH [flags]
   arxgo version
   arxgo help [operation]
 
@@ -26,7 +27,7 @@ Run 'arxgo help <operation>' for the flags of one operation.
 var opSynopsis = map[string]string{
 	OpScan:    "arxgo [scan] --archive PATH [flags]\n\nBuild the CSV registry of every file in the archive.",
 	OpSplit:   "arxgo split --archive PATH --video-archive PATH [flags]\n       arxgo split --catia --archive PATH --catia-archive PATH [--catia-text] [flags]\n\nMove video files (or, with --catia, CATIA files) into their mirrored archive and leave descriptions. With --catia-text, also write a searchable text sidecar.",
-	OpRestore: "arxgo restore --archive PATH --video-archive PATH [flags]\n\nReturn videos from the video archive to the main archive.",
+	OpRestore: "arxgo restore --archive PATH --video-archive PATH [flags]\n       arxgo restore --catia --archive PATH --catia-archive PATH [flags]\n\nReturn videos (or, with --catia, CATIA files) from their mirrored archive to the main archive.",
 }
 
 // writeOpHelp prints the synopsis and flag table of one operation, with defaults and environment

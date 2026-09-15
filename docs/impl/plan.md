@@ -28,25 +28,35 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-restore
+#### repair-replaced-restore-sidecar-cleanup
 
-Return CATIA files without touching the video payload or deleting foreign Markdown.
+A restore interrupted between a commit and its sidecar deletion and then replaced by another run
+leaves owned video previews behind, and CATIA text cleanup learns the earlier run's intent by
+decoding CLI options through the recovery resolver.
 
-- Serves: `catia-archive` -- [Restore](../openspec/stage-4-catia/split-restore.md#restore)
+- Serves: `catia-archive` -- [Replaced restores](../openspec/stage-4-catia/split-restore.md#replaced-restores)
 - Agent status: CLEAR
-- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md); [CATIA text sidecars](records/0047-catia-implement-catia-text-sidecars.md).
-- User-visible outcome: `arxgo restore --catia` returns CATIA files, honors directory and conflict
-  policies, and deletes or keeps owned descriptions and text sidecars.
-- Scope boundary: Restore `--video`, `--catia` and `--catia-archive` with the split validation rules,
-  and `--previews delete` refusal; scan of the CATIA archive; CATIA candidates from CATIA history and
-  `arxgo-catia.csv`; registry update and rename when empty; `text_delete` /
-  `text_deleted`; mirror directory cleanup. No video restore changes except payload selection.
-- Data and artifact paths: `internal/archive/`, `internal/cli/`.
-- Execution path: Split-then-restore on generated trees with both a video archive and a CATIA
-  archive; `--create-dirs`; `--overwrite`; `--descriptions keep` and `delete`.
-- Acceptance gates: Round trip of paths, sizes, mtimes and SHA-256; `--descriptions delete` removes
-  owned sidecars only; video archive, video descriptions and `arxgo-videos.csv` unchanged; rerun
-  changes nothing; `make ci` passes.
+- Dependencies: [CATIA restore](records/0048-catia-implement-catia-restore.md).
+- User-visible outcome: After any interrupted restore, the next restore with sidecar cleanup leaves
+  no owned previews or text sidecars of files that earlier run restored, whichever command
+  recovered it, and never deletes sidecars a `keep` restore or a later split left.
+- Scope boundary: `sidecar_cleanup` in `state.RunOptions` written by `archive.Start` for restore
+  runs from the restore configuration; one payload-generic earlier-restore scan in the shared
+  sidecar cleanup used by video (with description link refresh) and CATIA restore; replace
+  `catiaRestore.deletedDescriptions` and its `RecovererFor` use; current run's resumed commits keep
+  the existing path. Routes `AUD-implement-catia-restore-1` and `AUD-implement-catia-restore-2`. No
+  change to WAL events, registries or split.
+- Data and artifact paths: `internal/state/`, `internal/archive/`, `internal/cli/`,
+  `docs/impl/current/catia-archive.md`, `docs/impl/current/media-previews.md`,
+  `docs/impl/current/crash-safety.md`.
+- Execution path: Generated trees in `t.TempDir()` with ffmpeg-generated previews (skip without
+  ffmpeg) and synthetic CATIA sidecars; crash at `wal:commit` and `wal:placed` of a restore, then
+  recovery by the other payload and by `--new-run`; archive tests with `RecovererFor` nil; declared
+  extra: the scratch kill driver of record 0048 extended with `--previews delete`.
+- Acceptance gates: Video previews and CATIA text sidecars of a replaced restore are deleted by the
+  next restore with cleanup and kept by one without; a `keep` restore in between and a later split
+  keep them; an earlier run without `sidecar_cleanup` deletes nothing; changed sidecars are logged,
+  not reported; results identical with `RecovererFor` nil; rerun changes nothing; `make ci` passes.
 - Documentation target: `docs/impl/current/catia-archive.md`
 - Review checkpoint: `review-stage-4-catia`.
 
@@ -56,7 +66,7 @@ Prove CATIA split and restore through the built binary the way stage 1 proved vi
 
 - Serves: `catia-archive` -- [Exit criteria](../openspec/stage-4-catia/README.md#exit-criteria)
 - Agent status: CLEAR
-- Dependencies: `implement-catia-restore`.
+- Dependencies: `repair-replaced-restore-sidecar-cleanup`.
 - User-visible outcome: A generated mixed archive survives killed CATIA split (with `--catia-text`)
   and restore, resume, and a byte-identical round trip, alongside a video split of the same archive
   into a separate video archive.

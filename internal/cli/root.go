@@ -84,7 +84,7 @@ var defaultHandlers = Handlers{
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.RestoreBody(archive.RestoreConfig{
 			Scan: archive.ScanConfig{
-				Root: o.VideoArchive, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
+				Root: cfg.Payload.Root, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
 				SkipPaths: []string{o.Archive},
 			},
 			Transfer: o.Transfer, Verify: resolver.Verify,

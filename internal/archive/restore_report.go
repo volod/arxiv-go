@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -36,20 +35,28 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 	if err := report.WriteVideoCSV(&b, rows); err != nil {
 		return err
 	}
-	csvBuf := []byte(b.String())
 	retire := !c.KeepDescriptions && !report.HasMoved(rows)
-	for _, csvPath := range registryPaths(s, scanner.VideoRegistryName) {
-		if err := s.cfg.FS.AtomicWriteFile(csvPath, csvBuf, 0o644); err != nil {
+	if err := writeRestoredRegistry(s, scanner.VideoRegistryName, []byte(b.String()), retire); err != nil {
+		return err
+	}
+	s.Log.Info("updated video registry", "videos", len(rows), "retired", retire)
+	return nil
+}
+
+// writeRestoredRegistry atomically writes data as the payload registry name in both roots and,
+// with retire, renames each copy to <stem>.restored-<run-id>.csv.
+func writeRestoredRegistry(s *Session, name string, data []byte, retire bool) error {
+	retired := strings.TrimSuffix(name, ".csv") + ".restored-" + s.Run.ID + ".csv"
+	for _, csvPath := range registryPaths(s, name) {
+		if err := s.cfg.FS.AtomicWriteFile(csvPath, data, 0o644); err != nil {
 			return err
 		}
 		if !retire {
 			continue
 		}
-		stamp := fmt.Sprintf("arxgo-videos.restored-%s", s.Run.ID)
-		if err := s.cfg.FS.Replace(csvPath, filepath.Join(filepath.Dir(csvPath), stamp+".csv")); err != nil {
+		if err := s.cfg.FS.Replace(csvPath, filepath.Join(filepath.Dir(csvPath), retired)); err != nil {
 			return err
 		}
 	}
-	s.Log.Info("updated video registry", "videos", len(rows), "retired", retire)
 	return nil
 }
