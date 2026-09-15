@@ -46,13 +46,14 @@ unreadable entries. Opening never blocks on a FIFO that replaced the file after 
 
 | Field | Rule |
 | --- | --- |
-| `file_mime` | `mimetype.DetectReader` result without parameters, e.g. `video/mp4`, `text/plain`; `multipart/appledouble` for a macOS AppleDouble sidecar (`._<name>`, magic `00 05 16 07`), which is binary and never media or video whatever its extension |
+| `file_mime` | `mimetype.DetectReader` result without parameters, e.g. `video/mp4`, `text/plain`; `multipart/appledouble` for a macOS AppleDouble sidecar (`._<name>`, magic `00 05 16 07`), which is binary and never media, video or CATIA whatever its extension |
 | `file_type` | Canonical extension from detection without the dot (`mp4`, `pdf`, `txt`); when detection returns `application/octet-stream`, the lower-cased extension of the file name (the part after its last dot; a name whose only dot is leading, such as `.profile`, has none); empty when neither exists |
 | `is_binary` | `false` when the detected MIME or any ancestor in the `mimetype` hierarchy is `text/plain`, or the MIME is in the text allow-list (`application/json`, `application/xml`, `image/svg+xml`, `text/*`); `true` otherwise. Empty files are `false` |
-| `is_video` | MIME has prefix `video/`, or the MIME is ambiguous (`application/octet-stream`) and the extension is in the built-in video list or `--video-extensions`. Then refined when a successful ISO BMFF or ffprobe parse finds audio but no video stream: `is_video=false` (for example an audio-only `.mp4`). A result with neither audio nor video streams (a damaged file that ffprobe misreads, for example as LRC lyrics) keeps the flag |
+| `is_video` | MIME has prefix `video/`, or the MIME is ambiguous (`application/octet-stream`) and the extension is in the built-in video list or `--video-extensions`. Then refined when a successful ISO BMFF or ffprobe parse finds audio but no video stream: `is_video=false` (for example an audio-only `.mp4`). A result with neither audio nor video streams (a damaged file that ffprobe misreads, for example as LRC lyrics) keeps the flag. A CATIA extension is never `is_video` |
 | `is_picture` | MIME has prefix `image/` |
 | `is_media` | `is_video` or `is_picture` or MIME has prefix `audio/` |
 | `is_large` | `file_size >= --large-threshold` |
+| `is_catia` | The file's last dotted extension, compared case-insensitively, is in the built-in CATIA list (`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`). Content is not read; AppleDouble sidecars are never CATIA. Details: [CATIA classification](../stage-4-catia/catia.md#classification) |
 
 Built-in video extension list (used only for ambiguous signatures): `mp4 m4v mov qt 3gp 3g2 mkv
 webm avi wmv asf flv f4v mpg mpeg m2v ts m2ts mts vob ogv mxf dv rm rmvb`.
@@ -63,7 +64,8 @@ file with a generic brand (`isom`, `mp42`) is `video/mp4` until the ISO BMFF ref
 and WebM files are `video/matroska` and `video/webm` whether or not they contain a video track.
 MPEG transport streams (`ts`, `m2ts`, `mts`), MXF and DV have no signature `mimetype` recognizes in
 the first bytes, so they are video through the extension list. Pictures and audio are registered
-but never moved.
+but never moved. CATIA files are registered with `is_catia` on every scan and moved only by
+`split --catia` ([stage 4](../stage-4-catia/catia.md)).
 
 ## Registry writing
 
@@ -75,8 +77,9 @@ but never moved.
 - The registry is first written to `<registry>.arxgo-part` and renamed over the final path when the
   scan completes, so an existing registry is replaced only by a complete one. `--dry-run` walks,
   detects and reports statistics but writes neither file.
-- Every video row is also appended to `candidates.jsonl` in the run directory
-  ([format](contracts.md#candidate-list)), the input of split and restore.
+- Every payload-candidate row is also appended to `candidates.jsonl` in the run directory
+  ([format](contracts.md#candidate-list)), the input of split and restore. Video mode writes
+  `is_video=true` rows; CATIA mode writes `is_catia=true` rows.
 - Before each checkpoint the writer flushes and fsyncs the part file and the candidate list; the
   checkpoint then stores the scan cursor, both byte offsets and the scan statistics together, so
   it never names output that is not durable.
@@ -99,7 +102,7 @@ but never moved.
 
 The scan summary logs (one `scan summary` line) and stores in the `scan` section of the run report:
 files, directories, symlinks, bytes, counts and bytes per flag (`binary`, `media`, `picture`,
-`video`, `large`), top 10 MIME types by bytes (ties by rows, then name), skipped entries by reason
+`video`, `catia`, `large`), top 10 MIME types by bytes (ties by rows, then name), skipped entries by reason
 (`unreadable`, `special`), and elapsed time. `files` and `bytes` count regular files with a row;
 the generic run counters `files` and `bytes` count registry rows (files and symlinks) and their
 bytes. Any skipped entry, including one skipped by an earlier process of a resumed run, ends the

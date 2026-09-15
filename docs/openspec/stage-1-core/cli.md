@@ -2,14 +2,18 @@
 
 Owner: `project-foundation`. Split preview settings and restore preview cleanup are active.
 Cloud publishing flags are listed so the parser recognizes their names; using them exits 2 with
-`option not available in this build`.
+`option not available in this build`. CATIA flags (`--video`, `--catia`, `--catia-archive`,
+`--catia-text`) are specified for [stage 4](../stage-4-catia/README.md); until `catia-archive` ships they are
+unknown flags (exit 2).
 
 ## Synopsis
 
 ```text
 arxgo [scan]  --archive PATH [common flags] [scan flags]
 arxgo split   --archive PATH --video-archive PATH [common flags] [scan flags] [split flags]
+arxgo split   --catia --archive PATH --catia-archive PATH [common flags] [scan flags] [split flags]
 arxgo restore --archive PATH --video-archive PATH [common flags] [restore flags]
+arxgo restore --catia --archive PATH --catia-archive PATH [common flags] [restore flags]
 arxgo version
 arxgo help [operation]
 ```
@@ -37,7 +41,11 @@ Parsing details:
   Split preview flags and restore `--previews` are active. Stage-3 flags and
   `--follow-symlinks=true` exit 2 with `option not available in this build` whether they come
   from the command line or the environment.
-- `scan` accepts `--video-archive` (including `ARXGO_VIDEO_ARCHIVE`) and ignores it.
+- `scan` accepts `--video-archive` and `--catia-archive` (including `ARXGO_VIDEO_ARCHIVE` and
+  `ARXGO_CATIA_ARCHIVE`) and ignores them.
+- The payload flags `--video` and `--catia` resolve as one setting: when either appears on the
+  command line, `ARXGO_VIDEO` and `ARXGO_CATIA` from the environment or environment file are both
+  ignored, so `--video` on the command line overrides `ARXGO_CATIA=true` instead of conflicting.
 - All validation errors are printed together, one per line, followed by a pointer to
   `arxgo help <operation>`.
 
@@ -69,7 +77,8 @@ repeating flags.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--archive PATH` | required | Root of the main archive |
-| `--video-archive PATH` | required for split/restore | Root of the video archive; may be on another drive or a mounted/UNC network share |
+| `--video-archive PATH` | required for video split/restore | Root of the video archive; may be on another drive or a mounted/UNC network share |
+| `--catia-archive PATH` | required for `--catia` split/restore | Stage 4. Root of the CATIA archive; same placement rules as `--video-archive` |
 | `--log-level LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `--log-format FORMAT` | `text` | Console format `text` or `json`; the run log file is always JSON lines |
 | `--progress-interval DURATION` | `10s` | Minimum interval between progress lines |
@@ -106,7 +115,10 @@ Used by `scan`, and by `split` for its scan phase.
 | --- | --- | --- |
 | `--transfer MODE` | `auto` | `auto`: rename on the same device, copy+verify+delete otherwise. `copy`: always copy+verify+delete |
 | `--verify MODE` | `size` | `size` or `hash` (SHA-256 computed while copying and re-read from the destination) |
-| `--base-url URL` | none | Base URL of the cloud location the video archive will be uploaded to; descriptions link to `URL/<rel_path>` |
+| `--base-url URL` | none | Base URL of the cloud location the selected mirror (video or CATIA archive) is published at; descriptions link to `URL/<rel_path>` |
+| `--video` | `false` | Stage 4. Select the video payload. Default when `--catia` is also unset |
+| `--catia` | `false` | Stage 4. Select the CATIA payload. Mutually exclusive with `--video` |
+| `--catia-text` | `false` | Stage 4. With `--catia`, write a text sidecar of extracted accessible text for moved CATIA files that lack one |
 | `--sample MODE` | `none` | Stage 2. `none`, `start`, `middle`, `end`, `series` |
 | `--sample-duration DURATION` | `5s` | Stage 2. Clip length, or fragment length for `series` |
 | `--sample-every DURATION` | `5m` | Stage 2. Fragment/frame spacing for `series` |
@@ -126,24 +138,37 @@ external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--transfer MODE` | `auto` | `auto`: rename on the same device, copy into the archive then delete from the video archive otherwise. `copy`: copy and keep the video archive copy |
+| `--video` | `false` | Stage 4. Select the video payload. Default when `--catia` is also unset |
+| `--catia` | `false` | Stage 4. Select the CATIA payload. Mutually exclusive with `--video` |
+| `--transfer MODE` | `auto` | `auto`: rename on the same device, copy into the archive then delete from the video or CATIA archive otherwise. `copy`: copy and keep the mirror copy |
 | `--verify MODE` | `size` | As for split |
-| `--descriptions POLICY` | `delete` | `delete` or `keep` the video descriptions at restored locations |
-| `--previews POLICY` | `keep` | Stage 2. `delete` or `keep` preview files generated for restored videos |
-| `--create-dirs` | `false` | Recreate a missing parent directory in the archive; default skips the video with a warning |
-| `--overwrite` | `false` | Replace an existing, different file at the destination; default skips with a conflict entry |
-| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` |
+| `--descriptions POLICY` | `delete` | `delete` or `keep` the descriptions at restored locations (CATIA also the owned text sidecar) |
+| `--previews POLICY` | `keep` | Stage 2. `delete` or `keep` preview files generated for restored videos; `delete` with `--catia` exits 2 |
+| `--create-dirs` | `false` | Recreate a missing parent directory in the archive; default skips the file with a warning |
+| `--overwrite` | `false` | Replace an existing, different destination file instead of skipping it |
+| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` or, with `--catia`, `arxgo-catia.csv` |
 
 ## Validation
 
 Validation happens before the lock is taken and before any filesystem write.
 
-- `--archive` and, when required, `--video-archive` exist and are directories. For `split` the
-  video archive root is created if missing and its parent exists.
-- The two roots are neither equal nor nested in either direction (after resolving symlinks and,
-  on Windows, case-folding).
+- The selected mirror root is `--video-archive` for the video payload and `--catia-archive` for
+  `--catia`; a missing selected root exits 2. `--archive` and the selected root exist and are
+  directories. For `split` the selected root is created if missing and its parent exists.
+- The payload and its root must match: `--catia-archive` on the command line without `--catia`, or
+  `--video-archive` on the command line with `--catia`, exits 2 naming the flag to use. A value that
+  comes only from the environment or environment file for the other payload is ignored.
+- The archive and every mirror root that is set (both mirror roots when both come from any source)
+  are pairwise neither equal nor nested in either direction (after resolving symlinks and, on
+  Windows, case-folding). The root that is not selected is compared by path only; it need not
+  exist.
 - Enumerated values, durations and sizes parse; `--sample-*`/`--image-*` flags other than `none`
   require `split`.
+- `--video` and `--catia` are booleans. If both are set, exit 2. If neither is set, the payload is
+  video. `--catia-text` requires `--catia` and `split`; otherwise exit 2.
+- `--catia` together with `--sample` or `--image` other than `none`, `--publish`, or restore
+  `--previews delete` exits 2.
+- A built-in CATIA extension in `--video-extensions` exits 2.
 - `--base-url` is an absolute `http`/`https` URL with a host and without credentials, query or
   fragment, because descriptions append `/<rel_path>`. Trailing slashes are removed.
 - `--video-extensions` items are letters, digits, `_` or `-`, with an optional leading dot. They
@@ -165,7 +190,7 @@ Validation happens before the lock is taken and before any filesystem write.
 | 3 | Required external tool missing; download link printed |
 | 4 | Insufficient free space found by preflight |
 | 5 | Run lock held by a live process, or recovery needs operator action |
-| 6 | Completed with skipped items (conflicts, missing directories, unreadable files) or failed previews; see report |
+| 6 | Completed with skipped items (conflicts, missing directories, unreadable files) or failed previews or CATIA text extraction; see report |
 | 130 | Interrupted by signal after writing a checkpoint |
 
 ## Examples
@@ -174,5 +199,7 @@ Validation happens before the lock is taken and before any filesystem write.
 arxgo --archive /data/archive
 arxgo split --archive /data/archive --video-archive /mnt/nas/video --metadata media \
   --base-url https://storage.example.com/video
+arxgo split --catia --archive /data/archive --catia-archive /mnt/nas/catia --catia-text
 arxgo restore --archive D:\archive --video-archive \\nas\video --create-dirs
+arxgo restore --catia --archive /data/archive --catia-archive /mnt/nas/catia
 ```

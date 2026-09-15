@@ -1,7 +1,7 @@
 # Integrity: lock, WAL, checkpoints, preflight and progress
 
 Owner: `crash-safety`. Consumers: `archive-registry` (checkpoint cursor), `video-split`,
-`video-restore`, `media-previews`, `cloud-publishing`.
+`video-restore`, `media-previews`, `catia-archive`, `cloud-publishing`.
 
 ## Operator problem
 
@@ -23,7 +23,7 @@ operator must be able to rerun the same command to continue.
     |-- candidates.jsonl         scan result for split/restore
     |-- report.json              final statistics
     `-- run.log.jsonl            structured log
-<video-archive>/.arxgo/
+<video-archive>/.arxgo/          also <catia-archive>/.arxgo/ for a CATIA run (stage 4)
 `-- lock                         mirror lock naming the owning archive run
 ```
 
@@ -33,13 +33,13 @@ prune them. Formats of `lock`, `options.json`, `checkpoint.json` and `report.jso
 
 A run is complete when its `report.json` exists. Starting an operation (after taking the lock)
 resumes the run named in `current` when that run is incomplete, has the same operation and the
-same defining options (the roots and operation flags; not logging, progress, checkpoint cadence,
+same defining options (the roots, payload kind, `--catia-text` and other operation flags; not logging, progress, checkpoint cadence,
 `--min-free`, `--dry-run`, `--new-run` or `--force-unlock`). Otherwise a new run directory is
 created and `current` points at it; an incomplete run with different options, or one replaced with
 `--new-run`, is left in place with a warning. Before that, its unfinished WAL transactions are
-[recovered](#recovery) with a resolver rebuilt from its own `options.json`, so `current` never
+[recovered](#recovery) with a resolver rebuilt from its own `options.json` (including its payload kind), so `current` never
 moves away from unfinished transactions. Recovery needs the locks of that run's roots: a process
-that does not hold them (`scan`, which locks only the archive, or a run on another video archive)
+that does not hold them (`scan`, which locks only the archive, or a run on another video or CATIA archive)
 exits 5 before creating a run directory, names the interrupted run and the roots that recover it,
 and releases its locks. `--dry-run` always creates its own run directory, never resumes, recovers
 nothing and never changes `current`, so it cannot hide an interrupted real run from recovery.
@@ -80,11 +80,13 @@ nothing and never changes `current`, so it cannot hide an interrupted real run f
   `step`, `ts`, and step payload. Formats are in [contracts](contracts.md#wal-record).
 - Opening `wal.jsonl` truncates a torn last line (JSON decode failure on the final line only). A
   decode failure on any other line, or a line that decodes with an unsupported version (`v` 1 for
-  transaction steps, `v` 2 for preview events), exits 5 as corruption.
+  transaction steps, `v` 2 for preview events and CATIA text-sidecar events), exits 5 as corruption.
 - Steps for split: `begin -> [copied -> verified] -> placed -> described -> [source_removed] ->
   commit`. Restore uses the same steps with `description_removed` replacing `described`. Stage 2 adds
   independent preview events after the video's `commit`
-  ([previews](../stage-2-previews/previews.md#transactions-and-failures)); stage 3 adds
+  ([previews](../stage-2-previews/previews.md#transactions-and-failures)); stage 4 adds independent
+  text-sidecar events after the CATIA file's `commit`
+  ([CATIA text sidecars](../stage-4-catia/split-restore.md#text-sidecars)); stage 3 adds
   `published`.
 
 ## Recovery
@@ -144,6 +146,7 @@ Preflight runs after the scan and before the first mutation, and prints its comp
 | `restore`, other devices, or `--transfer copy` | archive device: sum of candidate sizes (`copy` keeps the video archive copy) |
 | `split` and `restore` run state | archive device additionally: 2 KiB of WAL records per candidate |
 | Stage 2 previews | archive device additionally: estimated preview bytes from [previews](../stage-2-previews/previews.md#space-estimate) |
+| Stage 4 CATIA | as the `split`/`restore` rows with the CATIA archive in the video archive role (preflight role `catia_archive`); `--catia-text` adds min(1 MiB, file size) per candidate on the archive device |
 
 A device is a write device when a role placed on it is written by the operation: the archive and
 the video archive for `split`, the archive for `restore`, and the registry file's device for

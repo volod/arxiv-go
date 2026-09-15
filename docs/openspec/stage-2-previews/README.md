@@ -44,3 +44,5 @@ flowchart LR
 - Restore honors `--previews`.
 - Release archives contain `arxgo` plus pinned ffmpeg/ffprobe builds with checksums and licence
   notices, subject to the human licensing decision.
+- `catia-archive` (stage 4) may start; it reuses the sidecar-failure rule and does not wait for
+  stage 3.
