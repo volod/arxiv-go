@@ -55,29 +55,45 @@ Measured on the development host (4 GiB file, NVMe ext4 and tmpfs): size-verifie
 `<archive>/.arxgo/runs/<run-id>/` with `options.json`, `checkpoint.json`, `run.log.jsonl`,
 `wal.jsonl` when a mutating run writes transactions, and, when the run reaches a final state,
 `report.json`. `<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` in UTC.
-Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock).
+Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock). Split and restore
+record `payload` (`video` or `catia`) and that payload's mirror root (`video_archive` or
+`catia_archive`) in
+`options.json`; `scan` records neither. `archive.Config.Payload` carries the kind and mirror root,
+and `archive.Start` refuses a split or restore without a known payload, or a scan with one, before
+taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)); both payloads split
+and restore ([0048](../records/0048-catia-implement-catia-restore.md)). A run
+resumes only when the recorded payload and mirror root match too.
 
 A later process resumes `current` when that run has no report and the operation plus defining
-options match (roots and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
+options match (roots, payload, `--catia-text` and other operation flags; not logging, progress, checkpoint cadence, `--min-free`,
 `--dry-run`, `--new-run` or `--force-unlock`). `--dry-run` always creates its own directory, recovers
 nothing and never changes `current`.
 
 Otherwise (other defining options, another operation, or `--new-run`) the incomplete run is left in
 place, but first its unfinished WAL transactions are recovered, so `current` never moves away from
-them. `archive.Config.RecovererFor` rebuilds that run's resolver from its `options.json`
-(`cli.recovererFor` decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
+them. `archive.Config.RecovererFor` rebuilds that run's resolver from the payload and options in its
+`options.json` (`cli.recovererFor` requires the payload, checks that the stored options name the same
+one, and decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
 gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
-`--transfer` policies. The recovery is logged to the console and appended to the earlier run's
-`run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run on
-another video archive stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
-directory, names the run and the roots to rerun, and releases its locks.
+`--transfer` policies. Post-commit sidecar cleanup is not part of that recovery: restore runs
+record `sidecar_cleanup` in `options.json`, and the next restore of that payload with cleanup deletes
+the previews or text sidecars such a replaced restore left
+([0049](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md)). The recovery is logged to the console and appended to the earlier run's
+`run.log.jsonl`. It needs the locks of that run's roots. A split or restore replacing a run of the
+other payload takes the lock of that run's recorded mirror root for the recovery and releases it
+afterwards, so a video split rolls an interrupted CATIA split forward with its CATIA description
+([0046](../records/0046-catia-implement-catia-split.md)); a missing root, or a refused lock, exits 5.
+`scan` (archive lock only) or a run of the same payload on another mirror root stops with exit 5
+(`archive.ErrUnrecoveredRun`) before creating a run directory, names the run, the archive and the
+mirror flag and root to rerun with, and releases its locks. An interrupted split or restore whose `options.json` names no payload is corrupt state
+(exit 5).
 
 ## Run lock
 
-- Created with `O_CREATE|O_EXCL` in the archive root, then in the video archive root. `scan` takes
-  only the archive lock. If the mirror lock is refused, the archive lock is released and no run
-  directory is created. `split` creates a missing video archive root after the archive lock, not
-  in `--dry-run`.
+- Created with `O_CREATE|O_EXCL` in the archive root, then in the payload's mirror root (the video
+  or CATIA archive). `scan` takes only the archive lock. If the mirror lock is refused, the archive lock is
+  released and no run directory is created. `split` creates a missing mirror root after the archive
+  lock, not in `--dry-run`.
 - A second process exits 5 and prints the owner (`pid`, `host`, `run_id`, `op`).
 - Stale: same host (case-insensitive) and a dead pid, or a lock that names this process's own pid.
   Takeover requires `--force-unlock`. Another host is never taken over, even with `--force-unlock`.
@@ -96,7 +112,11 @@ and `archive.Status` onto exit codes; it does not import `state` in production.
   boundaries, and at end (including interrupt and failure), through `fsops.AtomicWriteFile`. A
   leftover `checkpoint.json.arxgo-part` is ignored. Contents include phase, scan cursor, offsets
   (including `wal_offset` when a WAL is open), counters and elapsed time accumulated across resumed
-  processes.
+  processes. After a kill the checkpointed counters can lag the WAL; a resumed split or restore
+  raises the payload `*_done` counter to the committed transactions, and a resumed split raises
+  `previews_done` and `texts_done` to the durable done records of its WAL
+  ([0050](../records/0050-catia-prove-stage-4-on-generated-archive.md)). Byte and failure counters
+  are not reconstructed.
 - `run.log.jsonl` is JSON Lines at info (debug when `--log-level debug`), UTC times, independent of
   the console level and format. A torn last line is terminated on resume. The console and the file
   share one `slog` logger via `state.Fanout`.
@@ -134,14 +154,16 @@ and restore operations (copy and rename) recover to the same tree as an uninterr
 ## Disk-space preflight (`internal/archive`)
 
 `preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
-`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the split
-estimate of previews not yet published). `DeviceInfo` lists devices with their roles (`archive`,
-`video_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
+`Candidates` is a summary (count, bytes, largest, media rows, `PreviewBytes`, the split
+estimate of previews not yet published, and `TextBytes`, min(1 MiB, file size) per CATIA file that
+still needs a `--catia-text` sidecar). `DeviceInfo` lists devices with their roles (`archive`,
+`video_archive`, `catia_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
 device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
 
 - Estimates follow the [preflight table](../../openspec/stage-1-core/integrity.md#preflight):
   registry 256 B per row plus 512 B per media row (scan); descriptions 4 KiB, video registry 1 KiB per
-  copy, WAL 2 KiB per candidate (split); all candidate bytes on another device; only the largest
+  copy, WAL 2 KiB per candidate (split); `--catia-text` adds need `texts` (min(1 MiB, file size) per
+  file that still needs a sidecar) on the archive device; all candidate bytes on another device; only the largest
   candidate for `--transfer copy` on a shared device; nothing for same-device `restore` renames
   except WAL, and all candidate bytes for `restore` across devices or with `copy`.
 - A device passes when required + `--min-free` <= available (caller-available bytes). A zero-total

@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/volod/arxiv-go/internal/catia"
 	"github.com/volod/arxiv-go/internal/media"
 )
 
@@ -34,6 +35,7 @@ type DescriptionInput struct {
 	MovedTo  string // absolute path of the video in the video archive
 	URL      string
 	Media    *media.MediaInfo
+	Catia    *catia.Info // when set, a CATIA description: no created: or video: fields
 }
 
 // RenderDescription returns a description: one "key: value" line per field, the marker first, no blank lines.
@@ -54,11 +56,15 @@ func RenderDescription(in DescriptionInput) []byte {
 	}
 	field("file_mime", in.FileMIME)
 	field("sha256", in.SHA256)
-	if in.Media != nil && in.Media.Error == "" {
+	if in.Catia == nil && in.Media != nil && in.Media.Error == "" {
 		field("created", in.Media.CreationTime)
 	}
 	field("modified", formatTime(in.Modified))
-	field("video", MediaLine(in.Media))
+	if in.Catia != nil {
+		field("catia", CatiaLine(*in.Catia))
+	} else {
+		field("video", MediaLine(in.Media))
+	}
 	field("moved_at", formatTime(in.MovedAt))
 	if u := FileURL(filepath.ToSlash(in.MovedTo)); u != "" {
 		field("moved_to", "["+markdownText(path.Base(filepath.ToSlash(in.MovedTo)))+"]("+u+")")
@@ -149,6 +155,16 @@ const (
 // that is not a readable regular file (a directory, a symlink, a file without read permission) is
 // foreign: arxgo never overwrites or deletes it. Only a failure to look up the path is an error.
 func InspectDescription(path, relPath string) (DescriptionOccupancy, error) {
+	return inspectMarker(path, DescriptionMarker, relPath)
+}
+
+// InspectTextSidecar reports whether path is missing, an owned CATIA text sidecar for relPath, or
+// a foreign file. The first line must be "arxgo-text: <relPath>" (first 64 KiB).
+func InspectTextSidecar(path, relPath string) (DescriptionOccupancy, error) {
+	return inspectMarker(path, TextSidecarMarker, relPath)
+}
+
+func inspectMarker(path, marker, relPath string) (DescriptionOccupancy, error) {
 	fi, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -167,8 +183,13 @@ func InspectDescription(path, relPath string) (DescriptionOccupancy, error) {
 	if err != nil && !(errors.Is(err, io.EOF) && line != "") {
 		return DescriptionForeign, nil
 	}
-	key, value, ok := parseField(strings.TrimRight(line, "\r\n"), true)
-	if !ok || key != DescriptionMarker || value != relPath {
+	line = strings.TrimPrefix(strings.TrimRight(line, "\r\n"), "\uFEFF")
+	key, value, found := strings.Cut(line, ": ")
+	if !found {
+		return DescriptionForeign, nil
+	}
+	value, err = unquoteValue(value)
+	if err != nil || key != marker || value != relPath {
 		return DescriptionForeign, nil
 	}
 	return DescriptionOwned, nil

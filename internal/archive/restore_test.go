@@ -40,6 +40,7 @@ func attachRestoreRecoverer(cfg *Config, c *RestoreConfig, crash state.CrashHook
 
 func runRestore(t *testing.T, cfg Config, c RestoreConfig) Result {
 	t.Helper()
+	cfg.SidecarCleanup = RestoreSidecarCleanup(cfg.Payload.Kind, c)
 	s, err := Start(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)

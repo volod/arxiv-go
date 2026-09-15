@@ -22,7 +22,7 @@ type body func(ctx context.Context, s *archive.Session) error
 func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 	cfg := archive.Config{
 		Op: op, Version: version,
-		Archive: c.Archive, VideoArchive: c.VideoArchive,
+		Archive: c.Archive, Payload: payloadOf(c),
 		DryRun: c.DryRun, NewRun: c.NewRun, ForceUnlock: c.ForceUnlock,
 		Options: opts, Defining: defining,
 		LogLevel:           c.LogLevel,
@@ -33,6 +33,18 @@ func sessionConfig(op string, c Common, opts, defining any) archive.Config {
 		RecovererFor:       recovererFor,
 	}
 	return cfg
+}
+
+// payloadOf is the payload kind and mirror root of split and restore options; zero for scan.
+func payloadOf(c Common) archive.Payload {
+	if c.Payload == "" {
+		return archive.Payload{}
+	}
+	root := c.VideoArchive
+	if c.Payload == PayloadCatia {
+		root = c.CatiaArchive
+	}
+	return archive.Payload{Kind: archive.PayloadKind(c.Payload), Root: root}
 }
 
 func verifyMode(v string) fsops.VerifyMode {
@@ -47,8 +59,8 @@ func splitResolver(o SplitOptions) archive.SplitResolver {
 	verify := verifyMode(o.Verify)
 	r := archive.NewSplitResolver(nil, verify, nil)
 	r.Descriptions = archive.NewMarkdownDescription(archive.DescriptionConfig{
-		Archive: o.Archive, VideoArchive: o.VideoArchive, BaseURL: o.BaseURL,
-		Registry: o.Registry, Version: version, Verify: verify,
+		Archive: o.Archive, Mirror: payloadOf(o.Common).Root, BaseURL: o.BaseURL,
+		Registry: o.Registry, Version: version, Payload: archive.PayloadKind(o.Payload), Verify: verify,
 	})
 	return r
 }
@@ -57,13 +69,26 @@ func splitResolver(o SplitOptions) archive.SplitResolver {
 func restoreResolver(o RestoreOptions) archive.RestoreResolver {
 	return archive.NewRestoreResolver(archive.RestoreResolver{
 		Verify: verifyMode(o.Verify), KeepDescriptions: o.Descriptions == PolicyKeep,
-		KeepSource: o.Transfer == TransferCopy, Archive: o.Archive,
+		KeepSource: o.Transfer == TransferCopy, Archive: o.Archive, Payload: archive.PayloadKind(o.Payload),
 	})
 }
 
-// recovererFor rebuilds the resolver of an earlier incomplete run from its options.json, so a run
-// that a new run replaces finishes its transactions with the options that started them.
-func recovererFor(op string, raw json.RawMessage) (archive.Resolver, error) {
+// recovererFor rebuilds the resolver of an earlier incomplete run from the payload and options.json
+// it recorded, so a run that a new run replaces finishes its transactions with the payload and
+// options that started them. The payload is required and must match the stored options.
+func recovererFor(op string, payload archive.PayloadKind, raw json.RawMessage) (archive.Resolver, error) {
+	var common struct{ Payload string }
+	if err := json.Unmarshal(raw, &common); err != nil {
+		return nil, err
+	}
+	switch {
+	case payload == "":
+		return nil, fmt.Errorf("%s run has no payload", op)
+	case payload != archive.PayloadVideo && payload != archive.PayloadCatia:
+		return nil, fmt.Errorf("%s run of payload %q: not available in this build", op, payload)
+	case common.Payload != string(payload):
+		return nil, fmt.Errorf("%s run options name payload %q, run payload %q", op, common.Payload, payload)
+	}
 	switch op {
 	case OpSplit:
 		var o SplitOptions
@@ -93,7 +118,7 @@ func scanConfig(root string, sc ScanSettings, probePath string, preflight bool) 
 // progress, checkpoint cadence, --min-free, --dry-run, --new-run and --force-unlock may change
 // between the interrupted process and the one resuming it.
 func definingCommon(c Common) Common {
-	return Common{Archive: c.Archive, VideoArchive: c.VideoArchive}
+	return Common{Archive: c.Archive, Payload: c.Payload, VideoArchive: c.VideoArchive, CatiaArchive: c.CatiaArchive}
 }
 
 // runSession starts the run, executes fn and maps the outcome to an exit code.

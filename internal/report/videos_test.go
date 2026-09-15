@@ -2,6 +2,8 @@ package report
 
 import (
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +50,39 @@ func TestMergeVideoRowsWalkOrderAndMovedWins(t *testing.T) {
 	}
 	if got[2].FileMIME != "video/mp4" || got[2].RunID != "run2" {
 		t.Fatalf("overlay: %+v", got[2])
+	}
+}
+
+func TestPayloadRegistryColumnOrder(t *testing.T) {
+	want := []string{"rel_path", "file_name", "status", "url", "description_rel_path",
+		"file_size", "sha256", "transfer", "run_id", "file_mime"}
+	if !slices.Equal(PayloadHeader, want) || PayloadRegistryKeep != len(want) {
+		t.Fatalf("payload header = %q", PayloadHeader)
+	}
+	if !slices.Equal(VideoHeader[:VideoRegistryKeep], append(slices.Clone(want), "previews")) ||
+		!slices.Equal(VideoHeader[VideoRegistryKeep:], MetadataHeader) {
+		t.Fatalf("video header = %q", VideoHeader)
+	}
+	row := VideoRow{RelPath: "a/b.mp4", FileName: "b.mp4", Status: StatusMoved, URL: "file:///v/a/b.mp4",
+		DescriptionRelPath: "a/b.mp4.md", FileSize: 7, SHA256: "abc", Transfer: "copy", RunID: "r1",
+		FileMIME: "video/mp4", Previews: "a/b-img01.png"}
+	var b strings.Builder
+	if err := WriteVideoCSV(&b, []VideoRow{row}); err != nil {
+		t.Fatal(err)
+	}
+	wantCSV := strings.Join(VideoHeader[:VideoRegistryKeep], ",") + "\n" +
+		"a/b.mp4,b.mp4,moved,file:///v/a/b.mp4,a/b.mp4.md,7,abc,copy,r1,video/mp4,a/b-img01.png\n"
+	if b.String() != wantCSV {
+		t.Fatalf("csv =\n%s\nwant\n%s", b.String(), wantCSV)
+	}
+	got, err := LoadVideoCSV(strings.NewReader(b.String()))
+	if err != nil || len(got) != 1 || got[0] != row || got[0].Payload() != (PayloadRow{RelPath: "a/b.mp4", FileName: "b.mp4",
+		Status: StatusMoved, URL: "file:///v/a/b.mp4", DescriptionRelPath: "a/b.mp4.md", FileSize: 7, SHA256: "abc",
+		Transfer: "copy", RunID: "r1", FileMIME: "video/mp4"}) {
+		t.Fatalf("round trip = %+v, %v", got, err)
+	}
+	previous := "rel_path,description_rel_path,file_name,file_size,file_mime,sha256,transfer,status,run_id,url,previews\n"
+	if _, err := LoadVideoCSV(strings.NewReader(previous)); err == nil {
+		t.Fatal("video registry in the previous column order loaded")
 	}
 }

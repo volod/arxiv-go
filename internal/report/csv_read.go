@@ -51,7 +51,7 @@ func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 }
 
 func parseRegistryRow(rec, header []string, keep int) (RegistryRow, error) {
-	size, err := strconv.ParseInt(rec[2], 10, 64)
+	size, err := strconv.ParseInt(rec[3], 10, 64)
 	if err != nil {
 		return RegistryRow{}, fmt.Errorf("file_size: %w", err)
 	}
@@ -60,9 +60,10 @@ func parseRegistryRow(rec, header []string, keep int) (RegistryRow, error) {
 		return RegistryRow{}, err
 	}
 	return RegistryRow{
-		RelPath: rec[0], FileName: rec[1], FileSize: size, FileType: rec[3], FileMIME: rec[4],
-		IsBinary: parseBool(rec[5]), IsMedia: parseBool(rec[6]), IsPicture: parseBool(rec[7]),
-		IsVideo: parseBool(rec[8]), IsLarge: parseBool(rec[9]), Metadata: meta,
+		RelPath: rec[0], FileName: rec[1], FileType: rec[2], FileSize: size, IsLarge: parseBool(rec[4]),
+		FileMIME: rec[5], IsBinary: parseBool(rec[6]), IsMedia: parseBool(rec[7]),
+		IsPicture: parseBool(rec[8]), IsVideo: parseBool(rec[9]), IsCatia: parseBool(rec[10]),
+		Metadata: meta,
 	}, nil
 }
 

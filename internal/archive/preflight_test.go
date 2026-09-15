@@ -53,30 +53,36 @@ func TestPlanPreflightTable(t *testing.T) {
 		{"scan registry on another device", Candidates{Count: 10}, PreflightOptions{Op: "scan"},
 			devices(dev(gib, "/a", RoleArchive), dev(gib, "/r", RoleRegistry)),
 			[]wantDevice{{"/r", []Need{{"registry", 2560}}}}},
-		{"split same device auto renames", videos3, PreflightOptions{Op: "split", Transfer: "auto"}, shared,
+		{"split same device auto renames", videos3, PreflightOptions{Op: "split", Payload: PayloadVideo, Transfer: "auto"}, shared,
 			[]wantDevice{{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}}}}},
-		{"split other device auto copies all", videos3, PreflightOptions{Op: "split", Transfer: "auto"}, separate,
+		{"split other device auto copies all", videos3, PreflightOptions{Op: "split", Payload: PayloadVideo, Transfer: "auto"}, separate,
 			[]wantDevice{
 				{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
 				{"/v", []Need{{"video_registry", 3 * kib}, {"videos", 30 * gib}}}}},
-		{"split other device copy", videos3, PreflightOptions{Op: "split", Transfer: "copy"}, separate,
+		{"split other device copy", videos3, PreflightOptions{Op: "split", Payload: PayloadVideo, Transfer: "copy"}, separate,
 			[]wantDevice{
 				{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 3 * kib}, {"wal", 6 * kib}}},
 				{"/v", []Need{{"video_registry", 3 * kib}, {"videos", 30 * gib}}}}},
-		{"split same device copy needs largest twice", videos3, PreflightOptions{Op: "split", Transfer: "copy"}, shared,
+		{"split same device copy needs largest twice", videos3, PreflightOptions{Op: "split", Payload: PayloadVideo, Transfer: "copy"}, shared,
 			[]wantDevice{{"/a", []Need{{"descriptions", 12 * kib}, {"video_registry", 6 * kib}, {"wal", 6 * kib}, {"largest_video", 20 * gib}}}}},
 		{"split previews hook on archive device", Candidates{Count: 1, Bytes: gib, Largest: gib, PreviewBytes: 5 * kib},
-			PreflightOptions{Op: "split"}, separate,
+			PreflightOptions{Op: "split", Payload: PayloadVideo}, separate,
 			[]wantDevice{
 				{"/a", []Need{{"descriptions", 4 * kib}, {"video_registry", kib}, {"wal", 2 * kib}, {"previews", 5 * kib}}},
 				{"/v", []Need{{"video_registry", kib}, {"videos", gib}}}}},
-		{"restore same device auto is negligible", videos3, PreflightOptions{Op: "restore", Transfer: "auto"}, shared,
+		{"split catia text hook on archive device", Candidates{Count: 2, Bytes: 3 * gib, Largest: 2 * gib, TextBytes: kib},
+			PreflightOptions{Op: "split", Payload: PayloadCatia},
+			devices(dev(100*gib, "/a", RoleArchive), dev(100*gib, "/c", RoleCatiaArchive)),
+			[]wantDevice{
+				{"/a", []Need{{"descriptions", 8 * kib}, {"catia_registry", 2 * kib}, {"wal", 4 * kib}, {"texts", kib}}},
+				{"/c", []Need{{"catia_registry", 2 * kib}, {"catia", 3 * gib}}}}},
+		{"restore same device auto is negligible", videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "auto"}, shared,
 			[]wantDevice{{"/a", []Need{{"wal", 6 * kib}}}}},
-		{"restore other device auto", videos3, PreflightOptions{Op: "restore", Transfer: "auto"}, separate,
+		{"restore other device auto", videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "auto"}, separate,
 			[]wantDevice{{"/a", []Need{{"wal", 6 * kib}, {"videos", 30 * gib}}}}},
-		{"restore same device copy keeps sources", videos3, PreflightOptions{Op: "restore", Transfer: "copy"}, shared,
+		{"restore same device copy keeps sources", videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "copy"}, shared,
 			[]wantDevice{{"/a", []Need{{"wal", 6 * kib}, {"videos", 30 * gib}}}}},
-		{"no candidates still checks write devices", Candidates{}, PreflightOptions{Op: "split"}, separate,
+		{"no candidates still checks write devices", Candidates{}, PreflightOptions{Op: "split", Payload: PayloadVideo}, separate,
 			[]wantDevice{{"/a", nil}, {"/v", nil}}},
 	}
 	for _, tt := range tests {
@@ -105,7 +111,7 @@ func TestPlanPreflightTable(t *testing.T) {
 
 func TestPlanThresholdIsRequiredPlusMinFree(t *testing.T) {
 	c := Candidates{Count: 1, Bytes: 10 * gib, Largest: 10 * gib}
-	o := PreflightOptions{Op: "restore", Transfer: "copy", MinFree: gib}
+	o := PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "copy", MinFree: gib}
 	required := 10*gib + 2*kib // videos + wal
 	for _, tt := range []struct {
 		name      string
@@ -134,7 +140,7 @@ func TestPlanSharedDeviceSumsRequirementsOnce(t *testing.T) {
 	// Split copy across devices needs 7KiB on the archive and 10GiB+1KiB on the video archive.
 	// Each alone fits 10GiB+4KiB of free space, so separate devices pass ...
 	c := Candidates{Count: 1, Bytes: 10 * gib, Largest: 10 * gib}
-	o := PreflightOptions{Op: "split", Transfer: "copy"}
+	o := PreflightOptions{Op: "split", Payload: PayloadVideo, Transfer: "copy"}
 	avail := 10*gib + 4*kib
 	if req := Plan(c, o, devices(dev(avail, "/a", RoleArchive), dev(avail, "/v", RoleVideoArchive))); !req.Sufficient() {
 		t.Fatalf("separate devices: %+v", req)
@@ -149,7 +155,7 @@ func TestPlanSharedDeviceSumsRequirementsOnce(t *testing.T) {
 
 func TestPlanUnknownNetworkFreeSpaceDoesNotFail(t *testing.T) {
 	info := devices(dev(100*gib, "/a", RoleArchive), Device{Roles: []Role{RoleVideoArchive}, Path: "//nas/video"})
-	req := Plan(videos3, PreflightOptions{Op: "split", MinFree: gib}, info)
+	req := Plan(videos3, PreflightOptions{Op: "split", Payload: PayloadVideo, MinFree: gib}, info)
 	v := req.Devices[1]
 	if v.Known || v.Shortfall != 0 || v.Required == 0 || !req.Sufficient() {
 		t.Fatalf("unknown device = %+v", v)
@@ -163,18 +169,18 @@ func TestPlanUnknownNetworkFreeSpaceDoesNotFail(t *testing.T) {
 
 func TestPlanSaturatesAndIgnoresNegativeInput(t *testing.T) {
 	huge := Candidates{Count: math.MaxInt64, Bytes: math.MaxInt64, Largest: -5, PreviewBytes: -1}
-	req := Plan(huge, PreflightOptions{Op: "split", MinFree: math.MaxInt64}, separate)
+	req := Plan(huge, PreflightOptions{Op: "split", Payload: PayloadVideo, MinFree: math.MaxInt64}, separate)
 	for _, d := range req.Devices {
 		if d.Required != math.MaxInt64 || d.Shortfall <= 0 {
 			t.Fatalf("device = %+v, want saturated requirement", d)
 		}
 	}
-	req = Plan(Candidates{Count: -3, Bytes: -1}, PreflightOptions{Op: "restore", Transfer: "copy", MinFree: -1}, shared)
+	req = Plan(Candidates{Count: -3, Bytes: -1}, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "copy", MinFree: -1}, shared)
 	if d := req.Devices[0]; d.Required != 0 || d.MinFree != 0 || len(d.Needs) != 0 {
 		t.Fatalf("negative input: %+v", d)
 	}
 	big := devices(Device{Roles: []Role{RoleArchive, RoleVideoArchive}, Path: "/a", Space: fsops.Space{Total: math.MaxUint64, Available: math.MaxUint64}})
-	if d := Plan(videos3, PreflightOptions{Op: "restore"}, big).Devices[0]; d.Available != math.MaxInt64 {
+	if d := Plan(videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo}, big).Devices[0]; d.Available != math.MaxInt64 {
 		t.Fatalf("available = %d, want capped", d.Available)
 	}
 }
@@ -184,7 +190,7 @@ func TestPreflightReportFormatIsStable(t *testing.T) {
 		dev(5*gib, "/data/archive", RoleArchive),
 		Device{Roles: []Role{RoleVideoArchive}, Path: "/mnt/video", Space: fsops.Space{Total: 40 << 30, Available: 30 << 30}},
 	)
-	req := Plan(Candidates{Count: 2, Bytes: 31 * gib, Largest: 30 * gib}, PreflightOptions{Op: "split", MinFree: gib}, info)
+	req := Plan(Candidates{Count: 2, Bytes: 31 * gib, Largest: 30 * gib}, PreflightOptions{Op: "split", Payload: PayloadVideo, MinFree: gib}, info)
 	var buf bytes.Buffer
 	noTime := func(_ []string, a slog.Attr) slog.Attr {
 		if a.Key == slog.TimeKey {

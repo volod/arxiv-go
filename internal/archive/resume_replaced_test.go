@@ -30,10 +30,10 @@ func crashSplit(t *testing.T, r roots, mode, point string) string {
 }
 
 // splitRecovererFor rebuilds a split resolver like the cli does from options.json.
-func splitRecovererFor(t *testing.T, r roots) func(string, json.RawMessage) (Resolver, error) {
-	return func(op string, _ json.RawMessage) (Resolver, error) {
-		if op != opSplit {
-			t.Errorf("recovering op %q", op)
+func splitRecovererFor(t *testing.T, r roots) func(string, PayloadKind, json.RawMessage) (Resolver, error) {
+	return func(op string, payload PayloadKind, _ json.RawMessage) (Resolver, error) {
+		if op != opSplit || payload != PayloadVideo {
+			t.Errorf("recovering op %q payload %q", op, payload)
 		}
 		_, c := splitConfig(r, "auto")
 		rs := NewSplitResolver(nil, c.Verify, nil)
@@ -66,7 +66,7 @@ func TestReplacedSplitRunIsRecoveredBeforeNewRun(t *testing.T) {
 			}
 			checkSplit(t, src, dst)
 			rows := readVideoCSV(t, filepath.Join(r.archive, scanner.VideoRegistryName))
-			if len(rows) != 2 || rows[1][0] != "nested/clip.mp4" || rows[1][7] != "moved" {
+			if len(rows) != 2 || rows[1][0] != "nested/clip.mp4" || rows[1][2] != "moved" {
 				t.Fatalf("registry rows = %q", rows)
 			}
 			log := string(mustRead(t, filepath.Join(state.StateDir(r.archive), "runs", prev, state.LogFile)))
@@ -107,7 +107,7 @@ func TestReplacedRunOutsideLockedRootsNeedsOperator(t *testing.T) {
 			if err := os.Mkdir(other, 0o755); err != nil {
 				t.Fatal(err)
 			}
-			cfg.VideoArchive = other
+			cfg.Payload.Root = other
 			cfg.NewRun = true
 		},
 		"no-recoverer": func(r roots, cfg *Config) {

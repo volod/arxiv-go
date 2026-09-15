@@ -20,15 +20,18 @@ import (
 
 // Config describes one run. The cli package maps validated options onto it.
 type Config struct {
-	Op                 string
-	Version            string
-	Archive            string
-	VideoArchive       string // empty for scan
-	CreateVideoArchive bool   // split: create the video archive root after taking the lock
-	DryRun             bool
-	NewRun             bool
-	ForceUnlock        bool
-	Registry           string // scan: registry file placed by preflight; empty uses the archive
+	Op           string
+	Version      string
+	Archive      string
+	Payload      Payload // split and restore: the kind moved and its mirror root; zero for scan
+	CreateMirror bool    // split: create the mirror root after taking the lock
+	// SidecarCleanup is the restore's sidecar cleanup intent (RestoreSidecarCleanup), stored as
+	// sidecar_cleanup in options.json so later restores learn it without decoding Options.
+	SidecarCleanup bool
+	DryRun         bool
+	NewRun         bool
+	ForceUnlock    bool
+	Registry       string // scan: registry file placed by preflight; empty uses the archive
 
 	// Preflight holds the options that change the free-space requirement; Op is taken from Op.
 	Preflight PreflightOptions
@@ -53,10 +56,11 @@ type Config struct {
 
 	// Recoverer, when set, is applied to an existing wal.jsonl after the lock is taken.
 	Recoverer state.Resolver
-	// RecovererFor rebuilds the resolver of an earlier incomplete run from its operation and
-	// options.json, so a run that this process replaces is recovered with the options that
-	// started it. Nil leaves such a run with unfinished transactions to the operator (exit 5).
-	RecovererFor func(op string, options json.RawMessage) (Resolver, error)
+	// RecovererFor rebuilds the resolver of an earlier incomplete run from its operation, payload
+	// kind and options.json, so a run that this process replaces is recovered with the payload and
+	// options that started it. Nil leaves such a run with unfinished transactions to the operator
+	// (exit 5).
+	RecovererFor func(op string, payload PayloadKind, options json.RawMessage) (Resolver, error)
 	Crash        state.CrashHook
 }
 
@@ -92,6 +96,7 @@ const maxIssues = 10000
 // checkpoints and the progress reporter. Methods other than Finish are safe for concurrent use.
 type Session struct {
 	cfg      Config
+	payload  *payloadSpec // nil for scan
 	Log      *slog.Logger
 	Run      state.RunDir
 	Resumed  bool
@@ -119,7 +124,7 @@ type Session struct {
 	progressDone chan struct{}
 }
 
-// Start takes the run lock in the archive root (and the mirror lock in the video archive root),
+// Start takes the run lock in the archive root (and the mirror lock in the payload's mirror root),
 // resumes the incomplete current run when its defining options match or creates a new run
 // directory, opens the run log and writes the first checkpoint. A lock that cannot be taken
 // returns a *state.LockedError before anything else is written.
@@ -128,8 +133,12 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	spec, err := sessionPayload(cfg)
+	if err != nil {
+		return nil, err
+	}
 	console := slog.New(cfg.Console)
-	s := &Session{cfg: cfg, Log: console, Stats: &Stats{}, started: cfg.Now()}
+	s := &Session{cfg: cfg, payload: spec, Log: console, Stats: &Stats{}, started: cfg.Now()}
 	ok := false
 	defer func() {
 		if !ok {
@@ -176,6 +185,9 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		return nil, err
 	}
 	s.Progress = NewProgress(s.Log, s.Stats, cfg.ProgressInterval, cfg.Now)
+	if spec != nil {
+		s.Progress.handled = spec.totals
+	}
 	s.startProgress()
 	ok = true
 	return s, nil
@@ -183,27 +195,29 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 
 func (s *Session) lockRoots(runID string) error {
 	cfg := s.cfg
-	info := state.LockInfo{RunID: runID, StartedAt: s.started.UTC(), Op: cfg.Op, Role: state.RoleArchive, Peer: cfg.VideoArchive}
+	mirror := cfg.Payload.Root
+	info := state.LockInfo{RunID: runID, StartedAt: s.started.UTC(), Op: cfg.Op, Role: state.RoleArchive, Peer: mirror}
 	if err := s.lock(cfg.Archive, info); err != nil {
 		return err
 	}
-	if cfg.VideoArchive == "" {
+	if mirror == "" {
 		return nil
 	}
-	if cfg.CreateVideoArchive {
+	if cfg.CreateMirror {
 		if cfg.DryRun {
-			s.Log.Info("dry run: video archive root does not exist; not creating it or its lock", "video_archive", cfg.VideoArchive)
+			s.Log.Info("dry run: mirror root does not exist; not creating it or its lock",
+				"payload", cfg.Payload.Kind, "mirror", mirror)
 			return nil
 		}
-		if err := os.Mkdir(cfg.VideoArchive, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("create video archive root: %w", err)
+		if err := os.Mkdir(mirror, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("create %s archive root: %w", cfg.Payload.Kind, err)
 		}
-		if err := fsops.SyncDir(filepath.Dir(cfg.VideoArchive)); err != nil {
+		if err := fsops.SyncDir(filepath.Dir(mirror)); err != nil {
 			return err
 		}
 	}
 	info.Role, info.Peer = state.RoleMirror, cfg.Archive
-	return s.lock(cfg.VideoArchive, info)
+	return s.lock(mirror, info)
 }
 
 func (s *Session) lock(root string, info state.LockInfo) error {
@@ -227,7 +241,7 @@ func (s *Session) logStart() {
 	lock := s.locks[0].Info()
 	s.Log.Info("run started", "op", s.cfg.Op, "run_id", s.Run.ID, "resumed", s.Resumed,
 		"dry_run", s.cfg.DryRun, "phase", s.cp.Phase, "archive", s.cfg.Archive,
-		"video_archive", s.cfg.VideoArchive, "pid", lock.PID, "host", lock.Host,
+		"payload", s.cfg.Payload.Kind, "mirror", s.cfg.Payload.Root, "pid", lock.PID, "host", lock.Host,
 		"version", s.cfg.Version, "run_dir", s.Run.Path)
 }
 

@@ -3,6 +3,6 @@
 // registries.
 //
 // csv.go, csv_read.go, csv_compact.go and metadata_csv.go write and read the file registry. description.go writes and reads
-// the video description fields and preview links; names.go chooses a collision-safe description filename; videos.go writes arxgo-videos.csv.
+// the video and CATIA description fields, preview links and text-sidecar occupancy; catia.go renders the catia: line and the text sidecar; names.go chooses a collision-safe description or text-sidecar filename; videos.go writes arxgo-videos.csv; catia_registry.go writes arxgo-catia.csv.
 // Specification: docs/openspec/stage-1-core/contracts.md.
 package report

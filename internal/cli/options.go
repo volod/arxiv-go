@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/volod/arxiv-go/internal/archive"
 	"github.com/volod/arxiv-go/internal/media"
 	"github.com/volod/arxiv-go/internal/scanner"
 )
@@ -28,14 +29,26 @@ const (
 	LogJSON       = "json"
 )
 
+// Payload kinds of split and restore.
+const (
+	PayloadVideo = string(archive.PayloadVideo)
+	PayloadCatia = string(archive.PayloadCatia)
+)
+
 // DefaultRegistryName is the registry file created in the archive root unless --registry is set.
 const DefaultRegistryName = "arxgo-registry.csv"
 
 // Common holds validated flags shared by every operation. Paths are absolute and cleaned but keep
 // the spelling the operator gave; symlinks are resolved only for the nesting check.
 type Common struct {
-	Archive            string
-	VideoArchive       string // empty for scan
+	Archive string
+	// Payload is the kind split and restore move (PayloadVideo or PayloadCatia); empty for scan. It
+	// is a defining option, so a run of one payload never resumes a run of another.
+	Payload string
+	// VideoArchive or CatiaArchive is the mirror root of the payload; the other is empty, and both
+	// are empty for scan.
+	VideoArchive       string
+	CatiaArchive       string
 	LogLevel           slog.Level
 	LogFormat          string
 	ProgressInterval   time.Duration
@@ -75,9 +88,12 @@ type SplitOptions struct {
 	Verify   string // VerifySize or VerifyHash
 	BaseURL  string // empty, or absolute http(s) URL without a trailing slash
 	Preview  media.PreviewOptions
-	// CreateVideoArchive is true when the video archive root does not exist yet; its parent does,
-	// and the split operation creates it after taking the lock.
-	CreateVideoArchive bool
+	// CreateMirror is true when the payload's mirror root does not exist yet; its parent does, and
+	// the split operation creates it after taking the lock.
+	CreateMirror bool
+	// CatiaText writes owned text sidecars after each CATIA commit and for earlier moved files
+	// that still lack one. Valid only with --catia.
+	CatiaText bool
 }
 
 // RestoreOptions configures the restore operation.
@@ -125,9 +141,19 @@ func buildCommon(op string, s *settings, fsys rootFS, v *validator) (Common, boo
 	if c.MinFree < 0 {
 		v.addf("--min-free must not be negative")
 	}
-	var videoMissing bool
-	c.Archive, c.VideoArchive, videoMissing = checkRoots(op, s, fsys, v)
-	return c, videoMissing
+	if op == OpScan {
+		c.Archive, _, _ = checkRoots(op, "", s, fsys, v)
+		return c, false
+	}
+	c.Payload = selectPayload(s, v)
+	archive, mirror, missing := checkRoots(op, c.Payload, s, fsys, v)
+	c.Archive = archive
+	if c.Payload == PayloadCatia {
+		c.CatiaArchive = mirror
+	} else {
+		c.VideoArchive = mirror
+	}
+	return c, missing
 }
 
 func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSettings {
@@ -146,6 +172,11 @@ func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSetti
 	exts, err := parseExtensions(s.videoExtensions)
 	if err != nil {
 		v.addf("--video-extensions %q: %v", s.videoExtensions, err)
+	}
+	for _, ext := range exts {
+		if scanner.IsCatiaExtension(ext) {
+			v.addf("--video-extensions %q: CATIA extension %s cannot mark a file as video", s.videoExtensions, ext)
+		}
 	}
 	sc.VideoExtensions = exts
 	sc.Registry = s.registry
@@ -178,8 +209,8 @@ func buildScanOptions(s *settings, fsys rootFS) (ScanOptions, error) {
 
 func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	v := &validator{}
-	common, videoMissing := buildCommon(OpSplit, s, fsys, v)
-	o := SplitOptions{Common: common, CreateVideoArchive: videoMissing}
+	common, missing := buildCommon(OpSplit, s, fsys, v)
+	o := SplitOptions{Common: common, CreateMirror: missing, CatiaText: s.catiaText}
 	o.ScanSettings = buildScan(s, o.Archive, fsys, v)
 	o.Transfer, o.Verify = s.transfer, s.verify
 	o.Preview = media.PreviewOptions{SampleMode: s.sampleMode, ImageMode: s.imageMode,
@@ -197,6 +228,15 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	}
 	if o.Preview.MaxItems < 1 {
 		v.addf("--preview-max-items must be at least 1")
+	}
+	if o.Payload == PayloadCatia {
+		for _, f := range []struct{ name, mode string }{{"sample", s.sampleMode}, {"image", s.imageMode}} {
+			if f.mode != "none" {
+				v.addf("%s %s cannot be used with --catia: previews are generated for videos only", s.explicit[f.name], f.mode)
+			}
+		}
+	} else if s.catiaText {
+		v.addf("%s requires --catia", s.explicit["catia-text"])
 	}
 	if s.baseURL != "" {
 		u, err := validateBaseURL(s.baseURL)
@@ -220,6 +260,9 @@ func buildRestoreOptions(s *settings, fsys rootFS) (RestoreOptions, error) {
 		Overwrite:      s.overwrite,
 		RegistryUpdate: s.registryUpdate,
 		Previews:       s.previews,
+	}
+	if o.Payload == PayloadCatia && o.Previews == PolicyDelete {
+		v.addf("%s delete cannot be used with --catia: CATIA files have no previews", s.explicit["previews"])
 	}
 	return o, v.err()
 }

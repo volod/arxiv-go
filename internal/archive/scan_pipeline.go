@@ -180,20 +180,20 @@ func (r *scanRun) write(it *scanItem) error {
 			ft.IsVideo = false
 		}
 	}
-	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Large: ft.IsLarge})
+	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Catia: ft.IsCatia, Large: ft.IsLarge})
 	r.s.Stats.Files.Add(1)
 	r.s.Stats.Bytes.Add(size)
 	meta := report.FileMetadata(e.Info.ModTime())
 	meta.Media = it.media
 	row := report.RegistryRow{
 		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: size, FileType: ft.Type, FileMIME: ft.MIME,
-		IsBinary: ft.IsBinary, IsMedia: ft.IsMedia, IsPicture: ft.IsPicture, IsVideo: ft.IsVideo, IsLarge: ft.IsLarge,
+		IsBinary: ft.IsBinary, IsMedia: ft.IsMedia, IsPicture: ft.IsPicture, IsVideo: ft.IsVideo, IsCatia: ft.IsCatia, IsLarge: ft.IsLarge,
 		Metadata: meta,
 	}
 	if err := r.reg.Write(row); err != nil {
 		return err
 	}
-	if !ft.IsVideo && (r.cfg.Include == nil || !r.cfg.Include(e.Rel)) {
+	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
 		return nil
 	}
 	return r.cand.write(Candidate{RelPath: e.Rel, Size: size, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})

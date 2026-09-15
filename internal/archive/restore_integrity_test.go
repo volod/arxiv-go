@@ -110,14 +110,14 @@ func TestSplitAfterRestoreKeepsRestoredStatus(t *testing.T) {
 	}
 	for _, root := range []string{r.archive, r.video} {
 		old := videoRow(t, root, "nested/clip.mp4")
-		if old == nil || old[7] != "restored" || old[8] != restoreRun {
+		if old == nil || old[2] != "restored" || old[8] != restoreRun {
 			t.Fatalf("%s: restored row = %q, want status restored by %s", root, old, restoreRun)
 		}
 		wantURL := report.FileURL(filepath.ToSlash(filepath.Join(r.archive, "nested", "clip.mp4")))
-		if old[9] != wantURL {
-			t.Errorf("%s: restored local URL = %q, want %q", root, old[9], wantURL)
+		if old[3] != wantURL {
+			t.Errorf("%s: restored local URL = %q, want %q", root, old[3], wantURL)
 		}
-		if row := videoRow(t, root, "later/new.mp4"); row == nil || row[7] != "moved" {
+		if row := videoRow(t, root, "later/new.mp4"); row == nil || row[2] != "moved" {
 			t.Fatalf("%s: new row = %q", root, row)
 		}
 	}
@@ -141,10 +141,10 @@ func TestSplitAfterRetiredRegistryKeepsHistory(t *testing.T) {
 	if res := runSplit(t, scfg, sc); res.Status != StatusCompleted {
 		t.Fatalf("split = %+v", res)
 	}
-	if row := videoRow(t, r.archive, "nested/clip.mp4"); row == nil || row[7] != "restored" {
+	if row := videoRow(t, r.archive, "nested/clip.mp4"); row == nil || row[2] != "restored" {
 		t.Fatalf("history row = %q", row)
 	}
-	if row := videoRow(t, r.archive, "later/new.mp4"); row == nil || row[7] != "moved" {
+	if row := videoRow(t, r.archive, "later/new.mp4"); row == nil || row[2] != "moved" {
 		t.Fatalf("new row = %q", row)
 	}
 }
@@ -235,7 +235,7 @@ func TestRestoreCleansDirectoriesOfReplacedInterruptedRestore(t *testing.T) {
 	rcfg, rc = restoreConfig(r, "auto")
 	rcfg.Lock.PID = 200
 	rcfg.NewRun = true
-	rcfg.RecovererFor = func(string, json.RawMessage) (Resolver, error) { return rcfg.Recoverer, nil }
+	rcfg.RecovererFor = func(string, PayloadKind, json.RawMessage) (Resolver, error) { return rcfg.Recoverer, nil }
 	if res := runRestore(t, rcfg, rc); res.Status != StatusCompleted {
 		t.Fatalf("new restore run = %+v", res)
 	}

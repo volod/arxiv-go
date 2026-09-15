@@ -178,10 +178,13 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 
 	c := s.Stats.Snapshot()
 	attrs := []any{"op", s.cfg.Op, "run_id", s.Run.ID, "status", res.Status.String(),
-		"wall", FormatDuration(s.cfg.Now().Sub(s.started)), "files", c.Files, "bytes", c.Bytes,
-		"videos_done", c.VideosDone, "videos_skipped", c.VideosSkipped, "videos_failed", c.VideosFailed}
+		"wall", FormatDuration(s.cfg.Now().Sub(s.started)), "files", c.Files, "bytes", c.Bytes}
+	attrs = append(attrs, s.payloadFinishAttrs(c)...)
 	if c.PreviewsDone > 0 || c.PreviewsFailed > 0 {
 		attrs = append(attrs, "previews_done", c.PreviewsDone, "previews_failed", c.PreviewsFailed)
+	}
+	if c.TextsDone > 0 || c.TextsFailed > 0 {
+		attrs = append(attrs, "texts_done", c.TextsDone, "texts_failed", c.TextsFailed)
 	}
 	switch res.Status {
 	case StatusInterrupted:
@@ -204,6 +207,16 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 	return res
 }
 
+// payloadFinishAttrs are the payload counters of the finish line, keyed by the payload's counter
+// names (videos_* for video and scan, catia_* for CATIA).
+func (s *Session) payloadFinishAttrs(c state.Counters) []any {
+	if s.payload == nil || s.payload.kind == PayloadVideo {
+		return []any{"videos_done", c.VideosDone, "videos_skipped", c.VideosSkipped, "videos_failed", c.VideosFailed}
+	}
+	t, prefix := s.payload.totals(c), s.payload.plural
+	return []any{prefix + "_done", t.done, prefix + "_skipped", t.skipped, prefix + "_failed", t.failed}
+}
+
 func (s *Session) classify(ctx context.Context, err error) Status {
 	switch {
 	case err == nil && ctx.Err() == nil:
@@ -211,7 +224,8 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 		s.mu.Lock()
 		issues := len(s.issues) > 0 || s.issuesOmitted > 0 || s.partial
 		s.mu.Unlock()
-		if issues || c.VideosSkipped > 0 || c.VideosFailed > 0 || c.PreviewsFailed > 0 {
+		t := s.Progress.payloadOf(c)
+		if issues || t.skipped > 0 || t.failed > 0 || c.PreviewsFailed > 0 || c.TextsFailed > 0 {
 			return StatusPartial
 		}
 		return StatusCompleted
@@ -265,8 +279,9 @@ func (s *Session) report(res Result) state.Report {
 		Issues: append([]state.Issue(nil), s.issues...), IssuesOmitted: s.issuesOmitted,
 		Scan: s.scanSummary,
 	}
-	if s.cfg.VideoArchive != "" {
-		r.Roots = append(r.Roots, state.RootStats{Root: s.cfg.VideoArchive, BytesWritten: c.VideoWritten, BytesFreed: c.VideoFreed})
+	if s.payload != nil {
+		t := s.payload.totals(c)
+		r.Roots = append(r.Roots, state.RootStats{Root: s.cfg.Payload.Root, BytesWritten: t.mirrorWritten, BytesFreed: t.mirrorFreed})
 	}
 	return r
 }

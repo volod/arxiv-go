@@ -12,8 +12,8 @@ import (
 	"github.com/volod/arxiv-go/internal/fsops"
 )
 
-// Lock roles: the archive root holds the owning lock; the video archive root holds a mirror lock
-// naming the archive run.
+// Lock roles: the archive root holds the owning lock; the payload's mirror root (video or CATIA
+// archive) holds a mirror lock naming the archive run.
 const (
 	RoleArchive = "archive"
 	RoleMirror  = "mirror"

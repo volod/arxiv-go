@@ -34,6 +34,66 @@ func ChooseDescriptionPath(srcAbs, relPath string) (string, error) {
 	return "", fmt.Errorf("description conflict near %s: no available filename", srcAbs)
 }
 
+// ChooseTextSidecarPath picks an absolute CATIA text sidecar path next to the original file at
+// srcAbs. Preference: <name>.text.md, then <name>.arxgo.text.md, then the indexed description
+// rule with a .text.md suffix. An existing sidecar whose first line names relPath is reused.
+func ChooseTextSidecarPath(srcAbs, relPath string) (string, error) {
+	dir := filepath.Dir(srcAbs)
+	base := filepath.Base(srcAbs)
+	if p, ok, err := tryTextName(dir, base+".text.md", relPath); ok || err != nil {
+		return p, err
+	}
+	if p, ok, err := tryTextName(dir, base+".arxgo.text.md", relPath); ok || err != nil {
+		return p, err
+	}
+	for i := 1; i <= maxDescriptionIndex; i++ {
+		name, ok := indexedTextName(base, i, dir)
+		if !ok {
+			continue
+		}
+		if p, done, err := tryTextName(dir, name, relPath); done || err != nil {
+			return p, err
+		}
+	}
+	return "", fmt.Errorf("text sidecar conflict near %s: no available filename", srcAbs)
+}
+
+func tryTextName(dir, name, relPath string) (string, bool, error) {
+	if name == "" || !fitsName(dir, name) {
+		return "", false, nil
+	}
+	p := filepath.Join(dir, name)
+	occ, err := InspectTextSidecar(p, relPath)
+	if err != nil {
+		return "", false, err
+	}
+	switch occ {
+	case DescriptionAbsent, DescriptionOwned:
+		return p, true, nil
+	default:
+		return "", false, nil
+	}
+}
+
+func indexedTextName(fileName string, idx int, dir string) (string, bool) {
+	stem, ext := splitVideoName(fileName)
+	suffix := fmt.Sprintf("-%d%s.text.md", idx, ext)
+	prefix := truncateUnits(stem, nameMax-pathUnitLen(suffix))
+	for {
+		name := prefix + suffix
+		if prefix == "" {
+			name = strings.TrimPrefix(suffix, "-")
+		}
+		if fitsName(dir, name) {
+			return name, true
+		}
+		if prefix == "" {
+			return "", false
+		}
+		prefix = dropLastRune(prefix)
+	}
+}
+
 func tryDescriptionName(dir, name, relPath string) (string, bool, error) {
 	if name == "" || !fitsName(dir, name) {
 		return "", false, nil

@@ -62,17 +62,17 @@ var defaultHandlers = Handlers{
 	},
 	Split: func(ctx context.Context, o SplitOptions, log *slog.Logger) int {
 		d := o
-		d.Common, d.CreateVideoArchive = definingCommon(o.Common), false
+		d.Common, d.CreateMirror = definingCommon(o.Common), false
 		cfg := sessionConfig(OpSplit, o.Common, o, d)
-		cfg.CreateVideoArchive = o.CreateVideoArchive
+		cfg.CreateMirror = o.CreateMirror
 		cfg.Preflight.Transfer = o.Transfer
 		scan := scanConfig(o.Archive, o.ScanSettings, o.Tools.Path(media.FFprobe), false)
-		scan.SkipPaths = []string{o.VideoArchive}
+		scan.SkipPaths = []string{cfg.Payload.Root}
 		resolver := splitResolver(o)
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
 			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Descriptions: resolver.Descriptions,
-			Preview: o.Preview, Tools: o.Tools,
+			Preview: o.Preview, Tools: o.Tools, CatiaText: o.CatiaText,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {
@@ -82,16 +82,18 @@ var defaultHandlers = Handlers{
 		cfg.Preflight.Transfer = o.Transfer
 		resolver := restoreResolver(o)
 		cfg.Recoverer = resolver
-		return runSession(ctx, cfg, log, archive.RestoreBody(archive.RestoreConfig{
+		rc := archive.RestoreConfig{
 			Scan: archive.ScanConfig{
-				Root: o.VideoArchive, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
+				Root: cfg.Payload.Root, Metadata: MetadataFile, LargeThreshold: int64(defaultLarge),
 				SkipPaths: []string{o.Archive},
 			},
 			Transfer: o.Transfer, Verify: resolver.Verify,
 			CreateDirs: o.CreateDirs, Overwrite: o.Overwrite, RegistryUpdate: o.RegistryUpdate,
 			KeepDescriptions: resolver.KeepDescriptions, KeepSource: resolver.KeepSource,
 			DeletePreviews: o.Previews == PolicyDelete,
-		}))
+		}
+		cfg.SidecarCleanup = archive.RestoreSidecarCleanup(cfg.Payload.Kind, rc)
+		return runSession(ctx, cfg, log, archive.RestoreBody(rc))
 	},
 }
 

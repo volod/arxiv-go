@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -83,6 +84,7 @@ func buildEdgeCaseTree(t *testing.T, root string) {
 		"deep/l1/l2/sibling.txt":      []byte("sibling\n"),
 		"arxgo-registry.csv":          []byte("old registry\n"),
 		"arxgo-videos.csv":            []byte("reserved\n"),
+		"arxgo-catia.csv":             []byte("reserved catia\n"),
 		"sub/left.arxgo-part":         []byte("reserved part\n"),
 		"sub/arxgo-registry.csv":      []byte("not reserved below the root\n"),
 		".hidden":                     []byte("hidden file\n"),
@@ -111,7 +113,7 @@ func buildEdgeCaseTree(t *testing.T, root string) {
 // scanConfig returns a session configuration for a scan of r.archive writing the default registry.
 func scanSessionConfig(r roots, clock *fakeClock, every int) Config {
 	cfg := testConfig(r, clock, 100)
-	cfg.Op, cfg.VideoArchive = opScan, ""
+	cfg.Op, cfg.Payload = opScan, Payload{}
 	cfg.Registry = filepath.Join(r.archive, "arxgo-registry.csv")
 	cfg.CheckpointEvery = every
 	cfg.Preflight = PreflightOptions{MinFree: 0}
@@ -123,6 +125,8 @@ func testScanConfig(r roots) ScanConfig {
 		Root: r.archive, Registry: filepath.Join(r.archive, "arxgo-registry.csv"),
 		LargeThreshold: fixtureThreshold, VideoExtensions: []string{".DAT"}, Preflight: true,
 		Workers: 3, Window: 4,
+		// The scan tests check the split candidate selection of the video payload.
+		Candidate: func(_ string, ft scanner.FileType) bool { return videoPayload.candidate(ft) },
 	}
 }
 

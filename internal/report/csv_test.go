@@ -41,7 +41,7 @@ func TestRegistryWriterQuotingAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{row.RelPath, row.FileName, "42", "mp4", "video/mp4", "true", "true", "false", "true", "false"}
+	want := []string{row.RelPath, row.FileName, "mp4", "42", "false", "video/mp4", "true", "true", "false", "true", "false"}
 	want = append(want, MetadataCells(meta)...)
 	if len(records) != 2 || !reflect.DeepEqual(records[0], RegistryHeader) || !reflect.DeepEqual(records[1], want) {
 		t.Errorf("records = %q", records)
@@ -73,7 +73,7 @@ func TestRegistryResumeTruncatesToOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)
-	if int64(len(data)) != end || strings.Contains(string(data), "lost") || !strings.Contains(string(data), "\nb,b,0,,,false,false,false,false,false,") {
+	if int64(len(data)) != end || strings.Contains(string(data), "lost") || !strings.Contains(string(data), "\nb,b,,0,false,,false,false,false,false,false,") {
 		t.Errorf("resumed registry %q (end %d)", data, end)
 	}
 	if _, err := ResumeRegistry(path, end+1); !errors.Is(err, ErrPartTooShort) {
@@ -120,5 +120,51 @@ func TestMarkRestoredAndHasMoved(t *testing.T) {
 	}
 	if !HasMoved(rows) {
 		t.Fatal("original still has moved")
+	}
+}
+
+func TestFileRegistryHeaderOrder(t *testing.T) {
+	want := []string{
+		"rel_path", "file_name", "file_type", "file_size", "is_large", "file_mime",
+		"is_binary", "is_media", "is_picture", "is_video", "is_catia",
+	}
+	if got := RegistryHeader[:FileRegistryKeep]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("required header = %q, want %q", got, want)
+	}
+}
+
+func TestLoadRegistryRejectsPreviousColumnOrder(t *testing.T) {
+	old := "rel_path,file_name,file_size,file_type,file_mime,is_binary,is_media,is_picture,is_video,is_large\na,a,1,txt,text/plain,false,false,false,false,false\n"
+	if _, err := ReadRegistry(strings.NewReader(old)); err == nil || !strings.Contains(err.Error(), "unexpected header") {
+		t.Fatalf("old header: %v", err)
+	}
+}
+
+func TestRegistryRoundTripFlagsAndMetadata(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reg.csv")
+	w, err := CreateRegistry(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := FileMetadata(time.Date(2024, 5, 1, 10, 22, 3, 0, time.UTC))
+	meta.LinkTarget = "fixture-target"
+	row := RegistryRow{
+		RelPath: "cad/fixture-part.CATPart", FileName: "fixture-part.CATPart", FileSize: 12,
+		FileType: "catpart", FileMIME: "application/octet-stream",
+		IsBinary: true, IsCatia: true, IsLarge: true, Metadata: meta,
+	}
+	if err := w.Write(row); err != nil || w.Close() != nil {
+		t.Fatal(err)
+	}
+	if err := DropEmptyCSVColumns(path, FileRegistryKeep); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadRegistry(path)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("loaded = %+v (%v)", got, err)
+	}
+	got[0].Metadata.Media = nil
+	if !reflect.DeepEqual(got[0], row) {
+		t.Fatalf("round trip\n got %+v\nwant %+v", got[0], row)
 	}
 }

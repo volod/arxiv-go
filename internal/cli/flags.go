@@ -11,7 +11,8 @@ import (
 
 // settings holds raw flag values before they are validated into per-operation Options.
 type settings struct {
-	archive, videoArchive                    string
+	archive, videoArchive, catiaArchive      string
+	video, catia                             bool
 	logLevel, logFormat                      string
 	progressInterval, checkpointInterval     time.Duration
 	checkpointEvery                          int
@@ -29,6 +30,7 @@ type settings struct {
 	sampleDuration, sampleEvery              time.Duration
 	imageEvery                               time.Duration
 	previewMaxItems                          int
+	catiaText                                bool
 
 	// reserved maps an unavailable feature flag name to its value, recording whether it was given.
 	reserved map[string]*reservedValue
@@ -122,7 +124,7 @@ func reserved(isBool bool) func(*flag.FlagSet, *settings, string, string) {
 
 func stringField(s *settings, name string) *string {
 	fields := map[string]*string{
-		"archive": &s.archive, "video-archive": &s.videoArchive, "log-level": &s.logLevel,
+		"archive": &s.archive, "video-archive": &s.videoArchive, "catia-archive": &s.catiaArchive, "log-level": &s.logLevel,
 		"log-format": &s.logFormat, "registry": &s.registry, "metadata": &s.metadata,
 		"transfer": &s.transfer, "verify": &s.verify, "descriptions": &s.descriptions, "previews": &s.previews,
 		"base-url": &s.baseURL, "video-extensions": &s.videoExtensions,
@@ -138,6 +140,7 @@ func boolField(s *settings, name string) *bool {
 		"dry-run": &s.dryRun, "new-run": &s.newRun, "force-unlock": &s.forceUnlock,
 		"follow-symlinks": &s.followSymlinks, "create-dirs": &s.createDirs,
 		"overwrite": &s.overwrite, "registry-update": &s.registryUpdate,
+		"video": &s.video, "catia": &s.catia, "catia-text": &s.catiaText,
 	}
 	return fields[name]
 }
@@ -192,8 +195,14 @@ func parseFlags(op string, args []string, lookupEnv lookupFunc) (*settings, erro
 		return nil, fmt.Errorf("unexpected argument %q", extra)
 	}
 	fs.Visit(func(f *flag.Flag) { s.explicit[f.Name] = "--" + f.Name })
+	// --video and --catia resolve as one setting: a payload flag on the command line ignores both
+	// payload variables.
+	payloadOnCommandLine := s.explicit["video"] != "" || s.explicit["catia"] != ""
 	for _, d := range flagTable {
 		if !d.appliesTo(op) || s.explicit[d.name] != "" {
+			continue
+		}
+		if payloadOnCommandLine && (d.name == "video" || d.name == "catia") {
 			continue
 		}
 		v, source, ok := lookupEnv(EnvName(d.name))

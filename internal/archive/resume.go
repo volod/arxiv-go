@@ -32,8 +32,12 @@ func (s *Session) openRun(ctx context.Context) error {
 	}
 	ro := state.RunOptions{
 		V: 1, RunID: s.Run.ID, Op: cfg.Op, Version: cfg.Version, CreatedAt: s.started.UTC(),
-		Archive: cfg.Archive, VideoArchive: cfg.VideoArchive, DryRun: cfg.DryRun,
-		Defining: defining, Options: options,
+		Archive: cfg.Archive, DryRun: cfg.DryRun, Defining: defining, Options: options,
+	}
+	setRunPayload(&ro, cfg.Payload)
+	if cfg.Op == opRestore {
+		cleanup := cfg.SidecarCleanup
+		ro.SidecarCleanup = &cleanup
 	}
 	if err := state.WriteJSON(s.Run.File(state.OptionsFile), ro); err != nil {
 		return err
@@ -69,7 +73,7 @@ func (s *Session) tryResume(ctx context.Context, defining json.RawMessage) (bool
 	if err := state.ReadJSON(rd.File(state.OptionsFile), &prev); err != nil {
 		return false, err
 	}
-	if s.cfg.NewRun || !prev.SameDefinition(s.cfg.Op, defining) {
+	if s.cfg.NewRun || !prev.SameDefinition(s.cfg.Op, defining) || runPayload(prev) != s.cfg.Payload {
 		if err := s.recoverReplaced(ctx, rd, prev); err != nil {
 			return false, err
 		}
@@ -109,6 +113,7 @@ func (s *Session) recoverWAL(ctx context.Context) error {
 	if s.cfg.Recoverer == nil {
 		return nil
 	}
+	resolverAttach(s.cfg.Recoverer, s.Log, ctx)
 	_, err = state.Recover(ctx, w, s.cfg.Recoverer, s.Log)
 	return err
 }

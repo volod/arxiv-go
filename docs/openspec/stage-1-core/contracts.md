@@ -296,6 +296,11 @@ types, durations in nanoseconds and sizes in bytes. `dry_run` is present only fo
 Split and restore runs always carry `payload` (`video` or `catia`) and the matching mirror root,
 `video_archive` or `catia_archive`; `scan` carries neither. Replays of earlier runs read only runs of
 the selected payload ([run history by payload](../stage-4-catia/split-restore.md#run-history-by-payload)).
+Restore runs also carry `sidecar_cleanup` (boolean): `true` when the run deletes the owned
+post-commit sidecars of the files it restores (`--previews delete` for video, `--descriptions delete`
+for CATIA). The archive layer writes it from the restore configuration, not from the CLI option
+names, and readers use only this field to learn an earlier restore's cleanup intent; a restore run
+without it (written by an earlier build) counts as `false`.
 
 ## Checkpoint
 

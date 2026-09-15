@@ -17,8 +17,10 @@ type walAcc struct {
 	description string // archive-relative description path
 	sha         string
 	status      string
+	catia       *state.CatiaSummary // CATIA split: summary from the described record
 }
 
+// writeVideoOutputs writes arxgo-videos.csv into the archive and the video archive.
 func writeVideoOutputs(s *Session, c SplitConfig) error {
 	if err := s.Phase(phaseReport, Totals{}); err != nil {
 		return err
@@ -31,64 +33,70 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 	if err := report.WriteVideoCSV(&b, rows); err != nil {
 		return err
 	}
-	csvBuf := []byte(b.String())
-	for _, root := range []string{s.cfg.Archive, s.cfg.VideoArchive} {
-		if root == "" {
-			continue
-		}
-		if err := s.cfg.FS.AtomicWriteFile(filepath.Join(root, scanner.VideoRegistryName), csvBuf, 0o644); err != nil {
-			return err
-		}
+	if err := videoPayload.writeRegistryCopies(s, []byte(b.String())); err != nil {
+		return err
 	}
 	s.Log.Info("wrote video registry", "videos", len(rows), "csv", scanner.VideoRegistryName)
 	return nil
 }
 
 func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
-	existing, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
+	existing, err := loadVideoRegistry(s)
 	if err != nil {
 		return nil, err
 	}
-	regRows, err := report.LoadRegistry(c.Scan.Registry)
-	if err != nil {
-		s.Log.Warn("video registry: file registry unavailable", "error", err)
-	}
-	byReg := report.RegistryByPath(regRows)
+	byReg := fileRegistryRows(s, c)
 	fill := func(row *report.VideoRow) { fillVideoRow(row, byReg, c.BaseURL) }
 	merged, err := replayArchive(s, existing, fill)
 	if err != nil {
 		return nil, err
 	}
-	issueRows := rowsFromIssues(s.Issues())
-	for i := range issueRows {
-		fill(&issueRows[i])
+	var issueRows []report.VideoRow
+	for _, p := range rowsFromIssues(s.Issues()) {
+		row := report.VideoRow{RelPath: p.RelPath, FileName: p.FileName, Status: p.Status}
+		fill(&row)
+		issueRows = append(issueRows, row)
 	}
 	merged = report.MergeVideoRows(merged, issueRows)
-	if c.BaseURL != "" {
-		for i := range merged {
-			if merged[i].Status == report.StatusMoved {
-				merged[i].URL = report.ComposeURL(c.BaseURL, merged[i].RelPath)
-			}
-		}
-	}
 	for i := range merged {
-		if !scanner.LocalRelPath(merged[i].RelPath) {
-			continue
-		}
-		if merged[i].URL == "" || (merged[i].Status == report.StatusRestored && strings.HasPrefix(merged[i].URL, "file:")) {
-			root := s.cfg.Archive
-			if merged[i].Status == report.StatusMoved {
-				root = s.cfg.VideoArchive
-			}
-			merged[i].URL = report.FileURL(filepath.ToSlash(filepath.Join(root, filepath.FromSlash(merged[i].RelPath))))
-		}
+		p := merged[i].Payload()
+		finishURL(s, c.BaseURL, &p)
+		merged[i].URL = p.URL
 	}
 	return merged, nil
 }
 
-// replayArchive reads the current WAL history of the archive and replays it onto existing rows.
+// fileRegistryRows indexes the file registry the split scan wrote, to complete registry rows.
+func fileRegistryRows(s *Session, c SplitConfig) map[string]report.RegistryRow {
+	regRows, err := report.LoadRegistry(c.Scan.Registry)
+	if err != nil {
+		s.Log.Warn(s.payload.noun+" registry: file registry unavailable", "error", err)
+	}
+	return report.RegistryByPath(regRows)
+}
+
+// finishURL sets the url of a payload row: the --base-url link of a moved row, otherwise a file URL
+// into the mirror root while moved and into the archive after restore or when skipped.
+func finishURL(s *Session, baseURL string, row *report.PayloadRow) {
+	if baseURL != "" && row.Status == report.StatusMoved {
+		row.URL = report.ComposeURL(baseURL, row.RelPath)
+	}
+	if !scanner.LocalRelPath(row.RelPath) {
+		return
+	}
+	if row.URL == "" || (row.Status == report.StatusRestored && strings.HasPrefix(row.URL, "file:")) {
+		root := s.cfg.Archive
+		if row.Status == report.StatusMoved {
+			root = s.cfg.Payload.Root
+		}
+		row.URL = report.FileURL(filepath.ToSlash(filepath.Join(root, filepath.FromSlash(row.RelPath))))
+	}
+}
+
+// replayArchive reads the video run history of the archive and replays it onto existing rows. Runs
+// of another payload never contribute rows.
 func replayArchive(s *Session, existing []report.VideoRow, fill func(*report.VideoRow)) ([]report.VideoRow, error) {
-	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
+	history, err := readHistory(s.cfg.Archive, PayloadVideo)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +131,23 @@ func replayVideoRows(existing []report.VideoRow, history []runHistory, idx *prev
 
 // videoEvents reduces one run's WAL to its final split rows and the rel_paths it restored.
 func videoEvents(run runHistory) ([]report.VideoRow, map[string]struct{}) {
+	split, restored := splitEvents(run)
+	out := make([]report.VideoRow, 0, len(split))
+	for _, a := range split {
+		p := a.payloadRow()
+		out = append(out, report.VideoRow{
+			RelPath: p.RelPath, DescriptionRelPath: p.DescriptionRelPath, FileName: p.FileName,
+			FileSize: p.FileSize, SHA256: p.SHA256, Transfer: p.Transfer, Status: p.Status, RunID: p.RunID,
+		})
+	}
+	return out, restored
+}
+
+// splitEvents reduces one run's WAL to the final split transaction of each rel_path and the
+// rel_paths it restored.
+func splitEvents(run runHistory) (map[string]*walAcc, map[string]struct{}) {
 	open := map[string]*walAcc{}
-	byRel := map[string]report.VideoRow{}
+	byRel := map[string]*walAcc{}
 	restored := map[string]struct{}{}
 	for _, rec := range run.records {
 		a := open[rec.TxID]
@@ -138,35 +161,36 @@ func videoEvents(run runHistory) ([]report.VideoRow, map[string]struct{}) {
 			}
 		case rec.Step == state.StepVerified && rec.SHA256 != "":
 			a.sha = rec.SHA256
-		case rec.Step == state.StepDescribed && rec.Description != "":
-			a.description, _ = run.archiveRel(rec.Description)
+		case rec.Step == state.StepDescribed:
+			if rec.Description != "" {
+				a.description, _ = run.archiveRel(rec.Description)
+			}
+			a.catia = rec.Catia
 		case rec.Step == state.StepCommit:
 			a.status = report.StatusMoved
-			byRel[a.begin.RelPath] = a.row()
+			byRel[a.begin.RelPath] = a
 		case rec.Step == state.StepAborted:
-			if old, ok := byRel[a.begin.RelPath]; ok && old.Status == report.StatusMoved {
+			if old, ok := byRel[a.begin.RelPath]; ok && old.status == report.StatusMoved {
 				continue
 			}
 			a.status = abortStatus(rec.Reason)
-			byRel[a.begin.RelPath] = a.row()
+			byRel[a.begin.RelPath] = a
 		}
 	}
-	out := make([]report.VideoRow, 0, len(byRel))
-	for _, r := range byRel {
-		out = append(out, r)
-	}
-	return out, restored
+	return byRel, restored
 }
 
-func (a *walAcc) row() report.VideoRow {
+func (a *walAcc) payloadRow() report.PayloadRow {
 	rel := a.begin.RelPath
-	return report.VideoRow{
+	return report.PayloadRow{
 		RelPath: rel, DescriptionRelPath: a.description,
 		FileName: path.Base(rel), FileSize: a.begin.Size, SHA256: a.sha,
 		Transfer: a.begin.Transfer, Status: a.status, RunID: runIDFromTxID(a.begin.TxID),
 	}
 }
 
+// abortStatus is the registry status of an aborted split: conflict at the destination, otherwise
+// skipped.
 func abortStatus(reason string) string {
 	if strings.Contains(reason, "destination") {
 		return report.StatusConflict
@@ -174,16 +198,15 @@ func abortStatus(reason string) string {
 	return report.StatusSkipped
 }
 
-func rowsFromIssues(issues []state.Issue) []report.VideoRow {
-	var out []report.VideoRow
+// rowsFromIssues are the rows of candidates the run skipped before a transaction began.
+func rowsFromIssues(issues []state.Issue) []report.PayloadRow {
+	var out []report.PayloadRow
 	for _, is := range issues {
 		st := report.StatusSkipped
 		if strings.Contains(is.Reason, "destination") {
 			st = report.StatusConflict
 		}
-		out = append(out, report.VideoRow{
-			RelPath: is.RelPath, FileName: path.Base(is.RelPath), Status: st,
-		})
+		out = append(out, report.PayloadRow{RelPath: is.RelPath, FileName: path.Base(is.RelPath), Status: st})
 	}
 	return out
 }

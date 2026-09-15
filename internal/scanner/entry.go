@@ -7,6 +7,7 @@ const (
 	StateDirName      = ".arxgo"
 	RegistryName      = "arxgo-registry.csv"
 	VideoRegistryName = "arxgo-videos.csv"
+	CatiaRegistryName = "arxgo-catia.csv"
 	PartSuffix        = ".arxgo-part" // same value as fsops.PartSuffix
 )
 

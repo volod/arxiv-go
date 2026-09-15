@@ -54,6 +54,8 @@ func checkFileRegistry(t *testing.T, g *genArchive, before manifest) map[string]
 			t.Errorf("%s: is_video=%v, want %v", rel, row.IsVideo, g.videos[rel])
 		case row.IsVideo && !row.IsMedia:
 			t.Errorf("%s: video row is not media", rel)
+		case row.IsCatia != g.isCatia(rel):
+			t.Errorf("%s: is_catia=%v, want %v", rel, row.IsCatia, g.isCatia(rel))
 		case row.IsLarge:
 			t.Errorf("%s: is_large below the default threshold", rel)
 		}

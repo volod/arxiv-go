@@ -150,6 +150,10 @@ For preflight: sample bytes = total sample seconds x bitrate estimate (`sd` 1 Mb
   size; unrecorded files are never deleted. The WAL logs `preview_delete` before removal and
   `preview_deleted` after it; an interrupted delete is finished by the next restore. A changed file
   is kept and reported as a skipped item (exit 6).
+- Previews of videos restored by an earlier interrupted restore that another run replaced follow
+  [replaced restores](../stage-4-catia/split-restore.md#replaced-restores): the next restore with
+  `--previews delete` deletes them when that earlier run's `options.json` records
+  `sidecar_cleanup: true`.
 - The description is updated or deleted according to `--descriptions`.
 
 ## Release bundle
@@ -192,5 +196,5 @@ arxgo-<version>-windows-amd64.zip     arxgo.exe, ffmpeg.exe, ffprobe.exe, .env.e
 - Planning (positions, counts, names, resolution clamp) is pure Go and unit-tested without ffmpeg.
 - Failure injection: ffmpeg exits non-zero -> no preview file, video still moved, exit 6.
 - Restore `--previews delete` removes recorded previews only, also after a crash between the restore
-  commit and the deletion.
+  commit and the deletion, including when another run replaced the crashed restore.
 - A split, restore with kept previews, split sequence links the kept previews in the new description.

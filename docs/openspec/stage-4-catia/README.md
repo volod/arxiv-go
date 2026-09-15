@@ -38,7 +38,8 @@ flowchart LR
     SPL --> TXT[implement-catia-text-sidecars]
     SPL --> RST[implement-catia-restore]
     TXT --> RST
-    RST --> PROOF[prove-stage-4-on-generated-archive]
+    RST --> REP[repair-replaced-restore-sidecar-cleanup]
+    REP --> PROOF[prove-stage-4-on-generated-archive]
     PROOF --> CP{{review-stage-4-catia}}
     PROOF --> OP[/approve-stage-4-on-operator-catia-copy/]
 ```

@@ -28,7 +28,8 @@ conflict, directory and description policies as video.
   `--catia` requires `--catia-archive`, with the existence, creation and lock rules of the video
   archive. `--video-archive` on the command line together with `--catia`, or `--catia-archive`
   without it, exits 2 naming the right flag, so a CATIA run can never write into the video archive
-  by a copied command line. Environment values for the other payload's root are ignored.
+  by a copied command line. Environment values for the other payload's root do not select or
+  record a root; they are only compared by the nesting rule below.
 - The archive, the video archive and the CATIA archive are pairwise neither equal nor nested
   whenever they are set ([validation](../stage-1-core/cli.md#validation)). In this page "the mirror"
   means the CATIA archive.
@@ -109,9 +110,31 @@ with a warning, as for video.
 - `--descriptions delete` removes `<rel_path>.md` only when its marker names this CATIA file, and
   each owned sidecar only when its first line is `arxgo-text: <rel_path>`, under WAL events
   `text_delete` / `text_deleted` (size-checked like preview cleanup). `--descriptions keep` keeps
-  both.
+  both. A sidecar whose size, type or first line changed is kept and reported (exit 6).
+- Sidecars an interrupted restore left behind follow [replaced restores](#replaced-restores).
 - A CATIA file present in the mirror while its registry row says `restored` is restored again (the
   filesystem is the source of truth) and logged.
+
+## Replaced restores
+
+Sidecar deletion runs after `commit`, so a restore interrupted between a commit and its sidecar
+deletion leaves owned sidecars of a restored file. When the same run resumes, it deletes them
+before execute. When another run replaces it instead (other options, `--new-run`, or a command of
+the other payload that rolls its transactions forward), the replacing run has no candidate for that
+file. The rule is the same for both payloads (video previews and CATIA text sidecars):
+
+- A restore whose own `sidecar_cleanup` is `true` deletes, before execute, the owned sidecars of
+  every file whose last transaction in the payload's history is a restore committed by an earlier
+  run whose [`options.json`](../stage-1-core/contracts.md#run-options) records
+  `sidecar_cleanup: true`. A restore with `sidecar_cleanup: false` never deletes a sidecar.
+- A file split again after that restore is excluded (its last transaction is a split), so sidecars
+  generated after a later split are never removed by this rule.
+- Deletion uses the payload's normal checks (recorded size; for CATIA also the first line) and
+  `*_delete` / `*_deleted` events in the current run's WAL. A changed sidecar is kept and logged, not
+  reported again, because the run that restored the file already owned that report. A kept video
+  description is refreshed as after a normal preview deletion.
+- The intent comes only from `sidecar_cleanup`, never from decoding CLI options or a rebuilt
+  recovery resolver, so the rule behaves the same with or without `Config.RecovererFor`.
 
 ## Reuse
 
@@ -149,3 +172,9 @@ begin/finish/part-file mechanism in `internal/state` with previews rather than a
 - Rerunning CATIA split or restore after success changes nothing and exits 0.
 - Crash after `placed`, and crash between `text_begin` and `text_done`, recover without duplicating
   or losing the CATIA original or leaving a part file.
+- A `restore --catia` killed after a commit and before its text deletion, then rolled forward by a
+  video restore, leaves no owned sidecar after the next `restore --catia`; the same holds for a
+  video `restore --previews delete` rolled forward by a CATIA restore or replaced with `--new-run`.
+  A restore with `sidecar_cleanup: false` keeps them (a later restore with cleanup still deletes
+  them), and so does any restore after a later split of the file; so does a replaced restore whose
+  own `sidecar_cleanup` was `false` or missing.

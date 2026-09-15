@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/csv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,33 +30,20 @@ func TestScanISOMetadataAndAudioOnlyRefinement(t *testing.T) {
 	if res.Status != StatusCompleted {
 		t.Fatalf("scan: %v: %v", res.Status, res.Err)
 	}
-	f, err := os.Open(filepath.Join(r.archive, "arxgo-registry.csv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	rows, err := csv.NewReader(f).ReadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	byName := map[string][]string{}
-	for _, row := range rows[1:] {
-		byName[row[0]] = row
-	}
 	parsed, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	byParsed := report.RegistryByPath(parsed)
-	for name, wantVideo := range map[string]string{"video.mp4": "true", "audio-only.mp4": "false", "broken.mp4": "true"} {
-		row := byName[name]
-		if row == nil || row[8] != wantVideo {
-			t.Fatalf("%s row = %v", name, row)
+	for name, wantVideo := range map[string]bool{"video.mp4": true, "audio-only.mp4": false, "broken.mp4": true} {
+		row, ok := byParsed[name]
+		if !ok || row.IsVideo != wantVideo {
+			t.Fatalf("%s is_video = %v, want %v", name, row.IsVideo, wantVideo)
 		}
-		if name == "audio-only.mp4" && row[4] != "video/mp4" {
-			t.Fatalf("audio-only MIME = %q; fixture must exercise video flag refinement", row[4])
+		if name == "audio-only.mp4" && row.FileMIME != "video/mp4" {
+			t.Fatalf("audio-only MIME = %q; fixture must exercise video flag refinement", row.FileMIME)
 		}
-		m := byParsed[name].Metadata
+		m := row.Metadata
 		if m.Media == nil || m.Media.Source != "go-mp4" {
 			t.Fatalf("%s media = %+v", name, m.Media)
 		}
@@ -131,39 +117,30 @@ func TestScanFFprobeMetadataAndISOFallback(t *testing.T) {
 	if res.Status != StatusCompleted {
 		t.Fatalf("scan: %v: %v", res.Status, res.Err)
 	}
-	f, err := os.Open(filepath.Join(r.archive, "arxgo-registry.csv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	rows, err := csv.NewReader(f).ReadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
 	parsed, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	byParsed := report.RegistryByPath(parsed)
-	for _, row := range rows[1:] {
-		m := byParsed[row[0]].Metadata
+	for rel, row := range byParsed {
+		m := row.Metadata
 		if m.Media == nil || m.Media.Source != "ffprobe" || m.Media.Error != "" {
-			t.Fatalf("%s media = %+v", row[0], m.Media)
+			t.Fatalf("%s media = %+v", rel, m.Media)
 		}
-		switch row[0] {
+		switch rel {
 		case "damaged.avi":
 			// A misprobed file with neither audio nor video streams keeps its extension-based flag.
-			if row[8] != "true" || m.Media.Container != "lrc" || m.Media.VideoStreams != 0 {
-				t.Fatalf("damaged row = %v media = %+v", row, m.Media)
+			if !row.IsVideo || m.Media.Container != "lrc" || m.Media.VideoStreams != 0 {
+				t.Fatalf("damaged row = %+v media = %+v", row, m.Media)
 			}
-			continue
-		}
-		if row[0] == "audio-only.avi" {
-			if row[8] != "false" || m.Media.VideoStreams != 0 || !m.Media.HasAudio {
-				t.Fatalf("audio-only row = %v media = %+v", row, m.Media)
+		case "audio-only.avi":
+			if row.IsVideo || m.Media.VideoStreams != 0 || !m.Media.HasAudio {
+				t.Fatalf("audio-only row = %+v media = %+v", row, m.Media)
 			}
-		} else if row[8] != "true" || m.Media.VideoCodec != "mpeg4" {
-			t.Fatalf("video row = %v media = %+v", row, m.Media)
+		default:
+			if !row.IsVideo || m.Media.VideoCodec != "mpeg4" {
+				t.Fatalf("video row = %+v media = %+v", row, m.Media)
+			}
 		}
 	}
 	var candidates []string

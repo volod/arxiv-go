@@ -1,7 +1,7 @@
 # arxgo practical manual: Windows
 
-`arxgo.exe` catalogs a main archive, moves videos to a separate video archive, and restores
-them. Try the workflow on a disposable copy of representative data before using it on an
+`arxgo.exe` catalogs a main archive, moves videos to a separate video archive (and, with
+`--catia`, CATIA files to a separate CATIA archive), and restores them. Try the workflow on a disposable copy of representative data before using it on an
 irreplaceable archive.
 
 ## Unpack and configure the Windows bundle
@@ -61,13 +61,15 @@ The examples below run from the extracted bundle directory. If you move the exec
 ```
 
 `scan` is the default command and writes `D:\archive\arxgo-registry.csv`. It registers
-readable files and symlinks, marking binary, media, picture, video and large files. Directories
+readable files and symlinks, marking binary, media, picture, video, CATIA and large files. Directories
 and unreadable or special entries are reported as skipped. Symlinks are recorded but never
 followed. `--metadata file` (default) records filesystem metadata and, for MP4, MOV, M4A, M4V
 and 3GP, container duration, size and codecs, with no external tool. `--metadata media` adds
 the same fields for other audio and video files and requires `ffprobe.exe` at startup. Use
 `--registry PATH` to write the CSV elsewhere, `--video-extensions braw,r3d` for ambiguous
-video formats, or repeat `--exclude` for multiple relative patterns. Glob paths use `/` even
+video formats, or repeat `--exclude` for multiple relative patterns. CATIA extensions
+(`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) cannot appear in `--video-extensions`.
+Glob paths use `/` even
 on Windows, as in `cache/**`.
 
 ## Move videos to a video archive
@@ -82,8 +84,12 @@ on Windows, as in `cache/**`.
 `E:\video\projects\demo.mp4`, and a video description such as
 `D:\archive\projects\demo.mp4.md` points to it. Existing unrelated files are preserved;
 an occupied description name gets an alternate name. Non-video files remain in the main archive.
-Both roots receive `arxgo-videos.csv`. If a different file already
-occupies the video destination, split skips it, reports a conflict and exits 6.
+Both roots receive `arxgo-videos.csv`. Its columns start with `rel_path`, `file_name`, `status`,
+`url` and `description_rel_path`, followed by `file_size`, `sha256`, `transfer`, `run_id`,
+`file_mime`, `previews` and the metadata columns. Builds before this column order wrote another
+order and run state without a payload: such a registry stops split and restore with exit 5, and an
+interrupted run of such a build must be finished by that build before upgrading. If a different
+file already occupies the video destination, split skips it, reports a conflict and exits 6.
 
 The default `--transfer auto` uses a no-replace rename only when both roots are on the same
 filesystem/device. Two folders on one volume normally meet this condition. Separate volumes
@@ -141,6 +147,62 @@ have the next split regenerate it with the new options. Recorded previews and th
 temporary `*.arxgo-part.*` files are never treated as videos by later scans. macOS `._<name>`
 sidecar files are recognized as metadata, not videos.
 
+## Move CATIA files to a CATIA archive
+
+CATIA files (`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) move to their own
+archive with `--catia`. It is a separate run from the video split; one run moves one payload.
+
+```powershell
+.\arxgo.exe split --catia --archive 'D:\archive' --catia-archive 'F:\catia' --dry-run
+.\arxgo.exe split --catia --archive 'D:\archive' --catia-archive 'F:\catia' --verify hash
+.\arxgo.exe split --catia --catia-text --archive 'D:\archive' --catia-archive 'F:\catia'
+```
+
+`D:\archive\cad\bracket.CATPart` becomes `F:\catia\cad\bracket.CATPart`, and
+`D:\archive\cad\bracket.CATPart.md` describes it with the usual description fields and a
+`catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
+format, release, number of referenced documents). It never lists names or other text from inside
+the file. `--catia-text` writes a second owned file `cad\bracket.CATPart.text.md` whose first line
+is `arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable
+strings. Those strings can include authoring user ids and workstation paths; leave the flag unset
+unless that is wanted. If `<rel_path>.text.md` already holds a file that is not this sidecar, the
+owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the
+CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing
+and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
+archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
+ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
+`catia_release`, `catia_components` and `mtime` (a column empty in every row is omitted).
+Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
+A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+
+The CATIA archive must not be the main archive, the video archive, or inside either (or contain
+them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
+`--sample` or `--image`; `--catia-archive` without `--catia` is refused too. Each of these exits 2
+before anything is written. `ARXGO_VIDEO_ARCHIVE` in `.env` does not affect a CATIA run, and
+`ARXGO_CATIA_ARCHIVE` does not affect a video run. `ARXGO_CATIA=true` makes `--catia` the default;
+a `--video` or `--catia` flag on the command line overrides it.
+
+## Restore CATIA files
+
+```powershell
+.\arxgo.exe restore --catia --archive 'D:\archive' --catia-archive 'F:\catia' --dry-run
+.\arxgo.exe restore --catia --archive 'D:\archive' --catia-archive 'F:\catia' --create-dirs --verify hash
+```
+
+`restore --catia` scans the CATIA archive and returns CATIA files (and any other file
+`arxgo-catia.csv` records as moved) to their original relative paths, with the same
+`--create-dirs`, `--overwrite`, `--transfer`, `--verify` and empty-directory cleanup rules as
+video restore. The default `--descriptions delete` removes the arxgo-owned `.md` description and the
+owned `.text.md` sidecar (first line `arxgo-text: <rel_path>`) of each restored file; a foreign file
+at either name, or a sidecar you edited, is kept (an edited sidecar is reported, exit 6).
+`--descriptions keep` leaves both. Both `arxgo-catia.csv` copies mark restored rows; after the last
+moved row is restored with `--descriptions delete`, both are renamed to
+`arxgo-catia.restored-<run-id>.csv`. Videos, the video archive and `arxgo-videos.csv` are not
+touched. `--previews delete`, `--catia-text`, `--video-archive` on the command line and
+`--catia-archive` without `--catia` exit 2 before anything is written. If an interrupted CATIA
+restore that deleted descriptions was finished by another command (for example a video restore),
+the next `restore --catia` with `--descriptions delete` deletes the sidecars that run left.
+
 ## Restore videos
 
 ```powershell
@@ -156,7 +218,8 @@ matching arxgo-owned video descriptions; `--descriptions keep` leaves them. The 
 `--previews keep` leaves previews; `--previews delete` removes only recorded previews whose
 sizes still match. Changed and unrelated files remain. If a restore with `--previews delete` is
 interrupted, rerunning the same command also deletes the previews of videos it had already
-restored. A kept description (`--descriptions keep`) loses the links of deleted previews. By default, both video registries
+restored, even when another command (`--new-run`, other options, or a CATIA restore) finished the
+interrupted run first. A kept description (`--descriptions keep`) loses the links of deleted previews. By default, both video registries
 record restored rows, and complete registries may be renamed with
 `.restored-<run-id>` rather than deleted.
 
@@ -175,7 +238,9 @@ unfinished transfers are recovered and the scan resumes from its checkpoint.
 `--new-run` recovers unfinished transfers first, then starts a fresh scan. Do not delete
 transaction files or source/destination videos while recovery may need them. If a different
 command cannot lock the interrupted run's original roots, follow the exit-5 message and
-recover using those roots first.
+recover using those roots first. A video split or restore recovers an interrupted CATIA run (and a
+CATIA run an interrupted video run) by locking the mirror root recorded by that run while it recovers;
+after a killed process add `--force-unlock`.
 
 The run state stores the roots it was started with. Moving or remounting a whole archive (for
 example a disk that mounts under another path) keeps previews and registry links working, but

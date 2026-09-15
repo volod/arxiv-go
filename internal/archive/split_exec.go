@@ -13,12 +13,12 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
-// splitCandidate moves one video in a transaction: begin, place (rename, or copy and verify),
+// splitCandidate moves one payload file into the mirror root in a transaction: begin, place (rename, or copy and verify),
 // placed, description, described, remove the source after a copy, commit. A destination with the same
-// content is adopted; a different one is a conflict and the video is skipped.
+// content is adopted; a different one is a conflict and the file is skipped.
 func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolver, v Candidate, c *SplitConfig, list string) error {
 	src := filepath.Join(s.cfg.Archive, filepath.FromSlash(v.RelPath))
-	dst := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(v.RelPath))
+	dst := filepath.Join(s.cfg.Payload.Root, filepath.FromSlash(v.RelPath))
 	mode, err := transferMode(s, c.Transfer)
 	if err != nil {
 		return err
@@ -27,7 +27,7 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 	for {
 		fi, err := os.Lstat(src)
 		if err != nil || !fi.Mode().IsRegular() {
-			skipVideo(s, v, missingSourceReason(v.RelPath))
+			skipCandidate(s, v, missingSourceReason(v.RelPath))
 			return nil
 		}
 		adopted, conflict, err := destinationStatus(src, dst, fi.Size(), c.Verify)
@@ -38,7 +38,7 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 			if err := removeStalePart(dst); err != nil {
 				return err
 			}
-			skipVideo(s, v, "destination exists with different content")
+			skipCandidate(s, v, "destination exists with different content")
 			return nil
 		}
 		if adopted {
@@ -60,7 +60,7 @@ func splitCandidate(ctx context.Context, s *Session, w *state.WAL, r SplitResolv
 		var sum string
 		if adopted {
 			s.Log.Info("adopted existing destination", "rel_path", v.RelPath)
-		} else if sum, err = placeVideo(ctx, s, w, rec, t.mode, c.Verify, false, c.StageCopy); err != nil {
+		} else if sum, err = placePayload(ctx, s, w, rec, t.mode, c.Verify, false, c.StageCopy); err != nil {
 			switch outcome, err := t.placeFailed(ctx, rec, v, err); outcome {
 			case placeRetry:
 				if err != nil {
@@ -94,7 +94,7 @@ func finishSplit(s *Session, w *state.WAL, r SplitResolver, rec state.Record, su
 	if description != rec.Src+".md" {
 		s.Log.Warn("description collision; wrote fallback", "rel_path", rec.RelPath, "description", description)
 	}
-	if _, err := w.Append(rec.TxID, state.StepDescribed, state.Record{Description: description}); err != nil {
+	if _, err := w.Append(rec.TxID, state.StepDescribed, state.Record{Description: description, Catia: r.DescribedCatia(tx)}); err != nil {
 		return err
 	}
 	if rec.Transfer == state.TransferCopy {
@@ -108,14 +108,15 @@ func finishSplit(s *Session, w *state.WAL, r SplitResolver, rec state.Record, su
 	if _, err := w.Append(rec.TxID, state.StepCommit, state.Record{}); err != nil {
 		return err
 	}
-	s.Stats.VideosDone.Add(1)
-	s.Stats.VideoBytes.Add(rec.Size)
-	s.Stats.VideoArchiveWritten.Add(rec.Size)
+	counters := s.payload.counters(s.Stats)
+	counters.done.Add(1)
+	counters.bytes.Add(rec.Size)
+	counters.mirrorWritten.Add(rec.Size)
 	s.Stats.ArchiveFreed.Add(rec.Size)
 	if info, err := os.Stat(description); err == nil {
 		s.Stats.ArchiveWritten.Add(info.Size())
 	}
-	logMoved(s, "video moved", rec, largeThreshold)
+	logMoved(s, s.payload.noun+" moved", rec, largeThreshold)
 	return nil
 }
 
@@ -128,7 +129,8 @@ func logMoved(s *Session, msg string, rec state.Record, largeThreshold int64) {
 }
 
 func ensureMirrorDirs(s *Session, dst string) error {
-	rel, err := filepath.Rel(s.cfg.VideoArchive, filepath.Dir(dst))
+	mirror := s.cfg.Payload.Root
+	rel, err := filepath.Rel(mirror, filepath.Dir(dst))
 	if err != nil {
 		return err
 	}
@@ -140,7 +142,7 @@ func ensureMirrorDirs(s *Session, dst string) error {
 		chain = append(chain, p)
 	}
 	for i := len(chain) - 1; i >= 0; i-- {
-		path := filepath.Join(s.cfg.VideoArchive, chain[i])
+		path := filepath.Join(mirror, chain[i])
 		sourceDir := filepath.Join(s.cfg.Archive, chain[i])
 		fi, err := os.Stat(sourceDir)
 		if err != nil || !fi.IsDir() {

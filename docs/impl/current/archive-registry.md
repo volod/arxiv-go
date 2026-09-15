@@ -5,7 +5,9 @@ Accepted work: [0010 Directory walker](../records/0010-registry-implement-direct
 [0012 Scan operation and CSV registry](../records/0012-registry-implement-scan-operation-and-csv-registry.md).
 The flat CSV metadata layout was delivered in
 [0040](../records/0040-split-flatten-operator-csv-outputs.md); default ISO BMFF collection in
-[0041](../records/0041-metadata-collect-iso-metadata-by-default.md).
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md). `is_catia` and the current
+file-registry column order were added in
+[0043](../records/0043-catia-implement-catia-classification.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -30,10 +32,13 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   (`Window`, default 256) and hands files and symlinks to 16 detection workers (`scanner.Detect`,
   `os.Readlink`). A writer goroutine takes entries in order, waits for each one's detection and
   writes the row, so output never depends on detection timing. A write error cancels the walk.
-- Rows: regular files with the detected type, symlinks as `symlink` rows with `link_target`.
-  Directories, special entries (walker `special`), `Lstat` failures and files that cannot be opened
-  or read get no row; each is logged once, counted in `skipped` by reason and listed in the
-  report's `issues`. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
+- Rows: regular files with the detected type, including `is_catia` for the built-in CATIA
+  extensions (never `is_video`; AppleDouble sidecars are never CATIA). Symlinks are `symlink`
+  rows with `link_target`. Directories, special entries (walker `special`), `Lstat` failures and
+  files that cannot be opened or read get no row; each is logged once, counted in `skipped` by
+  reason and listed in the report's `issues`. The required columns are `rel_path`, `file_name`,
+  `file_type`, `file_size`, `is_large`, `file_mime`, `is_binary`, `is_media`, `is_picture`,
+  `is_video`, `is_catia`, then compactable metadata. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
   and 3GP, flat `media_*` columns from the ISO BMFF parser (a parse failure sets `media_error`).
   `--metadata media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
   and fills those columns for other audio/video files and ISO failures. A completed registry omits
@@ -56,10 +61,13 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   the cursor while a scan was interrupted is registered only by a later full scan (a later run);
   for `split` such a video is moved by the next split run.
 - Statistics: one `scan summary` log line and the report's `scan` section (files, dirs, symlinks,
-  bytes, the five flag totals, top 10 MIME types by bytes, skipped by reason, elapsed). The run
+  bytes, flag totals for binary, media, picture, video, catia and large, top 10 MIME types by bytes,
+  skipped by reason, elapsed). The `catia` object is omitted from report JSON when its count is
+  zero. The run
   counters `files`/`bytes` count rows. Skipped entries from an earlier process of the run still
   make it partial (`Session.MarkPartial`).
-- `--video-extensions` is now a scan flag used by `scan` and `split`, so both classify the same way.
+- `--video-extensions` is a scan flag used by `scan` and `split`, so both classify the same way. A
+  built-in CATIA extension in that list exits 2.
 
 Measured on the development host (i9-14900K, NVMe ext4, Go 1.27.1), binary on a 1.2 GiB copy of
 `/usr/share` (152,424 rows, 17,948 directories, 31,767 symlinks): 3.0-3.6 s with the default
@@ -87,7 +95,7 @@ below it, in walk order. It performs no type detection and writes no output.
   Directories wholly before the cursor are pruned with `SkipDir` and never listed; directories on
   the cursor's path are descended silently. Resuming near the end of a 20k-entry tree costs about
   0.1 ms instead of 33 ms for the full walk.
-- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`; the
+- Exclusion: root-level `.arxgo`, `arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-catia.csv`; the
   `.arxgo-part` suffix and preview part files `<stem>.arxgo-part.<ext>` at any depth; `Options.SkipPaths` (OS paths inside the root, for an explicit
   `--registry` or a nested video archive); and `Options.Exclude` globs compiled by `CompileGlob`
   (anchored at the root, `path.Match` per segment, `**` for zero or more segments, linear-time
@@ -132,10 +140,12 @@ row; `Classify(head, name, opts)` is the pure part over already-read bytes. Neit
   `BuiltinVideoExtensions` or the extras given to `NewDetectOptions` (dot and case ignored). A
   recognized signature always wins over the extension, so text named `.mp4` is not video. A
   macOS AppleDouble sidecar (`._clip.MP4`, magic `00 05 16 07`) is `multipart/appledouble`,
-  binary and never video: before [0034](../records/0034-preview-repair-stage-2-preview-defects.md)
+  binary and never video or CATIA: before [0034](../records/0034-preview-repair-stage-2-preview-defects.md)
   42 such 4 KiB files on an operator drone archive were moved as videos with previews that failed
   on every rerun.
   `IsPicture` is an `image/` type; `IsMedia` is video, picture or `audio/`.
+  `IsCatia` is a last-dotted suffix in the `internal/catia` kind table, independent of content;
+  those files have `IsVideo` cleared so they cannot also be split candidates.
 - `IsLarge` is `size >= LargeThreshold` using the size recorded for the row; a threshold of zero
   marks nothing large.
 - The ISO BMFF no-video-track refinement is not applied here: an audio-only `isom` MP4 and an

@@ -78,7 +78,7 @@ func (e previewExecutor) run(ctx context.Context, item *videoPreviews) error {
 		e.fail(item.video, "preview planning: "+item.err.Error())
 		return nil
 	}
-	source := filepath.Join(e.s.cfg.VideoArchive, filepath.FromSlash(item.video))
+	source := filepath.Join(e.s.cfg.Payload.Root, filepath.FromSlash(item.video))
 	if _, err := os.Lstat(source); err != nil {
 		e.fail(item.video, "preview source: "+err.Error())
 		return nil
@@ -107,7 +107,7 @@ func (e previewExecutor) generate(ctx context.Context, video, source string, job
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	begin, err := e.w.BeginPreview(video, job.Output, 0, false)
+	begin, err := e.w.BeginEvent(e.idx.family, video, job.Output, 0, false)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (e previewExecutor) generate(ctx context.Context, video, source string, job
 		if ctx.Err() != nil {
 			return ctx.Err() // unfinished, not failed: the resumed run removes the part and retries
 		}
-		if _, werr := e.w.FinishPreview(begin.TxID, state.StepPreviewFailed, "", 0, err.Error()); werr != nil {
+		if _, werr := e.w.FinishEvent(e.idx.family, begin.TxID, e.idx.family.Failed, "", 0, err.Error()); werr != nil {
 			return werr
 		}
 		e.fail(video, "preview: "+err.Error())
@@ -135,7 +135,7 @@ func (e previewExecutor) adopt(ctx context.Context, video, source, preview strin
 		e.fail(video, "preview output occupied by invalid file: "+preview+": "+err.Error())
 		return nil
 	}
-	begin, err := e.w.BeginPreview(video, job.Output, 0, false)
+	begin, err := e.w.BeginEvent(e.idx.family, video, job.Output, 0, false)
 	if err != nil {
 		return err
 	}
@@ -147,10 +147,10 @@ func (e previewExecutor) done(video, preview, txid string) error {
 	if !ok {
 		return fmt.Errorf("published preview is missing: %s", preview)
 	}
-	if _, err := e.w.FinishPreview(txid, state.StepPreviewDone, "", size, ""); err != nil {
+	if _, err := e.w.FinishEvent(e.idx.family, txid, e.idx.family.Done, "", size, ""); err != nil {
 		return err
 	}
-	e.idx.owned.put(video, preview, size)
+	e.idx.remember(video, preview, size)
 	e.idx.generating.remove(video, preview)
 	e.s.Stats.PreviewsDone.Add(1)
 	e.s.Stats.ArchiveWritten.Add(size)
@@ -195,4 +195,53 @@ func refreshPreviewDescription(s *Session, idx *previewIndex, video string) erro
 		return nil
 	}
 	return nil
+}
+
+// splitPreviews submits the preview plans of committed videos to the preview queue.
+type splitPreviews struct {
+	queue *previewQueue
+	plans map[string]*videoPreviews
+}
+
+func newSplitPreviews(ctx context.Context, exec previewExecutor, plans []*videoPreviews) *splitPreviews {
+	p := &splitPreviews{plans: make(map[string]*videoPreviews, len(plans))}
+	if len(plans) == 0 {
+		return p
+	}
+	for _, item := range plans {
+		p.plans[item.video] = item
+	}
+	p.queue = startPreviewQueue(ctx, exec)
+	return p
+}
+
+// catchUp submits, in path order, videos moved by earlier runs and by an earlier process of
+// this run.
+func (p *splitPreviews) catchUp(committed *state.CommittedSet) error {
+	for _, video := range sortedKeys(p.plans) {
+		if item := p.plans[video]; item.moved || committed.Has(video) {
+			if err := p.queue.submit(item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (p *splitPreviews) committed(video string) error {
+	if item, ok := p.plans[video]; ok {
+		return p.queue.submit(item)
+	}
+	return nil
+}
+
+// stop waits for the queued previews and joins their fatal error with err.
+func (p *splitPreviews) stop(err error) error {
+	if p.queue == nil {
+		return err
+	}
+	if qerr := p.queue.close(); err == nil {
+		return qerr
+	}
+	return err
 }

@@ -9,20 +9,21 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
-// runHistory is the durable WAL of one run with the archive root the run recorded. WAL records
-// hold absolute paths of that root; archive-relative paths stay valid when the root is later
+// runHistory is the durable WAL of one run with the archive and mirror roots the run recorded. WAL
+// records hold absolute paths of those roots; root-relative paths stay valid when a root is later
 // mounted or renamed elsewhere.
 type runHistory struct {
-	id                    string
-	archive, videoArchive string
-	records               []state.Record
+	id              string
+	archive, mirror string
+	sidecarCleanup  bool // a restore run recorded sidecar_cleanup: true
+	records         []state.Record
 }
 
 // archiveRel returns the local slash path of abs below the run's archive root.
 func (h runHistory) archiveRel(abs string) (string, bool) { return localRel(h.archive, abs) }
 
-// videoRel returns the local slash path of abs below the run's video archive root.
-func (h runHistory) videoRel(abs string) (string, bool) { return localRel(h.videoArchive, abs) }
+// mirrorRel returns the local slash path of abs below the run's mirror root.
+func (h runHistory) mirrorRel(abs string) (string, bool) { return localRel(h.mirror, abs) }
 
 func localRel(root, abs string) (string, bool) {
 	if root == "" || !filepath.IsAbs(abs) {
@@ -36,10 +37,10 @@ func localRel(root, abs string) (string, bool) {
 	return rel, scanner.LocalRelPath(rel)
 }
 
-// readHistory reads the WAL of every run of root, ordered by the creation time in options.json,
-// then by id (run ids alone order only to the second). A run without options sorts first and uses
-// the current roots.
-func readHistory(root, videoArchive string) ([]runHistory, error) {
+// readHistory reads the WAL of every run of root whose options.json names payload kind, ordered by
+// the creation time in options.json, then by id (run ids alone order only to the second). Runs of
+// another payload, scans and runs without readable options are not part of the kind's history.
+func readHistory(root string, kind PayloadKind) ([]runHistory, error) {
 	ids, err := state.ListRunIDs(root)
 	if err != nil {
 		return nil, err
@@ -55,15 +56,19 @@ func readHistory(root, videoArchive string) ([]runHistory, error) {
 			return nil, err
 		}
 		var o state.RunOptions
-		_ = state.ReadJSON(rd.File(state.OptionsFile), &o)
+		if err := state.ReadJSON(rd.File(state.OptionsFile), &o); err != nil || PayloadKind(o.Payload) != kind {
+			continue
+		}
 		records, err := state.ReadWALRecords(rd.File(state.WALFile))
 		if err != nil {
 			return nil, err
 		}
-		h := runHistory{id: id, archive: o.Archive, videoArchive: o.VideoArchive, records: records}
-		if h.archive == "" {
-			h.archive, h.videoArchive = root, videoArchive
+		archive := o.Archive
+		if archive == "" {
+			archive = root
 		}
+		h := runHistory{id: id, archive: archive, mirror: runPayload(o).Root, records: records,
+			sidecarCleanup: o.Op == opRestore && o.SidecarCleanup != nil && *o.SidecarCleanup}
 		runs = append(runs, run{h, o.CreatedAt})
 	}
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].created.Before(runs[j].created) })

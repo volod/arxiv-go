@@ -222,3 +222,41 @@ func TestReplacePreviewLinks(t *testing.T) {
 		t.Fatalf("description with links = %v, %v", st, err)
 	}
 }
+
+func TestChooseTextSidecarPathCollisionAndReuse(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fixture.CATPart")
+	rel := "fixture.CATPart"
+	p, err := ChooseTextSidecarPath(src, rel)
+	if err != nil || p != src+".text.md" {
+		t.Fatalf("primary: %s, %v", p, err)
+	}
+	if err := os.WriteFile(src+".text.md", []byte("operator notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err = ChooseTextSidecarPath(src, rel)
+	if err != nil || p != src+".arxgo.text.md" {
+		t.Fatalf("arxgo fallback: %s, %v", p, err)
+	}
+	if err := os.WriteFile(src+".arxgo.text.md", []byte("also human\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err = ChooseTextSidecarPath(src, rel)
+	if err != nil || filepath.Base(p) != "fixture-1.CATPart.text.md" {
+		t.Fatalf("indexed: %s, %v", p, err)
+	}
+	owned := []byte("arxgo-text: fixture.CATPart\nextracted_at: 2026-09-15T12:00:00Z\ntruncated: false\n")
+	if err := os.WriteFile(p, owned, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	again, err := ChooseTextSidecarPath(src, rel)
+	if err != nil || again != p {
+		t.Fatalf("reuse owned indexed: %s, %v", again, err)
+	}
+	if occ, err := InspectTextSidecar(p, rel); err != nil || occ != DescriptionOwned {
+		t.Fatalf("inspect owned = %v, %v", occ, err)
+	}
+	if occ, err := InspectTextSidecar(src+".text.md", rel); err != nil || occ != DescriptionForeign {
+		t.Fatalf("inspect foreign = %v, %v", occ, err)
+	}
+}

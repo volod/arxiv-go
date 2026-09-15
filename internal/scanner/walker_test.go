@@ -93,7 +93,7 @@ func TestWalkResumeMidDeepDirectoryPrunesEarlierSubtrees(t *testing.T) {
 func TestWalkExcludesReservedPathsSkipPathsAndGlobs(t *testing.T) {
 	root := t.TempDir()
 	makeTree(t, root,
-		".arxgo/lock", ".arxgo/runs/r/wal.jsonl", "arxgo-registry.csv", "arxgo-videos.csv",
+		".arxgo/lock", ".arxgo/runs/r/wal.jsonl", "arxgo-registry.csv", "arxgo-videos.csv", "arxgo-catia.csv",
 		"video.mp4.arxgo-part", "sub/clip.mp4.arxgo-part", "sub/clip.mp4",
 		"sub/.arxgo/kept", "sub/arxgo-registry.csv", // reserved names only at the root
 		"custom/reg.csv", "videos/v.mp4", "videos-2/v.mp4",

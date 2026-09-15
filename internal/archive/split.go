@@ -2,13 +2,16 @@ package archive
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/media"
+	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -23,34 +26,26 @@ type SplitConfig struct {
 	Tools        media.Toolset
 	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
+	// CatiaText writes owned text sidecars after each CATIA commit and for earlier moved files
+	// that still lack one. Ignored for the video payload.
+	CatiaText bool
 }
 
-// SplitBody scans, preflights, and executes the candidate list in walk order. The caller must
+// SplitBody scans, preflights, and executes the payload's candidate list in walk order. The caller must
 // install NewSplitResolver in Config.Recoverer before Start so recovery precedes the scan.
 func SplitBody(c SplitConfig) func(context.Context, *Session) error {
 	return func(ctx context.Context, s *Session) error { return Split(ctx, s, c) }
 }
 
 func Split(ctx context.Context, s *Session, c SplitConfig) error {
-	// A corrupt operator registry must stop the run before the first archive move.
-	videoRows, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
-	if err != nil {
+	hooks := s.payload.newSplit(s)
+	if err := hooks.prepare(ctx, &c); err != nil {
 		return err
 	}
-	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
-	if err != nil {
-		return err
+	if c.Scan.Candidate == nil {
+		candidate := s.payload.candidate
+		c.Scan.Candidate = func(_ string, ft scanner.FileType) bool { return candidate(ft) }
 	}
-	idx, err := newPreviewIndex(s.cfg.Archive, history)
-	if err != nil {
-		return err
-	}
-	if !s.cfg.DryRun {
-		if err := idx.removeUnfinishedParts(); err != nil {
-			return err
-		}
-	}
-	c.Scan.SkipPaths = append(c.Scan.SkipPaths, idx.skipPaths()...)
 	if _, err := Scan(ctx, s, c.Scan); err != nil {
 		return err
 	}
@@ -59,34 +54,31 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		return err
 	}
 	syncCommittedCounter(s, w)
+	if err := syncSidecarCounters(s, w); err != nil {
+		return err
+	}
 	list := s.Run.File(state.CandidatesFile)
 	remaining, err := countRemaining(list, w)
 	if err != nil {
 		return err
 	}
-	runner := &media.Runner{Tools: c.Tools, Log: s.Log}
-	if c.Preview.Enabled() {
-		videoRows = replayVideoRows(videoRows, history, idx, nil)
-	}
-	plans, previewBytes, err := planSplitPreviews(ctx, s, c, idx, videoRows, runner)
-	if err != nil {
+	if err := hooks.plan(ctx, &c, &remaining); err != nil {
 		return err
 	}
-	remaining.PreviewBytes = previewBytes
 	if _, err := s.Preflight(ctx, remaining); err != nil {
 		return err
 	}
 	if s.cfg.DryRun {
-		s.Log.Info("dry run: split plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
+		s.Log.Info("dry run: split plan complete", "payload", s.payload.kind, "candidates", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
-	c.Descriptions = splitDescriptions(s, c)
+	c.Descriptions = splitDescriptions(ctx, s, c)
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
-	previews := newSplitPreviews(ctx, previewExecutor{s: s, w: w, idx: idx, runner: runner}, plans)
-	if err := previews.catchUp(w.Committed()); err != nil {
-		return previews.stop(err)
+	post, err := hooks.start(ctx, w)
+	if err != nil {
+		return err
 	}
 	resolver := NewSplitResolver(s.cfg.FS, c.Verify, s.cfg.Crash)
 	resolver.Descriptions = c.Descriptions
@@ -95,7 +87,7 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 	err = ReadCandidates(list, func(v Candidate) error {
 		index++
 		if first, clash := folded.clash(v.RelPath); clash {
-			skipVideo(s, v, "destination case-folds to "+first)
+			skipCandidate(s, v, "destination case-folds to "+first)
 			return nil
 		}
 		if w.Committed().Has(v.RelPath) {
@@ -108,25 +100,52 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 			return err
 		}
 		if w.Committed().Has(v.RelPath) {
-			if err := previews.committed(v.RelPath); err != nil {
+			if err := post.committed(v.RelPath); err != nil {
 				return err
 			}
 		}
 		s.Update(func(cp *state.Checkpoint) { cp.CandidateIndex = index })
 		return s.Advance(1)
 	})
-	if err := previews.stop(err); err != nil {
+	if err := post.stop(err); err != nil {
 		return err
 	}
-	return writeVideoOutputs(s, c)
+	return hooks.writeRegistry(c)
 }
 
 // syncCommittedCounter makes the WAL authoritative after a crash: a committed transaction may
 // precede the last checkpoint and its in-memory counter update.
 func syncCommittedCounter(s *Session, w *state.WAL) {
-	if done := int64(w.Committed().Len()); done > s.Stats.VideosDone.Load() {
-		s.Stats.VideosDone.Store(done)
+	counter := s.payload.counters(s.Stats).done
+	if done := int64(w.Committed().Len()); done > counter.Load() {
+		counter.Store(done)
 	}
+}
+
+// syncSidecarCounters makes the WAL authoritative for the sidecar counters of a resumed split: a
+// preview_done or text_done may be durable while the process died before the counter reached a
+// checkpoint, and counters in the report are cumulative for the run.
+func syncSidecarCounters(s *Session, w *state.WAL) error {
+	records, err := state.ReadWALRecords(w.Path())
+	if err != nil {
+		return err
+	}
+	counters := map[state.Step]*atomic.Int64{
+		state.PreviewEvents.Done: &s.Stats.PreviewsDone,
+		state.TextEvents.Done:    &s.Stats.TextsDone,
+	}
+	durable := map[state.Step]int64{}
+	for _, rec := range records {
+		if _, ok := counters[rec.Step]; ok {
+			durable[rec.Step]++
+		}
+	}
+	for step, n := range durable {
+		if c := counters[step]; n > c.Load() {
+			c.Store(n)
+		}
+	}
+	return nil
 }
 
 func countRemaining(list string, w *state.WAL) (Candidates, error) {
@@ -144,12 +163,12 @@ func countRemaining(list string, w *state.WAL) (Candidates, error) {
 
 // splitDescriptions returns the configured description writer with the session's crash hook and clock, or the
 // Markdown writer when none is configured.
-func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
+func splitDescriptions(ctx context.Context, s *Session, c SplitConfig) SplitDescriptionWriter {
 	if c.Descriptions == nil {
 		return NewMarkdownDescription(DescriptionConfig{
-			Archive: s.cfg.Archive, VideoArchive: s.cfg.VideoArchive, BaseURL: c.BaseURL,
-			Registry: c.Scan.Registry, Version: s.cfg.Version, Verify: c.Verify,
-			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now,
+			Archive: s.cfg.Archive, Mirror: s.cfg.Payload.Root, BaseURL: c.BaseURL,
+			Registry: c.Scan.Registry, Version: s.cfg.Version, Payload: s.payload.kind, Verify: c.Verify,
+			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now, Log: s.Log, Ctx: ctx,
 		})
 	}
 	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
@@ -159,57 +178,42 @@ func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
 		if m.cfg.Now == nil {
 			m.cfg.Now = s.cfg.Now
 		}
+		m.useLog(s.Log)
+		m.useContext(ctx)
 	}
 	return c.Descriptions
 }
 
-// splitPreviews submits the preview plans of committed videos to the preview queue.
-type splitPreviews struct {
-	queue *previewQueue
-	plans map[string]*videoPreviews
+// useLog gives a description writer without a logger the run log for extraction warnings.
+func (m *MarkdownDescription) useLog(log *slog.Logger) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cfg.Log == nil {
+		m.cfg.Log = log
+	}
 }
 
-func newSplitPreviews(ctx context.Context, exec previewExecutor, plans []*videoPreviews) *splitPreviews {
-	p := &splitPreviews{plans: make(map[string]*videoPreviews, len(plans))}
-	if len(plans) == 0 {
-		return p
+func (m *MarkdownDescription) useContext(ctx context.Context) {
+	if ctx == nil {
+		return
 	}
-	for _, item := range plans {
-		p.plans[item.video] = item
-	}
-	p.queue = startPreviewQueue(ctx, exec)
-	return p
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cfg.Ctx = ctx
 }
 
-// catchUp submits, in path order, videos moved by earlier runs and by an earlier process of
-// this run.
-func (p *splitPreviews) catchUp(committed *state.CommittedSet) error {
-	for _, video := range sortedKeys(p.plans) {
-		if item := p.plans[video]; item.moved || committed.Has(video) {
-			if err := p.queue.submit(item); err != nil {
-				return err
-			}
+// resolverLog gives the description writer of a split resolver the run log before recovery.
+func resolverLog(res Resolver, log *slog.Logger) {
+	resolverAttach(res, log, nil)
+}
+
+func resolverAttach(res Resolver, log *slog.Logger, ctx context.Context) {
+	if r, ok := res.(SplitResolver); ok {
+		if m, ok := r.Descriptions.(*MarkdownDescription); ok {
+			m.useLog(log)
+			m.useContext(ctx)
 		}
 	}
-	return nil
-}
-
-func (p *splitPreviews) committed(video string) error {
-	if item, ok := p.plans[video]; ok {
-		return p.queue.submit(item)
-	}
-	return nil
-}
-
-// stop waits for the queued previews and joins their fatal error with err.
-func (p *splitPreviews) stop(err error) error {
-	if p.queue == nil {
-		return err
-	}
-	if qerr := p.queue.close(); err == nil {
-		return qerr
-	}
-	return err
 }
 
 // caseFoldGuard skips a destination that differs from an earlier one only by case on Windows,
@@ -229,7 +233,7 @@ func (g caseFoldGuard) clash(rel string) (string, bool) {
 }
 
 // missingSourceReason explains a candidate whose source is gone. Candidate and WAL records are
-// JSON, which replaces bytes of a file name that is not valid UTF-8, so such a video is never found.
+// JSON, which replaces bytes of a file name that is not valid UTF-8, so such a file is never found.
 func missingSourceReason(rel string) string {
 	if strings.ContainsRune(rel, utf8.RuneError) {
 		return "source missing or no longer a regular file (file names that are not valid UTF-8 are not supported)"
@@ -237,10 +241,12 @@ func missingSourceReason(rel string) string {
 	return "source missing or no longer a regular file"
 }
 
-func skipVideo(s *Session, v Candidate, reason string) {
+// skipCandidate reports a candidate that the run skips and counts it for the payload.
+func skipCandidate(s *Session, v Candidate, reason string) {
 	s.Issue(state.IssueSkipped, v.RelPath, reason)
-	s.Stats.VideosSkipped.Add(1)
-	s.Stats.VideoBytes.Add(v.Size)
+	counters := s.payload.counters(s.Stats)
+	counters.skipped.Add(1)
+	counters.bytes.Add(v.Size)
 }
 
 // removeStalePart deletes dst.arxgo-part left by an aborted transfer. Recovery has already closed

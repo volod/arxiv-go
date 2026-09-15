@@ -32,6 +32,7 @@ type genArchive struct {
 	foreignMD        string          // a non-description <video>.md that split must not overwrite
 	dirAtDescription string          // a directory named <video>.md
 	ffmpeg           bool
+	catia            *genCatia // CATIA files, when the archive has them
 }
 
 const customVideoExt = "bik"
@@ -191,7 +192,8 @@ func isArxgoOutput(rel string) bool {
 	if rel == ".arxgo" || strings.HasPrefix(rel, ".arxgo/") {
 		return true
 	}
-	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" || strings.HasPrefix(rel, "arxgo-videos."))
+	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" ||
+		strings.HasPrefix(rel, "arxgo-videos.") || strings.HasPrefix(rel, "arxgo-catia."))
 }
 
 // takeManifest records path, size, mtime (nanoseconds) and SHA-256 of every file, and every

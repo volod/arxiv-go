@@ -156,7 +156,7 @@ func TestSessionPreflightProbeErrorAndCancel(t *testing.T) {
 func TestSessionPreflightRealFilesystemRefusesImpossibleCopy(t *testing.T) {
 	r, cfg, _ := preflightConfig(t, 0)
 	cfg.FS = nil // real statfs / GetDiskFreeSpaceEx
-	cfg.CreateVideoArchive, cfg.VideoArchive = true, filepath.Join(r.video, "new-root")
+	cfg.CreateMirror, cfg.Payload.Root = true, filepath.Join(r.video, "new-root")
 	cfg.DryRun = true
 	before := treeManifest(t, r.video)
 	s := start(t, cfg)

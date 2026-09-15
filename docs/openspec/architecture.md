@@ -14,8 +14,8 @@ arxiv-go/
 |   |-- media/                   tools.go, guidance.go (discovery); metadata.go, isobmff*.go, ffprobe.go (metadata); ffmpeg*.go (runner); preview.go, preview_plan.go, samples*.go, frames.go (previews)
 |   |-- catia/                   stage 4: kind table, format detection, V5 properties and components, 3dxml, strings (pure Go)
 |   |-- fsops/                   device/space syscalls, durable copy/rename, atomic write
-|   |-- state/                   rundir.go, lock*.go, checkpoint.go, committed.go, scanstats.go, report.go, runlog.go, wal.go, wal_read.go, wal_preview.go, recovery.go
-|   |-- archive/                 session*.go, resume*.go, finish.go, progress.go, preflight*.go, scan*.go, candidates.go; history.go (WAL of every run), transfer.go (placement shared by split and restore); split.go, split_exec.go, split_recovery.go, split_description.go, split_report.go; restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go; previews_index.go, previews_plan.go, previews_exec.go, previews_restore.go
+|   |-- state/                   rundir.go, lock*.go, checkpoint.go, committed.go, scanstats.go, report.go, runlog.go, wal.go, wal_read.go, wal_event.go (post-commit sidecar event families), recovery.go
+|   |-- archive/                 session*.go, resume*.go, finish.go, progress.go, preflight*.go, scan*.go, candidates.go; payload.go (payload kind, spec and hooks), payload_video.go; history.go (WAL of every run of a payload), transfer.go (placement shared by split and restore); split.go, split_exec.go, split_recovery.go, split_description.go, split_report.go; restore.go, restore_exec.go, restore_recovery.go, restore_dirs.go, restore_report.go; previews_index.go, previews_plan.go, previews_exec.go, previews_restore.go
 |   |-- report/                  csv.go, csv_read.go, csv_compact.go, metadata_csv.go (file registry); description.go, names.go, url.go, format.go, videos.go
 |   |-- cloud/                   stage 3: target interface, gdrive/, sharepoint/
 |   `-- devtools/planning/       repository tooling: plan/spec/doc-link lint and plan status

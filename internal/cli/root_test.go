@@ -31,6 +31,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"help", []string{"help"}, ExitOK, "Usage:", ""},
 		{"help scan", []string{"help", "scan"}, ExitOK, "--large-threshold SIZE", ""},
 		{"help split lists preview settings", []string{"help", "split"}, ExitOK, "--sample MODE", ""},
+		{"help split lists catia-text", []string{"help", "split"}, ExitOK, "--catia-text", ""},
 		{"help restore", []string{"help", "restore"}, ExitOK, "(default true; env ARXGO_REGISTRY_UPDATE)", ""},
 		{"help unknown", []string{"help", "shuffle"}, ExitUsage, "", `unknown operation "shuffle"`},
 		{"help publish", []string{"help", "publish"}, ExitUsage, "", "not available in this build"},
@@ -45,6 +46,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"validation lists every error", []string{"split", "--checkpoint-every", "0"}, ExitUsage, "", "arxgo: --video-archive is required"},
 		{"default operation is scan", []string{"--archive", archive}, ExitOK, "", "op=scan"},
 		{"scan", []string{"scan", "--archive", archive}, ExitOK, "", "scan summary"},
+		{"scan catia video extension", []string{"scan", "--archive", archive, "--video-extensions", "CATPart"}, ExitUsage, "", "CATIA extension"},
 		{"split", append([]string{"split"}, roots...), ExitOK, "", "op=split"},
 		{"restore", append([]string{"restore"}, roots...), ExitOK, "", "scan summary"},
 	}

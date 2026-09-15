@@ -63,7 +63,7 @@ func TestPreflightOptionsReachTheSession(t *testing.T) {
 func TestInsufficientSpaceExitsFour(t *testing.T) {
 	arc, video := fixture(t)
 	withLockIdentity(t, 500)
-	c := Common{Archive: arc, VideoArchive: video, MinFree: 1 << 30, ProgressInterval: 1 << 40,
+	c := Common{Archive: arc, Payload: PayloadVideo, VideoArchive: video, MinFree: 1 << 30, ProgressInterval: 1 << 40,
 		CheckpointEvery: 100, CheckpointInterval: 1 << 40, LogLevel: slog.LevelInfo}
 	var errOut bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&errOut, nil))
@@ -90,7 +90,7 @@ func TestInsufficientSpaceExitsFour(t *testing.T) {
 func TestInsufficientSpaceReportNamesDevices(t *testing.T) {
 	arc, video := fixture(t)
 	withLockIdentity(t, 500)
-	c := Common{Archive: arc, VideoArchive: video, MinFree: 0, ProgressInterval: 1 << 40,
+	c := Common{Archive: arc, Payload: PayloadVideo, VideoArchive: video, MinFree: 0, ProgressInterval: 1 << 40,
 		CheckpointEvery: 100, CheckpointInterval: 1 << 40, LogLevel: slog.LevelInfo, DryRun: true}
 	var errOut bytes.Buffer
 	cfg := sessionConfig(OpRestore, c, c, c)

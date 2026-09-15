@@ -20,6 +20,10 @@ type Stats struct {
 	ArchiveWritten, ArchiveFreed            atomic.Int64
 	VideoArchiveWritten, VideoArchiveFreed  atomic.Int64
 	PreviewsDone, PreviewsFailed            atomic.Int64
+	TextsDone, TextsFailed                  atomic.Int64
+	CatiaDone, CatiaSkipped, CatiaFailed    atomic.Int64
+	CatiaBytes                              atomic.Int64
+	CatiaArchiveWritten, CatiaArchiveFreed  atomic.Int64
 }
 
 // Snapshot returns the current counters.
@@ -31,6 +35,10 @@ func (s *Stats) Snapshot() state.Counters {
 		ArchiveWritten: s.ArchiveWritten.Load(), ArchiveFreed: s.ArchiveFreed.Load(),
 		VideoWritten: s.VideoArchiveWritten.Load(), VideoFreed: s.VideoArchiveFreed.Load(),
 		PreviewsDone: s.PreviewsDone.Load(), PreviewsFailed: s.PreviewsFailed.Load(),
+		TextsDone: s.TextsDone.Load(), TextsFailed: s.TextsFailed.Load(),
+		CatiaDone: s.CatiaDone.Load(), CatiaSkipped: s.CatiaSkipped.Load(), CatiaFailed: s.CatiaFailed.Load(),
+		CatiaBytes:   s.CatiaBytes.Load(),
+		CatiaWritten: s.CatiaArchiveWritten.Load(), CatiaFreed: s.CatiaArchiveFreed.Load(),
 	}
 }
 
@@ -48,11 +56,19 @@ func (s *Stats) Restore(c state.Counters) {
 	s.VideoArchiveFreed.Store(c.VideoFreed)
 	s.PreviewsDone.Store(c.PreviewsDone)
 	s.PreviewsFailed.Store(c.PreviewsFailed)
+	s.TextsDone.Store(c.TextsDone)
+	s.TextsFailed.Store(c.TextsFailed)
+	s.CatiaDone.Store(c.CatiaDone)
+	s.CatiaSkipped.Store(c.CatiaSkipped)
+	s.CatiaFailed.Store(c.CatiaFailed)
+	s.CatiaBytes.Store(c.CatiaBytes)
+	s.CatiaArchiveWritten.Store(c.CatiaWritten)
+	s.CatiaArchiveFreed.Store(c.CatiaFreed)
 }
 
 // Totals are the known work of a phase. A phase with zero Items has an unknown total (scan): its
 // progress lines report entries, bytes seen and entries/s without an ETA. Otherwise lines report
-// handled videos and bytes against the totals, byte rate and ETA.
+// handled payload files and bytes against the totals, byte rate and ETA.
 type Totals struct {
 	Items int64
 	Bytes int64
@@ -64,6 +80,9 @@ type Progress struct {
 	stats    *Stats
 	interval time.Duration
 	now      func() time.Time
+
+	// handled reads the payload counters of split and restore phases; nil for scan.
+	handled func(state.Counters) payloadTotals
 
 	mu         sync.Mutex
 	phase      string
@@ -149,8 +168,8 @@ func (p *Progress) emit() {
 			"bytes", FormatBytes(cur.bytes)+"/"+FormatBytes(p.totals.Bytes),
 			"rate", FormatBytes(int64(rate))+"/s",
 			"eta", eta(p.totals, cur, base, now.Sub(p.phaseStart)),
-			"skipped", c.VideosSkipped,
-			"failed", c.VideosFailed)
+			"skipped", p.payloadOf(c).skipped,
+			"failed", p.payloadOf(c).failed)
 	}
 	p.log.Info("progress", attrs...)
 	p.lastAt, p.last = now, c
@@ -158,12 +177,21 @@ func (p *Progress) emit() {
 
 type measured struct{ items, bytes int64 }
 
-// measure picks the counters a phase reports: entries for scans, handled videos otherwise.
+// measure picks the counters a phase reports: entries for scans, handled payload files otherwise.
 func (p *Progress) measure(c state.Counters) measured {
 	if p.totals.Items == 0 {
 		return measured{items: c.Files, bytes: c.Bytes}
 	}
-	return measured{items: c.VideosDone + c.VideosSkipped + c.VideosFailed, bytes: c.VideoBytes}
+	t := p.payloadOf(c)
+	return measured{items: t.done + t.skipped + t.failed, bytes: t.bytes}
+}
+
+// payloadOf returns the payload counters of c; a reporter without a payload reads the video ones.
+func (p *Progress) payloadOf(c state.Counters) payloadTotals {
+	if p.handled == nil {
+		return videoPayload.totals(c)
+	}
+	return p.handled(c)
 }
 
 func perSecond(n int64, d time.Duration) float64 {

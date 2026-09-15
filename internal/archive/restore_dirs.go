@@ -51,7 +51,7 @@ func ensureRestoreDirs(s *Session, dst string, create bool) (missing bool, err e
 			return false, e
 		}
 		perm := fs.FileMode(0o755)
-		if srcDir := filepath.Join(s.cfg.VideoArchive, chain[i]); srcDir != "" {
+		if srcDir := filepath.Join(s.cfg.Payload.Root, chain[i]); srcDir != "" {
 			if sf, e := os.Stat(srcDir); e == nil && sf.IsDir() {
 				perm = sf.Mode().Perm()
 			}
@@ -74,15 +74,15 @@ func ensureRestoreDirs(s *Session, dst string, create bool) (missing bool, err e
 	return false, nil
 }
 
-// pruneRestoredDirs removes the video-archive directories that held restored videos and are now
-// empty, deepest first, and their ancestors that become empty, never the video archive root.
-// Restores committed by any run count, so a run that replaced an interrupted restore also cleans
-// up after it. The cleanup is best effort: a directory that cannot be read or removed is logged and
+// pruneRestoredDirs removes the mirror directories that held restored files and are now empty,
+// deepest first, and their ancestors that become empty, never the mirror root. Restores committed
+// by any run of the session's payload count, so a run that replaced an interrupted restore also
+// cleans up after it. The cleanup is best effort: a directory that cannot be read or removed is logged and
 // kept, so an unrelated unreadable directory never fails the run.
 func pruneRestoredDirs(s *Session) {
-	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
+	history, err := readHistory(s.cfg.Archive, s.payload.kind)
 	if err != nil {
-		s.Log.Warn("video archive cleanup: run logs unreadable", "error", err)
+		s.Log.Warn("mirror cleanup: run logs unreadable", "payload", s.payload.kind, "error", err)
 		return
 	}
 	dirs := map[string]struct{}{}
@@ -93,9 +93,9 @@ func pruneRestoredDirs(s *Session) {
 			case rec.Step == state.StepBegin && rec.Op == opRestore:
 				src[rec.TxID] = rec.Src
 			case rec.Step == state.StepCommit && src[rec.TxID] != "":
-				rel, ok := run.videoRel(src[rec.TxID])
+				rel, ok := run.mirrorRel(src[rec.TxID])
 				if !ok {
-					continue // restored from another video archive
+					continue // restored from another mirror root
 				}
 				for d := path.Dir(rel); d != "."; d = path.Dir(d) {
 					dirs[d] = struct{}{}
@@ -114,7 +114,7 @@ func pruneRestoredDirs(s *Session) {
 		return ordered[i] < ordered[j]
 	})
 	for _, rel := range ordered {
-		dir := filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(rel))
+		dir := filepath.Join(s.cfg.Payload.Root, filepath.FromSlash(rel))
 		ents, err := os.ReadDir(dir)
 		if errors.Is(err, fs.ErrNotExist) || (err == nil && len(ents) > 0) {
 			continue
@@ -123,7 +123,7 @@ func pruneRestoredDirs(s *Session) {
 			err = os.Remove(dir)
 		}
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			s.Log.Warn("video archive directory not removed", "dir", rel, "error", err)
+			s.Log.Warn("mirror directory not removed", "payload", s.payload.kind, "dir", rel, "error", err)
 		}
 	}
 }

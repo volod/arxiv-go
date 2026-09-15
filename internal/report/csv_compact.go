@@ -9,7 +9,7 @@ import (
 
 const (
 	// FileRegistryKeep is the number of file-registry columns that are always written.
-	FileRegistryKeep = 10 // rel_path through is_large
+	FileRegistryKeep = 11 // rel_path through is_catia
 	// VideoRegistryKeep is the number of video-registry columns that are always written.
 	VideoRegistryKeep = 11 // rel_path through previews
 )

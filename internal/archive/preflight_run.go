@@ -15,7 +15,7 @@ type RolePath struct {
 }
 
 // ProbeDevices groups paths by device with ops.SameDevice and reads each device's free space once.
-// Missing paths (a video archive root that split will create) resolve to their nearest existing
+// Missing paths (a mirror root that split will create) resolve to their nearest existing
 // ancestor inside fsops. Empty paths are skipped.
 func ProbeDevices(ops fsops.Ops, paths []RolePath) (DeviceInfo, error) {
 	var info DeviceInfo
@@ -79,7 +79,11 @@ func (s *Session) Preflight(ctx context.Context, c Candidates) (Requirement, err
 	if err := s.Phase("preflight", totals); err != nil {
 		return Requirement{}, err
 	}
-	paths := []RolePath{{RoleArchive, s.cfg.Archive}, {RoleVideoArchive, s.cfg.VideoArchive}}
+	paths := []RolePath{{RoleArchive, s.cfg.Archive}}
+	if s.payload != nil {
+		o.Payload = s.payload.kind
+		paths = append(paths, RolePath{s.payload.role, s.cfg.Payload.Root})
+	}
 	if o.Op == opScan {
 		paths = append(paths, RolePath{RoleRegistry, s.cfg.Registry})
 	}

@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0043`.
+Next unused sequence: `0048`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -51,3 +51,11 @@ Next unused sequence: `0043`.
 | [0040 Flat operator CSV outputs](0040-split-flatten-operator-csv-outputs.md) | Operator-reported CSV format, local URLs, summary removal and domain naming | Accepted; `make ci` and integration pass on Linux |
 | [0041 Default ISO BMFF metadata](0041-metadata-collect-iso-metadata-by-default.md) | Default scan/split fill MP4/MOV media columns without ffprobe | Accepted; `make ci` passes on Linux |
 | [0042 Approve stage 1 on an operator archive copy](0042-restore-approve-stage-1-on-operator-archive-copy.md) | Operator trial: scan and split on a disposable copy; stage 1 fit for use | Accepted by the operator |
+| [0043 CATIA classification](0043-catia-implement-catia-classification.md) | Built-in CATIA kind table, `is_catia` on scan, new file-registry column order, reserved `arxgo-catia.csv`, CATIA `--video-extensions` rejected | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
+| [0044 Payload split and restore](0044-catia-generalize-payload-split-restore.md) | One split/restore executor selected by payload kind, run history filtered by payload, `payload` in `options.json` and recovery, shared payload registry columns 1-10 (new `arxgo-videos.csv` order), reusable sidecar event families | Accepted; `make ci`, `make test-integration`, a 31-seed kill sweep and a real-process NVENC run pass on Linux; Windows cross-compiled |
+| [0045 CATIA extraction](0045-catia-implement-catia-extraction.md) | Pure-Go streaming extractor: format, V5 properties and components, 3dxml XML/ZIP, strings harvest, 1 MiB cap; report `catia:` line and text sidecar body | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0046 CATIA split](0046-catia-implement-catia-split.md) | `split --catia` into a separate CATIA archive: payload flags and root validation, CATIA payload spec and counters, `catia:` descriptions with the summary on `described`, `arxgo-catia.csv`, recovery of an interrupted CATIA split by a video split | Accepted; `make ci`, `make test-integration`, a 15-run real-process kill sweep and a 1 GiB memory check pass on Linux; Windows cross-compiled |
+| [0047 CATIA text sidecars](0047-catia-implement-catia-text-sidecars.md) | `--catia-text` post-commit `arxgo-text:` sidecars, WAL text events, catch-up, collision names, `text_rel_path` | Accepted; `make ci` passes on Linux; Windows cross-compiled |
+| [0048 CATIA restore](0048-catia-implement-catia-restore.md) | `restore --catia`: payload flags, CATIA candidates, owned description and text sidecar cleanup (also after a replaced restore), `arxgo-catia.csv` update and retirement | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
+| [0049 Replaced restore sidecar cleanup](0049-catia-repair-replaced-restore-sidecar-cleanup.md) | `sidecar_cleanup` in restore run options; the next restore with cleanup deletes previews or text sidecars a replaced interrupted restore left | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
+| [0050 Stage-4 proof](0050-catia-prove-stage-4-on-generated-archive.md) | `TestCatiaSplitRestoreRoundTrip`: generated mixed archive, killed video and CATIA splits and restores with cross-payload roll-forward, byte-identical round trip; resumed split sidecar counters synced from the WAL | Accepted; `make ci` and `make test-integration` pass on Linux; Windows vetted |

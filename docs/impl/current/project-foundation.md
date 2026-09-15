@@ -17,7 +17,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
   [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
-  [video transactions, descriptions and video registry](video-split.md); `restore` runs
+  [video transactions, descriptions and video registry](video-split.md) or
+  [CATIA split and text sidecars](catia-archive.md); `restore` runs
   [video restore](video-restore.md). The version string is the
   Semantic Versioning `VERSION` file (currently `0.1.0`), stamped by make with `-ldflags -X`
   ([versioning](../../guide/development.md#versioning),
@@ -38,9 +39,11 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
   positive durations and counts, `--base-url` (absolute http(s), no credentials, query or
   fragment), `--video-extensions`, `--exclude` globs and `--registry`. All errors are reported
   together and exit 2.
-- Root checks are read-only. Roots must be existing directories. A missing split video archive
-  with an existing parent sets `SplitOptions.CreateVideoArchive`. Roots must be neither equal nor
-  nested after `Abs`, `EvalSymlinks` and, on Windows, case folding.
+- Root checks are read-only. Roots must be existing directories. A missing split mirror root (video
+  or, with `--catia`, CATIA archive) with an existing parent sets `SplitOptions.CreateMirror`. The
+  archive, the selected mirror root and the other payload's root when set must be pairwise neither
+  equal nor nested after `Abs`, `EvalSymlinks` and, on Windows, case folding
+  ([CATIA split](catia-archive.md#catia-split-internalcli-internalarchive-internalreport-internalstate)).
 - Split preview flags (`--sample*`, `--image*`, `--preview-max-items`) and restore `--previews`
   are active. Cloud publishing flags (`--publish*`, `--gdrive-*`, `--share`),
   `--follow-symlinks=true` and the `publish` operation exit 2 with

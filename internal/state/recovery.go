@@ -35,6 +35,12 @@ type Resolver interface {
 	RemoveSource(tx Tx) error
 }
 
+// DescribedAnnotator is implemented by a resolver whose described record carries payload metadata
+// collected while it wrote the description (the CATIA summary). It is called after WriteDescription.
+type DescribedAnnotator interface {
+	DescribedCatia(tx Tx) *CatiaSummary
+}
+
 // Recover walks open transactions in begin-seq order and applies the integrity recovery table:
 // unplaced work is aborted; at or after placed, the destination is kept and the rest rolls
 // forward. A second call is a no-op when the first succeeded.
@@ -140,7 +146,11 @@ func recoverPlaced(w *WAL, res Resolver, log *slog.Logger, tx Tx, obs Observatio
 	if err := res.WriteDescription(tx); err != nil {
 		return Recovery{}, err
 	}
-	if _, err := w.Append(tx.Begin.TxID, step, Record{Description: path}); err != nil {
+	extra := Record{Description: path}
+	if annotator, ok := res.(DescribedAnnotator); ok {
+		extra.Catia = annotator.DescribedCatia(tx)
+	}
+	if _, err := w.Append(tx.Begin.TxID, step, extra); err != nil {
 		return Recovery{}, err
 	}
 	tx.Last.Step = step

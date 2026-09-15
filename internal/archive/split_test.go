@@ -43,7 +43,7 @@ func splitConfig(r roots, mode string) (Config, SplitConfig) {
 		Transfer: mode, Verify: fsops.VerifyHash,
 	}
 	c.Descriptions = NewMarkdownDescription(DescriptionConfig{
-		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
+		Archive: r.archive, Mirror: r.video, Registry: c.Scan.Registry,
 		Version: "test", Verify: c.Verify,
 	})
 	attachRecoverer(&cfg, c, nil)
@@ -192,7 +192,7 @@ func TestSplitSizeVerifyAdoptsSameSizeDifferentBytes(t *testing.T) {
 	cfg, c := splitConfig(r, "copy")
 	c.Verify = fsops.VerifySize
 	c.Descriptions = NewMarkdownDescription(DescriptionConfig{
-		Archive: r.archive, VideoArchive: r.video, Registry: c.Scan.Registry,
+		Archive: r.archive, Mirror: r.video, Registry: c.Scan.Registry,
 		Version: "test", Verify: c.Verify,
 	})
 	attachRecoverer(&cfg, c, nil)
