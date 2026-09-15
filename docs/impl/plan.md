@@ -28,26 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### prove-stage-4-on-generated-archive
-
-Prove CATIA split and restore through the built binary the way stage 1 proved video.
-
-- Serves: `catia-archive` -- [Exit criteria](../openspec/stage-4-catia/README.md#exit-criteria)
-- Agent status: CLEAR
-- Dependencies: [Replaced restore sidecar cleanup](records/0049-catia-repair-replaced-restore-sidecar-cleanup.md).
-- User-visible outcome: A generated mixed archive survives killed CATIA split (with `--catia-text`)
-  and restore, resume, and a byte-identical round trip, alongside a video split of the same archive
-  into a separate video archive.
-- Scope boundary: `test/integration` through the built `arxgo`; synthetic CATIA-like files only.
-  No experimental-tree content. Linux only as a gate.
-- Data and artifact paths: `test/integration/`.
-- Execution path: `make test-integration` driving `split --catia --catia-text`, `split` (video),
-  `restore --catia` and `restore` with seeded kills.
-- Acceptance gates: Round trip manifests match; resume after kill completes; each mirror root and
-  payload registry contains only its own payload; `make ci` and `make test-integration` pass.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-stage-4-catia`.
-
 #### review-stage-4-catia
 
 Review CATIA payload reuse, mirror-root separation, registry layout and extraction boundaries before cloud work starts.
@@ -55,7 +35,7 @@ Review CATIA payload reuse, mirror-root separation, registry layout and extracti
 - Serves: `catia-archive` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: `prove-stage-4-on-generated-archive`.
+- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md).
 - User-visible outcome: Stage 4 is coherent, video default is intact, and stage 3 can start without
   CATIA cloud scope.
 - Scope boundary: Payload kind, mirror-root separation and history filter, registry column order,
@@ -193,7 +173,7 @@ Review cloud publishing security, resume and link invariants.
 
 - Serves: `catia-archive` -- [Success criteria](../openspec/spec.md#success-criteria)
 - Human status: HUMAN-GATED
-- Dependencies: `prove-stage-4-on-generated-archive`.
+- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md).
 - Requested input or decision: Run `split --catia --catia-text`, interrupt, resume and
   `restore --catia` on a disposable copy of the experimental CATIA tree; review descriptions,
   sidecars (usefulness of `strings:`, and whether user ids or workstation paths are acceptable in

@@ -44,7 +44,7 @@ After pulling changes, compare `bin/.env` with `.env.example` for new variables.
 | `make dist` | `build-all`, `ffmpeg`, then `scripts/package-dist.sh` | Linux `.tar.gz` and Windows `.zip` in `dist/`, each with checksums, matching manual, `.env.example`, GPL v3 text and FFmpeg source notice; also writes archive checksums to `dist/SHA256SUMS` (network) |
 | `make test` | `go test ./...` | Package tests and untagged integration tests |
 | `make test-race` | `go test -race ./...` | Race detector (needs cgo on the host; not part of `ci`) |
-| `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the archive round-trip proof (`TestArchiveSplitRestoreRoundTrip`); a CI step after `make ci` |
+| `make test-integration` | `go test -count=1 -tags integration ./test/integration/...` | Integration tests and tagged end-to-end proofs, including the archive round-trip proof (`TestArchiveSplitRestoreRoundTrip`) and the stage-4 CATIA proof (`TestCatiaSplitRestoreRoundTrip`); a CI step after `make ci` |
 | `make fmt` | `gofmt -w` | Format |
 | `make fmt-check` | `gofmt -l` | Fail on unformatted files |
 | `make vet` | `go vet ./...`, also with `-tags integration` for `./test/integration/...` | Static checks |

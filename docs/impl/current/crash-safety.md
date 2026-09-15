@@ -112,7 +112,11 @@ and `archive.Status` onto exit codes; it does not import `state` in production.
   boundaries, and at end (including interrupt and failure), through `fsops.AtomicWriteFile`. A
   leftover `checkpoint.json.arxgo-part` is ignored. Contents include phase, scan cursor, offsets
   (including `wal_offset` when a WAL is open), counters and elapsed time accumulated across resumed
-  processes.
+  processes. After a kill the checkpointed counters can lag the WAL; a resumed split or restore
+  raises the payload `*_done` counter to the committed transactions, and a resumed split raises
+  `previews_done` and `texts_done` to the durable done records of its WAL
+  ([0050](../records/0050-catia-prove-stage-4-on-generated-archive.md)). Byte and failure counters
+  are not reconstructed.
 - `run.log.jsonl` is JSON Lines at info (debug when `--log-level debug`), UTC times, independent of
   the console level and format. A torn last line is terminated on resume. The console and the file
   share one `slog` logger via `state.Fanout`.

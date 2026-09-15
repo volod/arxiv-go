@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/volod/arxiv-go/internal/fsops"
@@ -53,6 +54,9 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		return err
 	}
 	syncCommittedCounter(s, w)
+	if err := syncSidecarCounters(s, w); err != nil {
+		return err
+	}
 	list := s.Run.File(state.CandidatesFile)
 	remaining, err := countRemaining(list, w)
 	if err != nil {
@@ -116,6 +120,32 @@ func syncCommittedCounter(s *Session, w *state.WAL) {
 	if done := int64(w.Committed().Len()); done > counter.Load() {
 		counter.Store(done)
 	}
+}
+
+// syncSidecarCounters makes the WAL authoritative for the sidecar counters of a resumed split: a
+// preview_done or text_done may be durable while the process died before the counter reached a
+// checkpoint, and counters in the report are cumulative for the run.
+func syncSidecarCounters(s *Session, w *state.WAL) error {
+	records, err := state.ReadWALRecords(w.Path())
+	if err != nil {
+		return err
+	}
+	counters := map[state.Step]*atomic.Int64{
+		state.PreviewEvents.Done: &s.Stats.PreviewsDone,
+		state.TextEvents.Done:    &s.Stats.TextsDone,
+	}
+	durable := map[state.Step]int64{}
+	for _, rec := range records {
+		if _, ok := counters[rec.Step]; ok {
+			durable[rec.Step]++
+		}
+	}
+	for step, n := range durable {
+		if c := counters[step]; n > c.Load() {
+			c.Store(n)
+		}
+	}
+	return nil
 }
 
 func countRemaining(list string, w *state.WAL) (Candidates, error) {

@@ -6,11 +6,12 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0046 CATIA split](../records/0046-catia-implement-catia-split.md);
 [0047 CATIA text sidecars](../records/0047-catia-implement-catia-text-sidecars.md);
 [0048 CATIA restore](../records/0048-catia-implement-catia-restore.md);
-[0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md).
+[0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md);
+[0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
-sidecars and CATIA restore ship; the capability stays planned until the stage-4 proof on a generated
-archive and the stage-4 checkpoint are accepted.
+sidecars and CATIA restore ship and are proven through the built binary on a generated archive; the
+capability stays planned until the stage-4 checkpoint is accepted.
 
 ## Classification (`internal/catia`, `internal/scanner`)
 
@@ -239,4 +240,41 @@ used to leave those owned sidecars, because the replacing run has no candidate f
   first-line) checks and, for video, description link refresh. A split after that restore makes
   the file ineligible. A kept changed sidecar is logged at info (`quiet`), not reported. The rule
   never uses `Config.RecovererFor`; `catiaRestore.deletedDescriptions` is gone.
+
+## Stage-4 proof (`test/integration`)
+
+`make test-integration` (a CI step on `ubuntu-latest`) also runs `TestCatiaSplitRestoreRoundTrip`
+([0050](../records/0050-catia-prove-stage-4-on-generated-archive.md)). It uses the stage-1
+generator (videos, documents, Unicode and space names, optional ffmpeg clips) plus 22 synthetic
+CATIA files: V5 `CATPart`/`CATProduct`/`CATDrawing` with a `LastSaveVersion` property, a component
+window and 256 KiB to 2 MiB seeded payloads, raw-XML and ZIP `3dxml`, `cgr`, lower- and upper-case
+extensions at the root and deep levels, and a foreign `<part>.md` and `<part>.text.md` at one CATIA
+file. Names and properties are invented. Through the binary only:
+
+- exit 2 before anything is written for `--catia --video-archive`, `--catia-text` without
+  `--catia`, `--catia --video`, a CATIA archive inside the archive and `restore --catia --previews
+  delete` (mirror roots not created, no lock);
+- `scan` writes `is_catia` for exactly the CATIA files;
+- a video split (`--transfer copy --verify hash`) killed after a seeded number of WAL records and
+  resumed;
+- `split --catia --catia-text --transfer copy --verify hash` killed twice and completed by a third
+  process in the same run: CATIA files byte-identical in the CATIA archive, descriptions with the
+  `catia:` line (and `.arxgo.md` / `.arxgo.text.md` next to the foreign files), owned sidecars,
+  identical `arxgo-catia.csv` copies (kind, and release and component count of one V5 product),
+  `catia_done` and `texts_done` equal to the file count in the resumed report, `arxgo-videos.csv`
+  unchanged, each mirror root holding only its own payload and registry; a rerun moves and writes
+  nothing and leaves `arxgo-catia.csv` byte-identical;
+- `restore --catia --transfer copy` killed, then `restore --transfer copy` (video) killed, which
+  first rolls the CATIA run forward; `restore --catia` rolls the video run forward and completes
+  (registries retired, CATIA archive empty); `restore` completes; reruns exit 0;
+- the manifest of every file and directory (path, size, mtime ns, SHA-256) equals the one taken
+  before the first operation.
+
+`ARXGO_TEST_SEED` replays a run; `ARXGO_TEST_VIDEO_PARENT` puts both mirror roots on another
+device. A run takes about 5 s.
+
+A resumed split now takes `previews_done` and `texts_done` from the durable `preview_done` /
+`text_done` records of its own WAL when they exceed the checkpointed values
+(`syncSidecarCounters`), as it already did for the payload's `*_done` counter, so report counters
+stay cumulative after a kill.
 

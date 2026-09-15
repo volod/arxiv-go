@@ -297,3 +297,34 @@ func TestBroken3DXMLTextFailureDoesNotRollBackMove(t *testing.T) {
 		t.Fatalf("counters %+v", rep.Counters)
 	}
 }
+
+// Report counters are cumulative for a resumed run. A text sidecar whose text_done is durable but
+// whose process died before the counter was updated or checkpointed still counts (regression: a
+// killed and resumed CATIA split reported fewer texts_done than sidecars written).
+func TestResumedSplitCountsDurableTextDone(t *testing.T) {
+	r, files := catiaFixture(t)
+	fired := false
+	crash := func(p string) error {
+		if p == "wal:text_done" && !fired {
+			fired = true
+			return errors.New("injected crash after text_done")
+		}
+		return nil
+	}
+	cfg, c := catiaTextConfig(r, "auto")
+	cfg.Crash = crash
+	attachRecoverer(&cfg, c, crash)
+	res := runSplit(t, cfg, c)
+	if res.Status != StatusFailed || !fired {
+		t.Fatalf("crash = %+v", res)
+	}
+	cfg, c = catiaTextConfig(r, "auto")
+	cfg.Lock.PID = 200
+	resumed := runSplit(t, cfg, c)
+	if resumed.Status != StatusCompleted || resumed.RunID != res.RunID {
+		t.Fatalf("resume = %+v (crashed run %s)", resumed, res.RunID)
+	}
+	if rep := readReport(t, r.archive, resumed.RunID); rep.Counters.TextsDone != int64(len(files)) {
+		t.Fatalf("texts_done = %d, want %d", rep.Counters.TextsDone, len(files))
+	}
+}
