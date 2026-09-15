@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/volod/arxiv-go/internal/fsops"
-	"github.com/volod/arxiv-go/internal/report"
+	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 )
 
@@ -23,22 +23,18 @@ type RestoreConfig struct {
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 }
 
-// RestoreBody scans the video archive, preflights, and restores candidates in walk order.
+// RestoreBody scans the payload's mirror root, preflights, and restores candidates in walk order.
 // The caller must install NewRestoreResolver in Config.Recoverer before Start.
 func RestoreBody(c RestoreConfig) func(context.Context, *Session) error {
 	return func(ctx context.Context, s *Session) error { return Restore(ctx, s, c) }
 }
 
 func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
-	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
+	hooks, err := s.payload.newRestore(ctx, s, &c)
 	if err != nil {
 		return err
 	}
-	idx, err := newPreviewIndex(s.cfg.Archive, history)
-	if err != nil {
-		return err
-	}
-	c.Scan.Root = s.cfg.VideoArchive
+	c.Scan.Root = s.cfg.Payload.Root
 	c.Scan.Preflight = false
 	if c.Scan.Registry == "" {
 		c.Scan.Registry = s.Run.File(state.ScanRegistryFile)
@@ -46,17 +42,9 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	if c.Scan.LargeThreshold <= 0 {
 		c.Scan.LargeThreshold = 1 << 30
 	}
-	videos, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
-	if err != nil {
-		return err
-	}
-	byVideo := videoRowsByVideoPath(s, videos)
-	// A video that split moved stays a candidate even when detection alone would not call it a
-	// video, for example one selected by --video-extensions, which restore does not take.
-	c.Scan.Include = func(rel string) bool {
-		row, ok := byVideo[rel]
-		return ok && (row.Status == report.StatusMoved || row.Status == report.StatusRestored)
-	}
+	byRel := hooks.rows()
+	candidate := s.payload.candidate
+	c.Scan.Candidate = func(rel string, ft scanner.FileType) bool { return candidate(ft) || hooks.include(rel) }
 	if _, err := Scan(ctx, s, c.Scan); err != nil {
 		return err
 	}
@@ -74,10 +62,10 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		return err
 	}
 	if s.cfg.DryRun {
-		s.Log.Info("dry run: restore plan complete", "videos", remaining.Count, "bytes", remaining.Bytes)
+		s.Log.Info("dry run: restore plan complete", "payload", s.payload.kind, "candidates", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
-	if err := restorePreviewsBeforeExecute(s, w, idx, c.DeletePreviews); err != nil {
+	if err := hooks.beforeExecute(w); err != nil {
 		return err
 	}
 	r := restoreResolverOf(s, c)
@@ -88,9 +76,9 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	folded := caseFoldGuard{}
 	err = ReadCandidates(list, func(v Candidate) error {
 		index++
-		destRel := restoreDestRel(v, byVideo)
+		destRel := restoreDestRel(v, byRel)
 		if first, clash := folded.clash(destRel); clash {
-			skipVideo(s, v, "destination case-folds to "+first)
+			skipCandidate(s, v, "destination case-folds to "+first)
 			return nil
 		}
 		if w.Committed().Has(destRel) || w.Committed().Has(v.RelPath) {
@@ -99,11 +87,11 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := restoreCandidate(ctx, s, w, r, v, destRel, byVideo, &c, list); err != nil {
+		if err := restoreCandidate(ctx, s, w, r, v, destRel, byRel, &c, list); err != nil {
 			return err
 		}
-		if c.DeletePreviews && w.Committed().Has(destRel) {
-			if err := deletePreviews(s, w, idx, destRel); err != nil {
+		if w.Committed().Has(destRel) {
+			if err := hooks.committed(w, destRel); err != nil {
 				return err
 			}
 		}
@@ -117,28 +105,7 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		pruneRestoredDirs(s)
 	}
 	if c.RegistryUpdate {
-		return writeRestoreOutputs(s, c, videos)
-	}
-	return nil
-}
-
-// restorePreviewsBeforeExecute removes part files of unfinished preview generation, finishes
-// interrupted deletions and, with --previews delete, deletes the previews of videos an earlier
-// process of this run already restored.
-func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, deleteRestored bool) error {
-	if err := idx.removeUnfinishedParts(); err != nil {
-		return err
-	}
-	if err := resumePreviewDeletes(s, w, idx); err != nil {
-		return err
-	}
-	if !deleteRestored {
-		return nil
-	}
-	for _, video := range w.Committed().Paths() {
-		if err := deletePreviews(s, w, idx, video); err != nil {
-			return err
-		}
+		return hooks.updateRegistry(c)
 	}
 	return nil
 }
@@ -150,7 +117,7 @@ func restoreResolverOf(s *Session, c RestoreConfig) *RestoreResolver {
 	if !ok {
 		r = NewRestoreResolver(RestoreResolver{Verify: c.Verify})
 	}
-	r.KeepDescriptions, r.KeepSource, r.Archive = c.KeepDescriptions, c.KeepSource, s.cfg.Archive
+	r.KeepDescriptions, r.KeepSource, r.Archive, r.Payload = c.KeepDescriptions, c.KeepSource, s.cfg.Archive, s.payload.kind
 	if s.cfg.Crash != nil {
 		r.Crash = s.cfg.Crash
 	}

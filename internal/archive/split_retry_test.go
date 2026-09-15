@@ -265,7 +265,7 @@ func TestSplitAutoCopiesWhenRootsOnDifferentFilesystems(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg, c := splitConfig(r, "auto")
-	cfg.VideoArchive = shm
+	cfg.Payload.Root = shm
 	c.Scan.SkipPaths = []string{shm}
 	dst := filepath.Join(shm, "nested", "clip.mp4")
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {

@@ -211,7 +211,8 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 		s.mu.Lock()
 		issues := len(s.issues) > 0 || s.issuesOmitted > 0 || s.partial
 		s.mu.Unlock()
-		if issues || c.VideosSkipped > 0 || c.VideosFailed > 0 || c.PreviewsFailed > 0 {
+		t := s.Progress.payloadOf(c)
+		if issues || t.skipped > 0 || t.failed > 0 || c.PreviewsFailed > 0 {
 			return StatusPartial
 		}
 		return StatusCompleted
@@ -265,8 +266,9 @@ func (s *Session) report(res Result) state.Report {
 		Issues: append([]state.Issue(nil), s.issues...), IssuesOmitted: s.issuesOmitted,
 		Scan: s.scanSummary,
 	}
-	if s.cfg.VideoArchive != "" {
-		r.Roots = append(r.Roots, state.RootStats{Root: s.cfg.VideoArchive, BytesWritten: c.VideoWritten, BytesFreed: c.VideoFreed})
+	if s.payload != nil {
+		t := s.payload.totals(c)
+		r.Roots = append(r.Roots, state.RootStats{Root: s.cfg.Payload.Root, BytesWritten: t.mirrorWritten, BytesFreed: t.mirrorFreed})
 	}
 	return r
 }

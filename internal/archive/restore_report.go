@@ -38,11 +38,7 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 	}
 	csvBuf := []byte(b.String())
 	retire := !c.KeepDescriptions && !report.HasMoved(rows)
-	for _, root := range []string{s.cfg.Archive, s.cfg.VideoArchive} {
-		if root == "" {
-			continue
-		}
-		csvPath := filepath.Join(root, scanner.VideoRegistryName)
+	for _, csvPath := range registryPaths(s, scanner.VideoRegistryName) {
 		if err := s.cfg.FS.AtomicWriteFile(csvPath, csvBuf, 0o644); err != nil {
 			return err
 		}
@@ -50,7 +46,7 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 			continue
 		}
 		stamp := fmt.Sprintf("arxgo-videos.restored-%s", s.Run.ID)
-		if err := s.cfg.FS.Replace(csvPath, filepath.Join(root, stamp+".csv")); err != nil {
+		if err := s.cfg.FS.Replace(csvPath, filepath.Join(filepath.Dir(csvPath), stamp+".csv")); err != nil {
 			return err
 		}
 	}

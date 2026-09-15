@@ -38,7 +38,7 @@ func planSplitPreviews(ctx context.Context, s *Session, c SplitConfig, idx *prev
 	moved := map[string]bool{}
 	for _, row := range videoRows {
 		if row.Status == report.StatusMoved && scanner.LocalRelPath(row.RelPath) {
-			sources[row.RelPath] = filepath.Join(s.cfg.VideoArchive, filepath.FromSlash(row.RelPath))
+			sources[row.RelPath] = filepath.Join(s.cfg.Payload.Root, filepath.FromSlash(row.RelPath))
 			moved[row.RelPath] = true
 			known[row.RelPath] = row.Metadata.Media
 		}

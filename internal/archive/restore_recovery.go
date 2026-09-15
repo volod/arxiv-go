@@ -15,7 +15,7 @@ import (
 
 // RestoreResolver rolls an interrupted restore transaction forward. WriteDescription removes an
 // owned description (or is a no-op when --descriptions keep). RemoveSource is a no-op when --transfer copy
-// keeps the video archive file.
+// keeps the mirror file.
 type RestoreResolver struct {
 	FS               fsops.Ops
 	Verify           fsops.VerifyMode
@@ -23,11 +23,12 @@ type RestoreResolver struct {
 	KeepDescriptions bool
 	KeepSource       bool
 	Archive          string
+	Payload          PayloadKind // selects the payload registry that holds description paths
 
-	hints *descriptionHints // description_rel_path by rel_path, loaded once from the archive's video registry
+	hints *descriptionHints // description_rel_path by rel_path, loaded once from the archive's payload registry
 }
 
-// descriptionHints caches the description paths of the video registry. The registry is rewritten only in the
+// descriptionHints caches the description paths of the payload registry. The registry is rewritten only in the
 // report phase, after every transaction, so one load serves recovery and execute.
 type descriptionHints struct {
 	once  sync.Once
@@ -126,7 +127,11 @@ func (r RestoreResolver) descriptionHint(rel string) string {
 	}
 	h.once.Do(func() {
 		h.byRel = map[string]string{}
-		rows, err := report.LoadVideoFile(filepath.Join(r.Archive, scanner.VideoRegistryName))
+		spec, err := specOf(r.Payload)
+		if err != nil {
+			return
+		}
+		rows, err := spec.loadRows(filepath.Join(r.Archive, spec.registry))
 		if err != nil {
 			return
 		}

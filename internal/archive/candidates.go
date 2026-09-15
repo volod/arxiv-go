@@ -15,7 +15,7 @@ import (
 // CandidateVersion is the "v" field of candidates.jsonl records.
 const CandidateVersion = 1
 
-// Candidate is one video found by the scan, in walk order. Split and restore read the list from
+// Candidate is one payload file found by the scan, in walk order. Split and restore read the list from
 // the run directory instead of scanning again when they resume.
 type Candidate struct {
 	V        int       `json:"v"`

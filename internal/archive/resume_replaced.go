@@ -17,8 +17,9 @@ var ErrUnrecoveredRun = errors.New("an interrupted run has unfinished transactio
 
 // recoverReplaced finishes the open WAL transactions of the incomplete run rd before a new run
 // replaces it as current, so current never moves away from unfinished work. The resolver is
-// rebuilt from the options that run recorded. Recovery needs the locks of that run's roots:
-// a scan, or a run on another video archive, stops with ErrUnrecoveredRun and changes nothing.
+// rebuilt from the payload and options that run recorded. Recovery needs the locks of that run's
+// roots: a scan, or a run of another payload or mirror root, stops with ErrUnrecoveredRun and
+// changes nothing. A split or restore run without a payload is corrupt.
 func (s *Session) recoverReplaced(ctx context.Context, rd state.RunDir, prev state.RunOptions) (err error) {
 	path := rd.File(state.WALFile)
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
@@ -35,13 +36,17 @@ func (s *Session) recoverReplaced(ctx context.Context, rd state.RunDir, prev sta
 	if open == 0 {
 		return nil
 	}
-	if prev.Archive != s.cfg.Archive || prev.VideoArchive == "" || prev.VideoArchive != s.cfg.VideoArchive ||
-		s.cfg.RecovererFor == nil {
-		return fmt.Errorf("%w: %s run %s has %d unfinished transactions; rerun %s with --archive %q "+
-			"--video-archive %q (add --new-run to start over after recovery)",
-			ErrUnrecoveredRun, prev.Op, rd.ID, open, prev.Op, prev.Archive, prev.VideoArchive)
+	payload := runPayload(prev)
+	if payload.Kind == "" || payload.Root == "" {
+		return fmt.Errorf("%w: %s run %s has %d unfinished transactions but %s names no payload and mirror root",
+			state.ErrStateCorrupt, prev.Op, rd.ID, open, state.OptionsFile)
 	}
-	res, err := s.cfg.RecovererFor(prev.Op, prev.Options)
+	if prev.Archive != s.cfg.Archive || payload != s.cfg.Payload || s.cfg.RecovererFor == nil {
+		return fmt.Errorf("%w: %s %s run %s has %d unfinished transactions; rerun %s with --archive %q "+
+			"%s %q (add --new-run to start over after recovery)",
+			ErrUnrecoveredRun, payload.Kind, prev.Op, rd.ID, open, prev.Op, prev.Archive, payload.Kind.MirrorFlag(), payload.Root)
+	}
+	res, err := s.cfg.RecovererFor(prev.Op, payload.Kind, prev.Options)
 	if err != nil {
 		return fmt.Errorf("%w: run %s: rebuild recovery from %s: %v", state.ErrStateCorrupt, rd.ID, state.OptionsFile, err)
 	}
@@ -52,7 +57,7 @@ func (s *Session) recoverReplaced(ctx context.Context, rd state.RunDir, prev sta
 	defer func() { err = errors.Join(err, runLog.Close()) }()
 	log := slog.New(state.Fanout(s.cfg.Console, runLog.Handler()))
 	log.Warn("recovering the interrupted run before a new run replaces it", "previous_run", rd.ID,
-		"previous_op", prev.Op, "open_transactions", open)
+		"previous_op", prev.Op, "payload", payload.Kind, "open_transactions", open)
 	n, err := state.Recover(ctx, w, res, log)
 	if err != nil {
 		return err

@@ -193,7 +193,7 @@ func (r *scanRun) write(it *scanItem) error {
 	if err := r.reg.Write(row); err != nil {
 		return err
 	}
-	if !ft.IsVideo && (r.cfg.Include == nil || !r.cfg.Include(e.Rel)) {
+	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
 		return nil
 	}
 	return r.cand.write(Candidate{RelPath: e.Rel, Size: size, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})

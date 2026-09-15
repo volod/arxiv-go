@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/volod/arxiv-go/internal/archive"
 	"github.com/volod/arxiv-go/internal/media"
 	"github.com/volod/arxiv-go/internal/scanner"
 )
@@ -28,13 +29,19 @@ const (
 	LogJSON       = "json"
 )
 
+// PayloadVideo is the payload kind of split and restore in this build.
+const PayloadVideo = string(archive.PayloadVideo)
+
 // DefaultRegistryName is the registry file created in the archive root unless --registry is set.
 const DefaultRegistryName = "arxgo-registry.csv"
 
 // Common holds validated flags shared by every operation. Paths are absolute and cleaned but keep
 // the spelling the operator gave; symlinks are resolved only for the nesting check.
 type Common struct {
-	Archive            string
+	Archive string
+	// Payload is the kind split and restore move (PayloadVideo); empty for scan. It is a defining
+	// option, so a run of one payload never resumes a run of another.
+	Payload            string
 	VideoArchive       string // empty for scan
 	LogLevel           slog.Level
 	LogFormat          string
@@ -127,6 +134,9 @@ func buildCommon(op string, s *settings, fsys rootFS, v *validator) (Common, boo
 	}
 	var videoMissing bool
 	c.Archive, c.VideoArchive, videoMissing = checkRoots(op, s, fsys, v)
+	if op != OpScan {
+		c.Payload = PayloadVideo
+	}
 	return c, videoMissing
 }
 

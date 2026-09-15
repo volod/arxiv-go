@@ -84,8 +84,12 @@ on Windows, as in `cache/**`.
 `E:\video\projects\demo.mp4`, and a video description such as
 `D:\archive\projects\demo.mp4.md` points to it. Existing unrelated files are preserved;
 an occupied description name gets an alternate name. Non-video files remain in the main archive.
-Both roots receive `arxgo-videos.csv`. If a different file already
-occupies the video destination, split skips it, reports a conflict and exits 6.
+Both roots receive `arxgo-videos.csv`. Its columns start with `rel_path`, `file_name`, `status`,
+`url` and `description_rel_path`, followed by `file_size`, `sha256`, `transfer`, `run_id`,
+`file_mime`, `previews` and the metadata columns. Builds before this column order wrote another
+order and run state without a payload: such a registry stops split and restore with exit 5, and an
+interrupted run of such a build must be finished by that build before upgrading. If a different
+file already occupies the video destination, split skips it, reports a conflict and exits 6.
 
 The default `--transfer auto` uses a no-replace rename only when both roots are on the same
 filesystem/device. Two folders on one volume normally meet this condition. Separate volumes

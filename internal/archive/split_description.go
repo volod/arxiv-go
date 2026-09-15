@@ -12,13 +12,14 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
-// DescriptionConfig is the archive-side input to the video description writer.
+// DescriptionConfig is the archive-side input to the video description writer. Mirror is the
+// payload's mirror root.
 type DescriptionConfig struct {
-	Archive, VideoArchive, BaseURL, Registry, Version string
-	Verify                                            fsops.VerifyMode
-	FS                                                fsops.Ops
-	Crash                                             state.CrashHook
-	Now                                               func() time.Time
+	Archive, Mirror, BaseURL, Registry, Version string
+	Verify                                      fsops.VerifyMode
+	FS                                          fsops.Ops
+	Crash                                       state.CrashHook
+	Now                                         func() time.Time
 }
 
 // MarkdownDescription implements SplitDescriptionWriter with full front matter, links and metadata.

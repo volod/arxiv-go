@@ -18,18 +18,17 @@ type Role string
 
 // Preflight roles.
 const (
-	RoleArchive      Role = "archive"
-	RoleVideoArchive Role = "video_archive"
-	RoleRegistry     Role = "registry"
+	RoleArchive  Role = "archive"
+	RoleRegistry Role = "registry"
 )
 
 // Estimates from the preflight table in the integrity specification.
 const (
-	registryRowBytes      = 256     // scan: per registry row
-	mediaMetadataBytes    = 512     // scan: per media row in media mode
-	descriptionBytes      = 4 << 10 // split: per video description
-	videoRegistryRowBytes = 1 << 10 // split: per video, per registry copy
-	walBytes              = 2 << 10 // split and restore: WAL records per candidate
+	registryRowBytes        = 256     // scan: per registry row
+	mediaMetadataBytes      = 512     // scan: per media row in media mode
+	descriptionBytes        = 4 << 10 // split: per description
+	payloadRegistryRowBytes = 1 << 10 // split: per candidate, per payload registry copy
+	walBytes                = 2 << 10 // split and restore: WAL records per candidate
 )
 
 // Operation names and option values preflight distinguishes. They equal the cli values.
@@ -41,7 +40,7 @@ const (
 	metadataMedia = "media"
 )
 
-// Candidates summarizes the work left for the run: for split and restore the remaining video
+// Candidates summarizes the work left for the run: for split and restore the remaining payload
 // candidates, for scan the registry rows to write. Resume passes the remaining candidates only.
 type Candidates struct {
 	Count     int64 // candidates (scan: registry rows)
@@ -55,9 +54,10 @@ type Candidates struct {
 // PreflightOptions are the run options that change the requirement.
 type PreflightOptions struct {
 	Op       string
-	Transfer string // auto or copy; empty means auto
-	Metadata string // scan: file or media
-	MinFree  int64  // bytes that must remain free on every write device
+	Payload  PayloadKind // split and restore: selects the mirror role and the payload's needs
+	Transfer string      // auto or copy; empty means auto
+	Metadata string      // scan: file or media
+	MinFree  int64       // bytes that must remain free on every write device
 }
 
 // Device is one filesystem volume with the roles placed on it and its free space.
@@ -128,7 +128,8 @@ func (r Requirement) Shortfall() int64 {
 }
 
 // Plan computes the free space each write device needs for the remaining work. It is pure: device
-// grouping and free space come from info. Roles missing from info are ignored.
+// grouping and free space come from info. Roles missing from info are ignored; split and restore
+// place their mirror work on the role of o.Payload.
 func Plan(c Candidates, o PreflightOptions, info DeviceInfo) Requirement {
 	req := Requirement{Op: o.Op}
 	needs := make([][]Need, len(info.Devices))
@@ -144,7 +145,11 @@ func Plan(c Candidates, o PreflightOptions, info DeviceInfo) Requirement {
 		}
 	}
 	count, largest := nonNeg(c.Count), nonNeg(c.Largest)
-	shared := info.index(RoleArchive) >= 0 && info.index(RoleArchive) == info.index(RoleVideoArchive)
+	mirror, noun, plural := Role(""), "", ""
+	if spec, err := specOf(o.Payload); err == nil {
+		mirror, noun, plural = spec.role, spec.noun, spec.plural
+	}
+	shared := info.index(RoleArchive) >= 0 && info.index(RoleArchive) == info.index(mirror)
 	copying := o.Transfer == transferCopy
 
 	switch o.Op {
@@ -159,21 +164,21 @@ func Plan(c Candidates, o PreflightOptions, info DeviceInfo) Requirement {
 		}
 	case opSplit:
 		add(RoleArchive, "descriptions", mulSat(count, descriptionBytes))
-		add(RoleArchive, "video_registry", mulSat(count, videoRegistryRowBytes))
-		add(RoleVideoArchive, "video_registry", mulSat(count, videoRegistryRowBytes))
+		add(RoleArchive, noun+"_registry", mulSat(count, payloadRegistryRowBytes))
+		add(mirror, noun+"_registry", mulSat(count, payloadRegistryRowBytes))
 		add(RoleArchive, "wal", mulSat(count, walBytes))
 		add(RoleArchive, "previews", nonNeg(c.PreviewBytes))
 		switch {
 		case !shared:
-			add(RoleVideoArchive, "videos", nonNeg(c.Bytes))
+			add(mirror, plural, nonNeg(c.Bytes))
 		case copying:
 			// Sources are removed one by one after their copy commits.
-			add(RoleVideoArchive, "largest_video", largest)
+			add(mirror, "largest_"+noun, largest)
 		}
 	case opRestore:
 		add(RoleArchive, "wal", mulSat(count, walBytes))
 		if !shared || copying {
-			add(RoleArchive, "videos", nonNeg(c.Bytes))
+			add(RoleArchive, plural, nonNeg(c.Bytes))
 		}
 	}
 

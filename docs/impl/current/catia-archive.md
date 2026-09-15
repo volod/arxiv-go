@@ -1,9 +1,11 @@
 # CATIA Archive
 
-Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia-classification.md).
+Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia-classification.md);
+[0044 Payload split and restore](../records/0044-catia-generalize-payload-split-restore.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
-[split and restore](../../openspec/stage-4-catia/split-restore.md) is specified and not yet
-implemented. The capability remains planned until those tasks ship.
+[split and restore](../../openspec/stage-4-catia/split-restore.md) is specified; the shared payload
+executor exists, CATIA split and restore are not implemented. The capability remains planned until
+those tasks ship.
 
 ## Classification (`internal/catia`, `internal/scanner`)
 
@@ -33,3 +35,42 @@ The file registry always has `is_catia` as required column 11, after the other t
 header; registries written in the previous order do not load. Scan statistics include a `catia`
 count and byte total, omitted from report JSON when zero. Root-level `arxgo-catia.csv` is reserved
 the same way as `arxgo-videos.csv`. Split and restore of CATIA files are not available yet.
+
+## Payload executor (`internal/archive`, `internal/state`, `internal/report`)
+
+Split and restore run one executor for every payload kind. `archive.Config.Payload` holds the kind
+and its mirror root; `cli` sets `video` and the video archive, and there are no CATIA flags yet. A
+split or restore of kind `catia` is refused by `archive.Start` ("not available in this build").
+
+- **Payload spec** (`payload.go`, `payload_video.go`). The kind selects the candidate predicate
+  (`ScanConfig.Candidate`; video: `is_video`), the preflight role and need names (`video_archive`,
+  `video_registry`, `videos`, `largest_video`), the payload registry name and loader, the counters
+  (video: `videos_*`, `video_bytes`, `video_archive_bytes_*`) used by execution, progress, the
+  partial status and the report roots, and two hook sets. Split hooks prepare (registry, history,
+  preview index, skip paths), plan (preview bytes for preflight), start the post-commit sidecar
+  (preview queue with catch-up) and write the registry. Restore hooks provide the registry rows and
+  extra candidates, finish interrupted sidecar work, run per-commit cleanup (`--previews delete`)
+  and update the registry. Transfer, WAL `begin` through `commit`, recovery, preflight, progress,
+  locks, description occupancy and conflict naming are shared code that names the mirror root
+  generically.
+- **Run history by payload** (`history.go`). `readHistory(archive, kind)` returns only runs whose
+  `options.json` names that payload, with that run's archive and mirror roots. The video registry,
+  the preview index, restore description hints (through the payload registry) and mirror directory
+  cleanup use video runs only. Scans and run directories without readable options are not history.
+- **Run options.** Split and restore write `payload` and the matching root (`video_archive`, or
+  `catia_archive` for a CATIA run). The payload is a defining option. Replacing an interrupted run
+  rebuilds its resolver from the recorded payload (`RecovererFor(op, payload, options)`); another
+  payload or mirror root exits 5 naming that payload's mirror flag, and a run without a payload is
+  corrupt state.
+- **Payload registry columns** (`report.PayloadHeader`, `report.PayloadRow`). Columns 1-10 are
+  `rel_path`, `file_name`, `status`, `url`, `description_rel_path`, `file_size`, `sha256`,
+  `transfer`, `run_id`, `file_mime`, shared by `arxgo-videos.csv` (then `previews` and metadata)
+  and the future `arxgo-catia.csv`. Registries in the earlier video order do not load.
+- **Sidecar event families** (`state.EventFamily`, `wal_event.go`). Begin, done or failed, delete
+  and deleted steps of a family use the version 2 envelope through `WAL.BeginEvent` and
+  `WAL.FinishEvent`; a family's outcome for another family's begin is rejected on write and is
+  corrupt on replay. `archive.eventIndex` replays one family (owned, generating, deleting) and
+  removes part files of unfinished generations with the family's part-path rule. Previews are the
+  only registered family.
+
+No CLI flag, CATIA candidate, CATIA registry or text event exists yet.

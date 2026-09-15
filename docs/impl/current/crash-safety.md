@@ -55,29 +55,36 @@ Measured on the development host (4 GiB file, NVMe ext4 and tmpfs): size-verifie
 `<archive>/.arxgo/runs/<run-id>/` with `options.json`, `checkpoint.json`, `run.log.jsonl`,
 `wal.jsonl` when a mutating run writes transactions, and, when the run reaches a final state,
 `report.json`. `<run-id>` is `YYYYMMDDTHHMMSSZ-<8 hex>` in UTC.
-Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock).
+Formats are in [contracts](../../openspec/stage-1-core/contracts.md#run-lock). Split and restore
+record `payload` (`video` in this build) and that payload's mirror root (`video_archive`) in
+`options.json`; `scan` records neither. `archive.Config.Payload` carries the kind and mirror root,
+and `archive.Start` refuses a split or restore without a known payload, or a scan with one, before
+taking a lock ([0044](../records/0044-catia-generalize-payload-split-restore.md)).
 
 A later process resumes `current` when that run has no report and the operation plus defining
-options match (roots and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
+options match (roots, payload and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
 `--dry-run`, `--new-run` or `--force-unlock`). `--dry-run` always creates its own directory, recovers
 nothing and never changes `current`.
 
 Otherwise (other defining options, another operation, or `--new-run`) the incomplete run is left in
 place, but first its unfinished WAL transactions are recovered, so `current` never moves away from
-them. `archive.Config.RecovererFor` rebuilds that run's resolver from its `options.json`
-(`cli.recovererFor` decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
+them. `archive.Config.RecovererFor` rebuilds that run's resolver from the payload and options in its
+`options.json` (`cli.recovererFor` requires the payload, checks that the stored options name the same
+one, and decodes `SplitOptions` or `RestoreOptions`), so a split crashed after `placed`
 gets the description with its own `--base-url` and `--verify`, and a restore keeps its `--descriptions` and
 `--transfer` policies. The recovery is logged to the console and appended to the earlier run's
-`run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run on
-another video archive stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
-directory, names the run and the roots to rerun, and releases its locks.
+`run.log.jsonl`. It needs the locks of that run's roots: `scan` (archive lock only) or a run with
+another payload or mirror root stops with exit 5 (`archive.ErrUnrecoveredRun`) before creating a run
+directory, names the run, the archive and the mirror flag and root to rerun with, and releases its
+locks. An interrupted split or restore whose `options.json` names no payload is corrupt state
+(exit 5).
 
 ## Run lock
 
-- Created with `O_CREATE|O_EXCL` in the archive root, then in the video archive root. `scan` takes
-  only the archive lock. If the mirror lock is refused, the archive lock is released and no run
-  directory is created. `split` creates a missing video archive root after the archive lock, not
-  in `--dry-run`.
+- Created with `O_CREATE|O_EXCL` in the archive root, then in the payload's mirror root (the video
+  archive). `scan` takes only the archive lock. If the mirror lock is refused, the archive lock is
+  released and no run directory is created. `split` creates a missing mirror root after the archive
+  lock, not in `--dry-run`.
 - A second process exits 5 and prints the owner (`pid`, `host`, `run_id`, `op`).
 - Stale: same host (case-insensitive) and a dead pid, or a lock that names this process's own pid.
   Takeover requires `--force-unlock`. Another host is never taken over, even with `--force-unlock`.

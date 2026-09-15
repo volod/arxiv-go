@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/volod/arxiv-go/internal/media"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 	"github.com/volod/arxiv-go/test/fixtures/tooltest"
@@ -266,7 +267,7 @@ func TestRelocatedArchiveKeepsRegistryPathsLive(t *testing.T) {
 	if got := runSplit(t, cfg2, c2); got.Status != StatusCompleted {
 		t.Fatalf("split after relocation: %+v", got)
 	}
-	rows, err := loadVideoRegistry(r.archive, "")
+	rows, err := report.LoadVideoFile(filepath.Join(r.archive, scanner.VideoRegistryName))
 	if err != nil || len(rows) != 1 || rows[0].DescriptionRelPath != "clip.mp4.md" || !strings.Contains(rows[0].Previews, "clip-img01.png") {
 		t.Fatalf("registry after relocation: %+v, %v", rows, err)
 	}

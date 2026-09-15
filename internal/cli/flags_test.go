@@ -47,11 +47,15 @@ func parseScan(t *testing.T, args []string, lookup lookupFunc) (ScanOptions, err
 }
 
 func defaultCommon(archive, video string) Common {
-	return Common{
+	c := Common{
 		Archive: archive, VideoArchive: video, LogLevel: slog.LevelInfo, LogFormat: LogText,
 		ProgressInterval: 10 * time.Second, CheckpointEvery: 500, CheckpointInterval: 30 * time.Second,
 		MinFree: 1 << 30,
 	}
+	if video != "" {
+		c.Payload = PayloadVideo
+	}
+	return c
 }
 
 func TestDefaults(t *testing.T) {
@@ -127,7 +131,7 @@ func TestEveryFlagParses(t *testing.T) {
 	}
 	want := SplitOptions{
 		Common: Common{
-			Archive: archive, VideoArchive: video, LogLevel: slog.LevelDebug, LogFormat: LogJSON,
+			Archive: archive, Payload: PayloadVideo, VideoArchive: video, LogLevel: slog.LevelDebug, LogFormat: LogJSON,
 			ProgressInterval: time.Minute, CheckpointEvery: 7, CheckpointInterval: 90 * time.Second,
 			DryRun: true, MinFree: 10_000_000_000, NewRun: true, ForceUnlock: true,
 		},

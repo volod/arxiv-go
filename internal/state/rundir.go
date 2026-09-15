@@ -27,7 +27,7 @@ const (
 	CheckpointFile   = "checkpoint.json"
 	WALFile          = "wal.jsonl"
 	CandidatesFile   = "candidates.jsonl"
-	ScanRegistryFile = "scan-registry.csv" // restore: scan of the video archive stays in the run dir
+	ScanRegistryFile = "scan-registry.csv" // restore: scan of the mirror root stays in the run dir
 	ReportFile       = "report.json"
 	LogFile          = "run.log.jsonl"
 )
@@ -151,14 +151,18 @@ func WriteCurrent(root, id string) error {
 
 // RunOptions is the content of options.json: the validated options that define a run.
 type RunOptions struct {
-	V            int       `json:"v"`
-	RunID        string    `json:"run_id"`
-	Op           string    `json:"op"`
-	Version      string    `json:"version"`
-	CreatedAt    time.Time `json:"created_at"`
-	Archive      string    `json:"archive"`
-	VideoArchive string    `json:"video_archive,omitempty"`
-	DryRun       bool      `json:"dry_run,omitempty"`
+	V         int       `json:"v"`
+	RunID     string    `json:"run_id"`
+	Op        string    `json:"op"`
+	Version   string    `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	Archive   string    `json:"archive"`
+	// Payload is the kind split and restore move ("video" or "catia"); scan has none. The mirror
+	// root of that kind is stored in VideoArchive or CatiaArchive.
+	Payload      string `json:"payload,omitempty"`
+	VideoArchive string `json:"video_archive,omitempty"`
+	CatiaArchive string `json:"catia_archive,omitempty"`
+	DryRun       bool   `json:"dry_run,omitempty"`
 	// Defining holds the options that must match for a later process to resume this run.
 	Defining json.RawMessage `json:"defining"`
 	// Options holds every validated option, including runtime-only ones such as the log level.

@@ -50,8 +50,8 @@ func (w *WAL) load() error {
 			}
 			return fmt.Errorf("%w: %s: corrupt WAL line %d: %v", ErrStateCorrupt, w.path, n, err)
 		}
-		validVersion := rec.V == WALVersion && !isPreviewStep(rec.Step) ||
-			rec.V == PreviewWALVersion && isPreviewStep(rec.Step)
+		validVersion := rec.V == WALVersion && !isEventStep(rec.Step) ||
+			rec.V == EventWALVersion && isEventStep(rec.Step)
 		if !validVersion || rec.TxID == "" || rec.Step == "" || rec.Seq <= 0 {
 			return fmt.Errorf("%w: %s: invalid WAL record at line %d", ErrStateCorrupt, w.path, n)
 		}
@@ -75,16 +75,16 @@ func (w *WAL) ingest(rec Record) error {
 		if _, ok := w.begin[rec.TxID]; ok {
 			return fmt.Errorf("%w: %s: duplicate begin for %s", ErrStateCorrupt, w.path, rec.TxID)
 		}
-	} else if !isPreviewStep(rec.Step) {
+	} else if f, ok := familyOf(rec.Step); !ok {
 		if _, ok := w.begin[rec.TxID]; !ok {
 			return fmt.Errorf("%w: %s: step %s before begin for %s", ErrStateCorrupt, w.path, rec.Step, rec.TxID)
 		}
-	} else if rec.Step == StepPreviewBegin || rec.Step == StepPreviewDelete {
-		if _, ok := w.previews[rec.TxID]; ok {
-			return fmt.Errorf("%w: %s: duplicate preview begin for %s", ErrStateCorrupt, w.path, rec.TxID)
+	} else if f.Opens(rec.Step) {
+		if _, ok := w.events[rec.TxID]; ok {
+			return fmt.Errorf("%w: %s: duplicate %s begin for %s", ErrStateCorrupt, w.path, f.Name, rec.TxID)
 		}
-	} else if _, ok := w.previews[rec.TxID]; !ok {
-		return fmt.Errorf("%w: %s: preview outcome without begin for %s", ErrStateCorrupt, w.path, rec.TxID)
+	} else if open, ok := w.events[rec.TxID]; !ok || !f.Opens(open.Step) {
+		return fmt.Errorf("%w: %s: %s outcome without begin for %s", ErrStateCorrupt, w.path, f.Name, rec.TxID)
 	}
 	w.seq = rec.Seq
 	if n, err := txNumber(rec.TxID, w.runID); err == nil && n > w.nextTx {
@@ -92,14 +92,6 @@ func (w *WAL) ingest(rec Record) error {
 	}
 	w.note(rec)
 	return nil
-}
-
-func isPreviewStep(step Step) bool {
-	switch step {
-	case StepPreviewBegin, StepPreviewDone, StepPreviewFailed, StepPreviewDelete, StepPreviewDeleted:
-		return true
-	}
-	return false
 }
 
 func (w *WAL) truncate(to int64) error {

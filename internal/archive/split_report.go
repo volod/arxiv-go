@@ -19,6 +19,7 @@ type walAcc struct {
 	status      string
 }
 
+// writeVideoOutputs writes arxgo-videos.csv into the archive and the video archive.
 func writeVideoOutputs(s *Session, c SplitConfig) error {
 	if err := s.Phase(phaseReport, Totals{}); err != nil {
 		return err
@@ -31,21 +32,15 @@ func writeVideoOutputs(s *Session, c SplitConfig) error {
 	if err := report.WriteVideoCSV(&b, rows); err != nil {
 		return err
 	}
-	csvBuf := []byte(b.String())
-	for _, root := range []string{s.cfg.Archive, s.cfg.VideoArchive} {
-		if root == "" {
-			continue
-		}
-		if err := s.cfg.FS.AtomicWriteFile(filepath.Join(root, scanner.VideoRegistryName), csvBuf, 0o644); err != nil {
-			return err
-		}
+	if err := videoPayload.writeRegistryCopies(s, []byte(b.String())); err != nil {
+		return err
 	}
 	s.Log.Info("wrote video registry", "videos", len(rows), "csv", scanner.VideoRegistryName)
 	return nil
 }
 
 func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
-	existing, err := loadVideoRegistry(s.cfg.Archive, s.cfg.VideoArchive)
+	existing, err := loadVideoRegistry(s)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +73,7 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 		if merged[i].URL == "" || (merged[i].Status == report.StatusRestored && strings.HasPrefix(merged[i].URL, "file:")) {
 			root := s.cfg.Archive
 			if merged[i].Status == report.StatusMoved {
-				root = s.cfg.VideoArchive
+				root = s.cfg.Payload.Root
 			}
 			merged[i].URL = report.FileURL(filepath.ToSlash(filepath.Join(root, filepath.FromSlash(merged[i].RelPath))))
 		}
@@ -86,9 +81,10 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 	return merged, nil
 }
 
-// replayArchive reads the current WAL history of the archive and replays it onto existing rows.
+// replayArchive reads the video run history of the archive and replays it onto existing rows. Runs
+// of another payload never contribute rows.
 func replayArchive(s *Session, existing []report.VideoRow, fill func(*report.VideoRow)) ([]report.VideoRow, error) {
-	history, err := readHistory(s.cfg.Archive, s.cfg.VideoArchive)
+	history, err := readHistory(s.cfg.Archive, PayloadVideo)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +163,8 @@ func (a *walAcc) row() report.VideoRow {
 	}
 }
 
+// abortStatus is the registry status of an aborted split: conflict at the destination, otherwise
+// skipped.
 func abortStatus(reason string) string {
 	if strings.Contains(reason, "destination") {
 		return report.StatusConflict

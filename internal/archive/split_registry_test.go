@@ -33,7 +33,7 @@ func TestSplitWritesVideoRegistryToBothRoots(t *testing.T) {
 		if len(rows) != 2 || rows[0][0] != "rel_path" || rows[1][0] != "nested/clip.mp4" {
 			t.Fatalf("%s rows = %q", csvPath, rows)
 		}
-		if rows[1][7] != "moved" || rows[1][9] != "https://cdn.example.com/v/nested/clip.mp4" {
+		if rows[1][2] != "moved" || rows[1][3] != "https://cdn.example.com/v/nested/clip.mp4" {
 			t.Fatalf("row = %q", rows[1])
 		}
 		if exists(filepath.Join(root, "arxgo-videos.md")) {
@@ -62,13 +62,13 @@ func TestSplitRegistryMergesTwoRuns(t *testing.T) {
 	if rows[1][0] != "a/one.mp4" || rows[2][0] != "b/two.mp4" {
 		t.Fatalf("walk order = %q", rows)
 	}
-	if rows[1][7] != "moved" || rows[2][7] != "moved" {
+	if rows[1][2] != "moved" || rows[2][2] != "moved" {
 		t.Fatalf("status = %q", rows)
 	}
 	for _, row := range rows[1:] {
 		want := report.FileURL(filepath.ToSlash(filepath.Join(r.video, filepath.FromSlash(row[0]))))
-		if row[9] != want {
-			t.Errorf("%s local URL = %q, want %q", row[0], row[9], want)
+		if row[3] != want {
+			t.Errorf("%s local URL = %q, want %q", row[0], row[3], want)
 		}
 	}
 }

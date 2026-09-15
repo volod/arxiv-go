@@ -32,9 +32,9 @@ func (s *Session) openRun(ctx context.Context) error {
 	}
 	ro := state.RunOptions{
 		V: 1, RunID: s.Run.ID, Op: cfg.Op, Version: cfg.Version, CreatedAt: s.started.UTC(),
-		Archive: cfg.Archive, VideoArchive: cfg.VideoArchive, DryRun: cfg.DryRun,
-		Defining: defining, Options: options,
+		Archive: cfg.Archive, DryRun: cfg.DryRun, Defining: defining, Options: options,
 	}
+	setRunPayload(&ro, cfg.Payload)
 	if err := state.WriteJSON(s.Run.File(state.OptionsFile), ro); err != nil {
 		return err
 	}

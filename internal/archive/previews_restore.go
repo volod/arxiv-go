@@ -9,6 +9,27 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
+// restorePreviewsBeforeExecute removes part files of unfinished preview generation, finishes
+// interrupted deletions and, with --previews delete, deletes the previews of videos an earlier
+// process of this run already restored.
+func restorePreviewsBeforeExecute(s *Session, w *state.WAL, idx *previewIndex, deleteRestored bool) error {
+	if err := idx.removeUnfinishedParts(); err != nil {
+		return err
+	}
+	if err := resumePreviewDeletes(s, w, idx); err != nil {
+		return err
+	}
+	if !deleteRestored {
+		return nil
+	}
+	for _, video := range w.Committed().Paths() {
+		if err := deletePreviews(s, w, idx, video); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // resumePreviewDeletes finishes deletions whose preview_delete was logged by an earlier process.
 func resumePreviewDeletes(s *Session, w *state.WAL, idx *previewIndex) error {
 	for _, video := range sortedKeys(idx.deleting) {
@@ -55,7 +76,7 @@ func deletePreview(s *Session, w *state.WAL, idx *previewIndex, video, preview s
 		s.Issue(state.IssueSkipped, video, fmt.Sprintf("preview size or type changed; kept %s", preview))
 		return nil
 	}
-	begin, err := w.BeginPreview(video, abs, want, true)
+	begin, err := w.BeginEvent(idx.family, video, abs, want, true)
 	if err != nil {
 		return err
 	}
@@ -68,7 +89,7 @@ func deletePreview(s *Session, w *state.WAL, idx *previewIndex, video, preview s
 		}
 		s.Stats.ArchiveFreed.Add(want)
 	}
-	if _, err := w.FinishPreview(begin.TxID, state.StepPreviewDeleted, "", want, ""); err != nil {
+	if _, err := w.FinishEvent(idx.family, begin.TxID, idx.family.Deleted, "", want, ""); err != nil {
 		return err
 	}
 	idx.owned.remove(video, preview)

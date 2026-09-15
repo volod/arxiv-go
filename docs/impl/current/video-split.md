@@ -6,7 +6,9 @@ Accepted work: [0018 Video split transactions](../records/0018-split-implement-v
 relocated archive roots in [0034](../records/0034-preview-repair-stage-2-preview-defects.md);
 flat operator CSVs in [0040](../records/0040-split-flatten-operator-csv-outputs.md);
 default ISO BMFF media columns in
-[0041](../records/0041-metadata-collect-iso-metadata-by-default.md).
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md);
+payload executor and registry column order in
+[0044](../records/0044-catia-generalize-payload-split-restore.md).
 Specification: [split](../../openspec/stage-1-core/split-restore.md#split),
 [contracts](../../openspec/stage-1-core/contracts.md#video-description),
 [recovery](../../openspec/stage-1-core/integrity.md#recovery).
@@ -59,7 +61,11 @@ separating dots still fit. `--base-url` is composed as `base + "/" + escaped rel
 ## Video registry
 
 Phase `report` writes identical `arxgo-videos.csv` into both roots (atomic
-part file and rename). The CSV starts from any existing registry and replays every run's WAL in
+part file and rename). Columns 1-10 are the payload registry columns shared with the future CATIA
+registry: `rel_path`, `file_name`, `status`, `url`, `description_rel_path`, `file_size`, `sha256`,
+`transfer`, `run_id`, `file_mime`; then `previews` and the flat metadata columns. A registry in the
+earlier order does not load and stops split and restore with exit 5. The CSV starts from any
+existing registry and replays the WAL of every video run (`payload` `video` in `options.json`) in
 start order (`created_at` in `options.json`, then run id), so a later run wins: committed splits
 are `moved`; splits aborted at their destination are `conflict` and other aborted splits `skipped`,
 unless the row is `moved`; committed restores set `restored` with the restoring run id. This run's

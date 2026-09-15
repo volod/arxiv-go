@@ -54,8 +54,12 @@ an empty result of an unknown-duration start seek retries once at the first fram
 
 ## Split integration (`internal/archive`)
 
-Before the scan, split replays the preview events of every run (`previews_index.go`): completed
-previews with sizes, and generations or deletions without an outcome. Their paths are excluded
+Before the scan, split replays the preview events of every video run (`previews_index.go`):
+completed previews with sizes, and generations or deletions without an outcome. Runs whose
+`options.json` names another payload are not replayed. The index is the generic event index of the
+`state.PreviewEvents` family; `state.WAL.BeginEvent`/`FinishEvent` and the index's part-file cleanup
+serve any other post-commit sidecar family the same way
+([0044](../records/0044-catia-generalize-payload-split-restore.md)). Their paths are excluded
 from the scan, and part files of unfinished generations are removed (not on a dry run). Paths are
 resolved against the roots recorded in each run's `options.json`, so a mounted or renamed archive
 keeps its previews.

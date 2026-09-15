@@ -85,8 +85,13 @@ Check the plan first, then run the transfer:
 `/mnt/video/projects/demo.mp4`. In the main archive, an arxgo-owned video description such as
 `projects/demo.mp4.md` points to it. Existing unrelated files are preserved; if the usual description
 name is occupied, arxgo chooses an alternate name. The main archive retains non-video files and
-optional previews. Both roots get `arxgo-videos.csv`. `split` never
-overwrites a different video already at the destination: it reports a conflict and exits 6.
+optional previews. Both roots get `arxgo-videos.csv`, whose columns start with `rel_path`,
+`file_name`, `status`, `url` and `description_rel_path`, followed by `file_size`, `sha256`,
+`transfer`, `run_id`, `file_mime`, `previews` and the metadata columns. Builds before this column
+order wrote another order and run state without a payload: such a registry stops split and restore
+with exit 5, and an interrupted run of such a build must be finished by that build before upgrading.
+`split` never overwrites a different video already at the destination: it reports a conflict and
+exits 6.
 
 With the default `--transfer auto`, roots on the same filesystem/device use a no-replace
 rename. That is a move of the directory entry, so no second full video copy is needed. Two

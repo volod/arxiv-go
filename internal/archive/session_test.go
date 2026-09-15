@@ -33,7 +33,7 @@ type testOptions struct{ Verify string }
 
 func testConfig(r roots, clock *fakeClock, pid int) Config {
 	return Config{
-		Op: "split", Version: "test", Archive: r.archive, VideoArchive: r.video,
+		Op: "split", Version: "test", Archive: r.archive, Payload: Payload{Kind: PayloadVideo, Root: r.video},
 		Options: testOptions{"size"}, Defining: testOptions{"size"},
 		LogLevel: slog.LevelInfo, ProgressInterval: 10 * time.Second,
 		CheckpointEvery: 3, CheckpointInterval: time.Minute,
@@ -165,7 +165,7 @@ func TestSecondSessionOnSameRootsIsLocked(t *testing.T) {
 func TestScanTakesOnlyArchiveLock(t *testing.T) {
 	r, clock := newRoots(t), newClock()
 	cfg := testConfig(r, clock, 100)
-	cfg.Op, cfg.VideoArchive = "scan", ""
+	cfg.Op, cfg.Payload = "scan", Payload{}
 	s := start(t, cfg)
 	if exists(state.LockPath(r.video)) {
 		t.Error("scan took the video archive lock")
@@ -226,7 +226,7 @@ func TestDryRunDoesNotCreateVideoArchive(t *testing.T) {
 	r, clock := newRoots(t), newClock()
 	r.video = filepath.Join(filepath.Dir(r.video), "new-video")
 	cfg := testConfig(r, clock, 100)
-	cfg.CreateVideoArchive, cfg.DryRun = true, true
+	cfg.CreateMirror, cfg.DryRun = true, true
 	start(t, cfg).Finish(context.Background(), nil)
 	if exists(r.video) {
 		t.Error("dry run created the video archive root")

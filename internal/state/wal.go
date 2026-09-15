@@ -14,12 +14,11 @@ import (
 	"github.com/volod/arxiv-go/internal/fsops"
 )
 
-// WALVersion is the video transfer transaction record format version. Preview events use version 2.
+// WALVersion is the transfer transaction record format version. Sidecar events use EventWALVersion.
 const WALVersion = 1
-const PreviewWALVersion = 2
 
-// Step names a WAL record. Restore uses description_removed in place of described. Preview events are
-// independent sub-records after the commit of the video they serve.
+// Step names a WAL record. Restore uses description_removed in place of described. Sidecar events
+// (see EventFamily) are independent sub-records after the commit of the file they serve.
 type Step string
 
 // Transaction steps recorded in the WAL.
@@ -95,19 +94,19 @@ type WALOptions struct {
 
 // WAL is the append-only transaction log at runs/<id>/wal.jsonl.
 type WAL struct {
-	path     string
-	runID    string
-	f        *os.File
-	now      func() time.Time
-	crash    CrashHook
-	mu       sync.Mutex
-	seq      int64
-	nextTx   int64
-	begin    map[string]Record
-	last     map[string]Record
-	done     map[string]Step
-	commits  *CommittedSet
-	previews map[string]Record
+	path    string
+	runID   string
+	f       *os.File
+	now     func() time.Time
+	crash   CrashHook
+	mu      sync.Mutex
+	seq     int64
+	nextTx  int64
+	begin   map[string]Record
+	last    map[string]Record
+	done    map[string]Step
+	commits *CommittedSet
+	events  map[string]Record // open sidecar events by txid
 }
 
 // OpenWAL opens or creates path. A torn final line is truncated; a decode or version failure
@@ -131,8 +130,8 @@ func OpenWAL(path, runID string, opts WALOptions) (*WAL, error) {
 	w := &WAL{
 		path: path, runID: runID, f: f, now: opts.Now, crash: opts.Crash,
 		begin: make(map[string]Record), last: make(map[string]Record), done: make(map[string]Step),
-		commits:  NewCommittedSet(),
-		previews: make(map[string]Record),
+		commits: NewCommittedSet(),
+		events:  make(map[string]Record),
 	}
 	if err := w.load(); err != nil {
 		f.Close()
@@ -210,8 +209,8 @@ func (w *WAL) Append(txid string, step Step, extra Record) (Record, error) {
 
 func (w *WAL) appendLocked(rec Record) (Record, error) {
 	rec.V = WALVersion
-	if isPreviewStep(rec.Step) {
-		rec.V = PreviewWALVersion
+	if isEventStep(rec.Step) {
+		rec.V = EventWALVersion
 	}
 	w.seq++
 	rec.Seq = w.seq
@@ -275,11 +274,15 @@ func (w *WAL) Close() error {
 }
 
 func (w *WAL) note(rec Record) {
+	if f, ok := familyOf(rec.Step); ok {
+		if f.Opens(rec.Step) {
+			w.events[rec.TxID] = rec
+		} else {
+			delete(w.events, rec.TxID)
+		}
+		return
+	}
 	switch rec.Step {
-	case StepPreviewBegin, StepPreviewDelete:
-		w.previews[rec.TxID] = rec
-	case StepPreviewDone, StepPreviewFailed, StepPreviewDeleted:
-		delete(w.previews, rec.TxID)
 	case StepBegin:
 		w.begin[rec.TxID] = rec
 		w.last[rec.TxID] = rec

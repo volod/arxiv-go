@@ -28,37 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### generalize-payload-split-restore
-
-The split and restore executor is video-named end to end and replays every run's WAL, so CATIA would
-otherwise copy the pipeline or leak into the video registry.
-
-- Serves: `catia-archive` -- [Run history by payload](../openspec/stage-4-catia/split-restore.md#run-history-by-payload)
-- Agent status: CLEAR
-- Task kind: refactor
-- Dependencies: [Stage-2 review](records/0033-preview-review-stage-2-previews.md).
-- User-visible outcome: Video split and restore behave as today except for the new
-  `arxgo-videos.csv` column order; the executor takes a payload (kind plus mirror root, only `video`
-  reachable) that selects candidates, payload registry name and columns, counters, history filter,
-  description renderer and post-commit sidecar hook without a second copy of transfer or recovery.
-- Scope boundary: Payload type; executor, lock, preflight and history code name the mirror root
-  generically instead of video archive; required `payload` in `options.json` and in the rebuilt
-  recovery resolver; `readHistory` consumers filtered by payload (video registry, preview index,
-  restore candidates, directory cleanup); `ScanConfig` candidate predicate replacing the `IsVideo`
-  check; the shared payload registry columns 1-10 in the
-  [video registry order](../openspec/stage-1-core/contracts.md#video-registry-csv); the preview WAL
-  begin/finish/part-file mechanism made reusable for another event family. No CLI flags, no CATIA
-  behavior, no compatibility with run directories or registries written before this task.
-- Data and artifact paths: `internal/archive/`, `internal/state/`, `internal/report/`,
-  `internal/cli/session.go`, `test/integration/`.
-- Execution path: Existing video unit and integration tests; a new test that a run directory whose
-  `options.json` names another payload is excluded from video registry replay.
-- Acceptance gates: Video tests pass with only column-order expectations updated; foreign-payload
-  history is ignored by video replay; `make ci` and `make test-integration` pass.
-- Documentation target: `docs/impl/current/catia-archive.md`; column references in
-  `docs/impl/current/video-split.md` and the operator manuals.
-- Review checkpoint: `review-stage-4-catia`.
-
 #### implement-catia-extraction
 
 Operators need accessible metadata and optional text without a CATIA licence or copied archive names.
@@ -89,7 +58,7 @@ Move CATIA files with the same safety as video and leave Markdown the operator c
 - Serves: `catia-archive` -- [Split](../openspec/stage-4-catia/split-restore.md#split)
 - Agent status: CLEAR
 - Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md);
-  `generalize-payload-split-restore`;
+  [payload split and restore](records/0044-catia-generalize-payload-split-restore.md);
   `implement-catia-extraction`.
 - User-visible outcome: `arxgo split --catia --catia-archive PATH` moves CATIA files into the CATIA
   archive, writes CATIA descriptions with the `catia:` line and `arxgo-catia.csv`. Default split

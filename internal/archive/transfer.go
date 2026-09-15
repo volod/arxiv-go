@@ -13,10 +13,10 @@ import (
 // stageCopyFunc is the copy seam shared by split and restore; nil uses fsops.StageCopy.
 type stageCopyFunc func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
 
-// placeVideo moves rec.Src to rec.Dst: a verified rename on the same device, otherwise a staged
+// placePayload moves rec.Src to rec.Dst: a verified rename on the same device, otherwise a staged
 // copy logged as copied and verified, then renamed (or, with overwrite, replacing dst). It returns
 // the SHA-256 of a hash-verified copy.
-func placeVideo(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, verify fsops.VerifyMode, overwrite bool, stage stageCopyFunc) (string, error) {
+func placePayload(ctx context.Context, s *Session, w *state.WAL, rec state.Record, mode string, verify fsops.VerifyMode, overwrite bool, stage stageCopyFunc) (string, error) {
 	if mode == state.TransferRename && !overwrite {
 		fi, err := os.Lstat(rec.Src)
 		if err != nil || !fi.Mode().IsRegular() || fi.Size() != rec.Size || !fi.ModTime().Equal(rec.Mtime) {
@@ -74,16 +74,16 @@ func placeFile(s *Session, move func(string, string) error, oldpath, dst string,
 	return nil
 }
 
-// placeOutcome tells a transfer loop how to continue after placeVideo failed.
+// placeOutcome tells a transfer loop how to continue after placePayload failed.
 type placeOutcome int
 
 const (
 	placeFatal placeOutcome = iota // return the error
 	placeRetry                     // the transaction was aborted; begin a new one
-	placeSkip                      // the transaction was aborted and the video skipped
+	placeSkip                      // the transaction was aborted and the file skipped
 )
 
-// transferAttempt is the state of one video's transfer loop.
+// transferAttempt is the state of one payload file's transfer loop.
 type transferAttempt struct {
 	s        *Session
 	w        *state.WAL
@@ -102,7 +102,7 @@ func (t *transferAttempt) placeFailed(ctx context.Context, rec state.Record, v C
 		if err := abortConflict(t.s, t.w, rec); err != nil {
 			return placeFatal, err
 		}
-		skipVideo(t.s, v, "destination appeared during transfer")
+		skipCandidate(t.s, v, "destination appeared during transfer")
 		return placeSkip, nil
 	case fsops.IsCrossDevice(err) && t.mode == state.TransferRename:
 		if _, err := t.w.Append(rec.TxID, state.StepAborted, state.Record{Reason: "cross-device rename"}); err != nil {
@@ -126,7 +126,7 @@ func (t *transferAttempt) placeFailed(ctx context.Context, rec state.Record, v C
 			t.s.Log.Warn("source changed during transfer; retrying", "rel_path", rec.RelPath)
 			return placeRetry, nil
 		}
-		skipVideo(t.s, v, "source changed twice during transfer")
+		skipCandidate(t.s, v, "source changed twice during transfer")
 		return placeSkip, nil
 	}
 	return placeFatal, err
@@ -166,7 +166,7 @@ func transferMode(s *Session, transfer string) (string, error) {
 	if transfer == transferCopy {
 		return state.TransferCopy, nil
 	}
-	same, err := s.cfg.FS.SameDevice(s.cfg.Archive, s.cfg.VideoArchive)
+	same, err := s.cfg.FS.SameDevice(s.cfg.Archive, s.cfg.Payload.Root)
 	if err != nil || !same {
 		return state.TransferCopy, err
 	}

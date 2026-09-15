@@ -11,13 +11,23 @@ import (
 	"github.com/volod/arxiv-go/internal/scanner"
 )
 
-// VideoHeader is the fixed column order of arxgo-videos.csv.
-var VideoHeader = []string{
-	"rel_path", "description_rel_path", "file_name", "file_size", "file_mime",
-	"sha256", "transfer", "status", "run_id", "url", "previews",
+// PayloadHeader is columns 1-10 of every payload registry (arxgo-videos.csv, arxgo-catia.csv): what
+// the file is and its state, where to find it and its description, then transfer evidence.
+var PayloadHeader = []string{
+	"rel_path", "file_name", "status", "url", "description_rel_path",
+	"file_size", "sha256", "transfer", "run_id", "file_mime",
 }
 
-func init() { VideoHeader = append(VideoHeader, MetadataHeader...) }
+// PayloadRegistryKeep is the number of payload registry columns shared by every payload.
+const PayloadRegistryKeep = 10
+
+// VideoHeader is the fixed column order of arxgo-videos.csv: the payload columns, previews, then the
+// flat metadata columns.
+var VideoHeader = []string{}
+
+func init() {
+	VideoHeader = append(append(append(VideoHeader, PayloadHeader...), "previews"), MetadataHeader...)
+}
 
 // Video row status values.
 const (
@@ -26,6 +36,40 @@ const (
 	StatusConflict = "conflict"
 	StatusSkipped  = "skipped"
 )
+
+// PayloadRow holds the payload registry columns 1-10 of one moved, restored, skipped or conflicting
+// file.
+type PayloadRow struct {
+	RelPath            string
+	FileName           string
+	Status             string
+	URL                string
+	DescriptionRelPath string
+	FileSize           int64
+	SHA256             string
+	Transfer           string
+	RunID              string
+	FileMIME           string
+}
+
+// cells writes the payload columns into record[:PayloadRegistryKeep].
+func (r PayloadRow) cells(record []string) {
+	record[0], record[1], record[2], record[3] = r.RelPath, r.FileName, r.Status, r.URL
+	record[4], record[5] = r.DescriptionRelPath, strconv.FormatInt(r.FileSize, 10)
+	record[6], record[7], record[8], record[9] = r.SHA256, r.Transfer, r.RunID, r.FileMIME
+}
+
+// parsePayloadCells reads the payload columns from rec[:PayloadRegistryKeep].
+func parsePayloadCells(rec []string) (PayloadRow, error) {
+	size, err := strconv.ParseInt(rec[5], 10, 64)
+	if err != nil {
+		return PayloadRow{}, fmt.Errorf("file_size: %w", err)
+	}
+	return PayloadRow{
+		RelPath: rec[0], FileName: rec[1], Status: rec[2], URL: rec[3], DescriptionRelPath: rec[4],
+		FileSize: size, SHA256: rec[6], Transfer: rec[7], RunID: rec[8], FileMIME: rec[9],
+	}, nil
+}
 
 // VideoRow is one row of arxgo-videos.csv.
 type VideoRow struct {
@@ -43,6 +87,24 @@ type VideoRow struct {
 	Metadata           Metadata
 }
 
+// Payload returns the payload registry columns of the row.
+func (r VideoRow) Payload() PayloadRow {
+	return PayloadRow{
+		RelPath: r.RelPath, FileName: r.FileName, Status: r.Status, URL: r.URL,
+		DescriptionRelPath: r.DescriptionRelPath, FileSize: r.FileSize, SHA256: r.SHA256,
+		Transfer: r.Transfer, RunID: r.RunID, FileMIME: r.FileMIME,
+	}
+}
+
+// videoRowOf combines payload columns with the video-specific columns.
+func videoRowOf(p PayloadRow, previews string, meta Metadata) VideoRow {
+	return VideoRow{
+		RelPath: p.RelPath, DescriptionRelPath: p.DescriptionRelPath, FileName: p.FileName,
+		FileSize: p.FileSize, FileMIME: p.FileMIME, SHA256: p.SHA256, Transfer: p.Transfer,
+		Status: p.Status, RunID: p.RunID, URL: p.URL, Previews: previews, Metadata: meta,
+	}
+}
+
 // WriteVideoCSV writes the header and rows in walk order to w. Metadata columns that are empty
 // in every row are omitted.
 func WriteVideoCSV(w io.Writer, rows []VideoRow) error {
@@ -50,11 +112,8 @@ func WriteVideoCSV(w io.Writer, rows []VideoRow) error {
 	record := make([]string, len(VideoHeader))
 	data := make([][]string, 0, len(rows))
 	for _, r := range rows {
-		record[0], record[1], record[2] = r.RelPath, r.DescriptionRelPath, r.FileName
-		record[3] = strconv.FormatInt(r.FileSize, 10)
-		record[4], record[5] = r.FileMIME, r.SHA256
-		record[6], record[7], record[8] = r.Transfer, r.Status, r.RunID
-		record[9], record[10] = r.URL, r.Previews
+		r.Payload().cells(record)
+		record[PayloadRegistryKeep] = r.Previews
 		copy(record[VideoRegistryKeep:], MetadataCells(r.Metadata))
 		data = append(data, append([]string(nil), record...))
 	}
@@ -95,19 +154,15 @@ func LoadVideoCSV(r io.Reader) ([]VideoRow, error) {
 }
 
 func parseVideoRow(rec, header []string, keep int) (VideoRow, error) {
-	size, err := strconv.ParseInt(rec[3], 10, 64)
+	p, err := parsePayloadCells(rec)
 	if err != nil {
-		return VideoRow{}, fmt.Errorf("file_size: %w", err)
+		return VideoRow{}, err
 	}
 	meta, err := parseMetadataHeader(header[keep:], rec[keep:])
 	if err != nil {
 		return VideoRow{}, err
 	}
-	return VideoRow{
-		RelPath: rec[0], DescriptionRelPath: rec[1], FileName: rec[2],
-		FileSize: size, FileMIME: rec[4], SHA256: rec[5], Transfer: rec[6], Status: rec[7],
-		RunID: rec[8], URL: rec[9], Previews: rec[10], Metadata: meta,
-	}, nil
+	return videoRowOf(p, rec[PayloadRegistryKeep], meta), nil
 }
 
 // LoadVideoFile opens path and parses it. Missing files yield a nil slice.
