@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/volod/arxiv-go/internal/catia"
 	"github.com/volod/arxiv-go/internal/media"
 )
 
@@ -34,6 +35,7 @@ type DescriptionInput struct {
 	MovedTo  string // absolute path of the video in the video archive
 	URL      string
 	Media    *media.MediaInfo
+	Catia    *catia.Info // when set, a CATIA description: no created: or video: fields
 }
 
 // RenderDescription returns a description: one "key: value" line per field, the marker first, no blank lines.
@@ -54,11 +56,15 @@ func RenderDescription(in DescriptionInput) []byte {
 	}
 	field("file_mime", in.FileMIME)
 	field("sha256", in.SHA256)
-	if in.Media != nil && in.Media.Error == "" {
+	if in.Catia == nil && in.Media != nil && in.Media.Error == "" {
 		field("created", in.Media.CreationTime)
 	}
 	field("modified", formatTime(in.Modified))
-	field("video", MediaLine(in.Media))
+	if in.Catia != nil {
+		field("catia", CatiaLine(*in.Catia))
+	} else {
+		field("video", MediaLine(in.Media))
+	}
 	field("moved_at", formatTime(in.MovedAt))
 	if u := FileURL(filepath.ToSlash(in.MovedTo)); u != "" {
 		field("moved_to", "["+markdownText(path.Base(filepath.ToSlash(in.MovedTo)))+"]("+u+")")

@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0044`.
+Next unused sequence: `0046`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -53,3 +53,4 @@ Next unused sequence: `0044`.
 | [0042 Approve stage 1 on an operator archive copy](0042-restore-approve-stage-1-on-operator-archive-copy.md) | Operator trial: scan and split on a disposable copy; stage 1 fit for use | Accepted by the operator |
 | [0043 CATIA classification](0043-catia-implement-catia-classification.md) | Built-in CATIA kind table, `is_catia` on scan, new file-registry column order, reserved `arxgo-catia.csv`, CATIA `--video-extensions` rejected | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
 | [0044 Payload split and restore](0044-catia-generalize-payload-split-restore.md) | One split/restore executor selected by payload kind, run history filtered by payload, `payload` in `options.json` and recovery, shared payload registry columns 1-10 (new `arxgo-videos.csv` order), reusable sidecar event families | Accepted; `make ci`, `make test-integration`, a 31-seed kill sweep and a real-process NVENC run pass on Linux; Windows cross-compiled |
+| [0045 CATIA extraction](0045-catia-implement-catia-extraction.md) | Pure-Go streaming extractor: format, V5 properties and components, 3dxml XML/ZIP, strings harvest, 1 MiB cap; report `catia:` line and text sidecar body | Accepted; `make ci` passes on Linux; Windows cross-compiled |

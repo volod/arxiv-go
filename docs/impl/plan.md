@@ -28,29 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-extraction
-
-Operators need accessible metadata and optional text without a CATIA licence or copied archive names.
-
-- Serves: `catia-archive` -- [Accessible metadata](../openspec/stage-4-catia/catia.md#accessible-metadata)
-- Agent status: CLEAR
-- Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md).
-- User-visible outcome: A pure-Go streaming extractor returns format, release, component names,
-  properties and strings for every CATIA kind, with bounded memory.
-- Scope boundary: `internal/catia` only: format detection, V5 property records, the V5 component
-  walk (including the `;` U+0001 removal, self-name exclusion and malformed-chunk skip), 3dxml XML and
-  ZIP with member limits, strings harvest, 1 MiB cap and `truncated`. `internal/report` rendering of
-  the `catia:` line and the sidecar body. No archive mutation, CLI or WAL. No new module dependency.
-- Data and artifact paths: `internal/catia/`, `internal/report/`.
-- Execution path: Synthetic V5, cgr and 3dxml (XML and ZIP) fixtures in `t.TempDir()` with invented
-  names and planted markers; a large synthetic stream for the memory bound. An optional local run
-  against the gitignored experimental tree may record aggregate counts only in the task record.
-- Acceptance gates: The [CATIA files acceptance](../openspec/stage-4-catia/catia.md#acceptance)
-  extraction items; malformed input never panics (a short fuzz run of the extractor passes);
-  `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-stage-4-catia`.
-
 #### implement-catia-split
 
 Move CATIA files with the same safety as video and leave Markdown the operator can read.
@@ -59,7 +36,7 @@ Move CATIA files with the same safety as video and leave Markdown the operator c
 - Agent status: CLEAR
 - Dependencies: [CATIA classification](records/0043-catia-implement-catia-classification.md);
   [payload split and restore](records/0044-catia-generalize-payload-split-restore.md);
-  `implement-catia-extraction`.
+  [CATIA extraction](records/0045-catia-implement-catia-extraction.md).
 - User-visible outcome: `arxgo split --catia --catia-archive PATH` moves CATIA files into the CATIA
   archive, writes CATIA descriptions with the `catia:` line and `arxgo-catia.csv`. Default split
   still moves only videos into `--video-archive`.

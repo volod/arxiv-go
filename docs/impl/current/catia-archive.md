@@ -1,7 +1,8 @@
 # CATIA Archive
 
 Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia-classification.md);
-[0044 Payload split and restore](../records/0044-catia-generalize-payload-split-restore.md).
+[0044 Payload split and restore](../records/0044-catia-generalize-payload-split-restore.md);
+[0045 CATIA extraction](../records/0045-catia-implement-catia-extraction.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md) is specified; the shared payload
 executor exists, CATIA split and restore are not implemented. The capability remains planned until
@@ -35,6 +36,32 @@ The file registry always has `is_catia` as required column 11, after the other t
 header; registries written in the previous order do not load. Scan statistics include a `catia`
 count and byte total, omitted from report JSON when zero. Root-level `arxgo-catia.csv` is reserved
 the same way as `arxgo-videos.csv`. Split and restore of CATIA files are not available yet.
+
+## Extraction (`internal/catia`, `internal/report`)
+
+`catia.Extract` / `ExtractPath` reads one CATIA file in pure Go. Kind comes from the file name;
+format from the leading bytes (`V5_CFV2`, `zip`, `xml`, or `unknown`). Memory is bounded by the
+component window (4 MiB), ZIP member caps (1024 members, 64 MiB each, 256 MiB total) and the 1 MiB
+sidecar collection cap, not by file size. An extraction error fills empty/unknown fields and sets
+`ErrorKind`; it never panics. A broken 3dxml root is `TextFailed` (no sidecar body).
+
+- **V5.** Length-prefixed string properties: `LastSaveVersion` (first wins; `<Release>` / `<ServicePack>`
+  written as `<Release>30/<Release>`), then `MinimalVersionToRead`, plus `CATBuildLevel` for the
+  sidecar. Components: stream to the first `CATOctetArray` ... `0x08FINJPL` window, strip `;` U+0001,
+  split on U+0001 U+0004 `File`, skip malformed and `feat` chunks, drop the file's own base name,
+  unique-sort. A missing window is `0 components`.
+- **3dxml.** Raw XML or `archive/zip`. Unsafe ZIP names (`..`, absolute, volume) are skipped. Header
+  `SchemaVersion` becomes release `3DXML <version>`. `ReferenceRep` `associatedFile` and `urn:3DXML:`
+  file parts become components (external URLs ignored); `Reference3D` / `Instance3D` `name` values
+  go to strings.
+- **Strings.** ASCII 0x20-0x7E and UTF-16LE runs, at least 6 characters with 3 ASCII letters,
+  excluding component names, unique-sorted. ZIP 3dxml harvests XML text and attributes, not
+  compressed bytes.
+- **Report.** `RenderDescription` with `Catia` set writes `catia:` instead of `created:` / `video:`.
+  `CatiaLine` is `kind | format | release | N component(s)`. `RenderCatiaText` writes the
+  `arxgo-text:` sidecar (properties, components, strings) with the 1 MiB cap and `truncated`.
+
+Split does not call the extractor yet.
 
 ## Payload executor (`internal/archive`, `internal/state`, `internal/report`)
 
