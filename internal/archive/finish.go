@@ -183,6 +183,9 @@ func (s *Session) Finish(ctx context.Context, runErr error) Result {
 	if c.PreviewsDone > 0 || c.PreviewsFailed > 0 {
 		attrs = append(attrs, "previews_done", c.PreviewsDone, "previews_failed", c.PreviewsFailed)
 	}
+	if c.TextsDone > 0 || c.TextsFailed > 0 {
+		attrs = append(attrs, "texts_done", c.TextsDone, "texts_failed", c.TextsFailed)
+	}
 	switch res.Status {
 	case StatusInterrupted:
 		s.Log.Warn("run interrupted; rerun the same command to resume", attrs...)
@@ -222,7 +225,7 @@ func (s *Session) classify(ctx context.Context, err error) Status {
 		issues := len(s.issues) > 0 || s.issuesOmitted > 0 || s.partial
 		s.mu.Unlock()
 		t := s.Progress.payloadOf(c)
-		if issues || t.skipped > 0 || t.failed > 0 || c.PreviewsFailed > 0 {
+		if issues || t.skipped > 0 || t.failed > 0 || c.PreviewsFailed > 0 || c.TextsFailed > 0 {
 			return StatusPartial
 		}
 		return StatusCompleted

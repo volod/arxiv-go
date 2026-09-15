@@ -17,7 +17,8 @@ Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bo
 - `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
   start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
   [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
-  [video transactions, descriptions and video registry](video-split.md); `restore` runs
+  [video transactions, descriptions and video registry](video-split.md) or
+  [CATIA split and text sidecars](catia-archive.md); `restore` runs
   [video restore](video-restore.md). The version string is the
   Semantic Versioning `VERSION` file (currently `0.1.0`), stamped by make with `-ldflags -X`
   ([versioning](../../guide/development.md#versioning),

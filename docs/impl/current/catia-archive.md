@@ -3,10 +3,11 @@
 Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia-classification.md);
 [0044 Payload split and restore](../records/0044-catia-generalize-payload-split-restore.md);
 [0045 CATIA extraction](../records/0045-catia-implement-catia-extraction.md);
-[0046 CATIA split](../records/0046-catia-implement-catia-split.md).
+[0046 CATIA split](../records/0046-catia-implement-catia-split.md);
+[0047 CATIA text sidecars](../records/0047-catia-implement-catia-text-sidecars.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
-[split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split ships; text
-sidecars (`--catia-text`) and CATIA restore are not implemented, so the capability remains planned.
+[split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split and
+`--catia-text` sidecars ship; CATIA restore is not implemented, so the capability remains planned.
 
 ## Classification (`internal/catia`, `internal/scanner`)
 
@@ -61,14 +62,15 @@ sidecar collection cap, not by file size. An extraction error fills empty/unknow
   `CatiaLine` is `kind | format | release | N component(s)`. `RenderCatiaText` writes the
   `arxgo-text:` sidecar (properties, components, strings) with the 1 MiB cap and `truncated`.
 
-CATIA split calls `ExtractPath` on the placed destination for the description; text sidecars are
-not written yet.
+CATIA split calls `ExtractPath` on the placed destination for the description (the run context,
+so Ctrl+C can stop a large-file pass). With `--catia-text`, a second `ExtractPath` after `commit`
+writes the sidecar.
 
 ## Payload executor (`internal/archive`, `internal/state`, `internal/report`)
 
 Split and restore run one executor for every payload kind. `archive.Config.Payload` holds the kind
-and its mirror root; `cli` sets `video` and the video archive, and there are no CATIA flags yet. A
-split or restore of kind `catia` is refused by `archive.Start` ("not available in this build").
+and its mirror root; `cli` sets `video` or `catia` and the matching archive. `archive.Start` still
+refuses a CATIA restore ("not available in this build").
 
 - **Payload spec** (`payload.go`, `payload_video.go`). The kind selects the candidate predicate
   (`ScanConfig.Candidate`; video: `is_video`), the preflight role and need names (`video_archive`,
@@ -76,7 +78,7 @@ split or restore of kind `catia` is refused by `archive.Start` ("not available i
   (video: `videos_*`, `video_bytes`, `video_archive_bytes_*`) used by execution, progress, the
   partial status and the report roots, and two hook sets. Split hooks prepare (registry, history,
   preview index, skip paths), plan (preview bytes for preflight), start the post-commit sidecar
-  (preview queue with catch-up) and write the registry. Restore hooks provide the registry rows and
+  (preview queue with catch-up, or CATIA text sidecars) and write the registry. Restore hooks provide the registry rows and
   extra candidates, finish interrupted sidecar work, run per-commit cleanup (`--previews delete`)
   and update the registry. Transfer, WAL `begin` through `commit`, recovery, preflight, progress,
   locks, description occupancy and conflict naming are shared code that names the mirror root
@@ -98,22 +100,23 @@ split or restore of kind `catia` is refused by `archive.Start` ("not available i
   and deleted steps of a family use the version 2 envelope through `WAL.BeginEvent` and
   `WAL.FinishEvent`; a family's outcome for another family's begin is rejected on write and is
   corrupt on replay. `archive.eventIndex` replays one family (owned, generating, deleting) and
-  removes part files of unfinished generations with the family's part-path rule. Previews are the
-  only registered family.
-
-No text event family exists yet.
+  removes part files of unfinished generations with the family's part-path rule. Previews and
+  CATIA text sidecars (`state.TextEvents`) are the registered families. `ownedPath` is the last
+  successful `Done` for that owner (`text_rel_path`).
 
 ## CATIA split (`internal/cli`, `internal/archive`, `internal/report`, `internal/state`)
 
 `arxgo split --catia --archive PATH --catia-archive PATH` moves every `is_catia` file into the
-CATIA archive through the shared executor. Default `split` (or `--video`) still moves only videos.
+CATIA archive through the shared executor. `--catia-text` (defining; `ARXGO_CATIA_TEXT`) writes
+owned text sidecars after each commit and for earlier moved files that still lack one. Default
+`split` (or `--video`) still moves only videos.
 
 - **Flags and validation** (`cli.selectPayload`, `cli.checkRoots`). `--video` and `--catia` are
   split flags; `--catia-archive` is a common flag of split and scan (scan ignores it). A payload
   flag on the command line ignores both `ARXGO_VIDEO` and `ARXGO_CATIA`. Exit 2 before the lock:
   both payloads; `--video-archive` on the command line with `--catia`; `--catia-archive` on the
   command line without it; a missing selected root; `--sample` or `--image` other than `none` with
-  `--catia`; `--publish` (still reserved). The archive, the selected root and the other payload's
+  `--catia`; `--catia-text` without `--catia`; `--publish` (still reserved). The archive, the selected root and the other payload's
   root when it is set from any source are pairwise neither equal nor nested (the other root is
   compared by path and need not exist). Only the selected root is stored in the options
   (`Common.VideoArchive` or `Common.CatiaArchive`), so an `ARXGO_VIDEO_ARCHIVE` value never becomes
@@ -122,28 +125,57 @@ CATIA archive through the shared executor. Default `split` (or `--video`) still 
 - **Payload spec** (`payload_catia.go`). Candidate `is_catia`; preflight role `catia_archive` with
   needs `catia_registry`, `catia`, `largest_catia`; counters `catia_done`, `catia_skipped`,
   `catia_failed`, `catia_bytes`, `catia_archive_bytes_written`/`_freed` (checkpoint, report,
-  progress, finish log keys); no post-commit sidecar; no restore (`archive.Start` refuses a CATIA
-  restore before any lock). A resumed run must also match the recorded payload and mirror root.
+  progress, finish log keys); post-commit text sidecars when `--catia-text`; no restore
+  (`archive.Start` refuses a CATIA restore before any lock). A resumed run must also match the
+  recorded payload, mirror root and `--catia-text`. Prepare always rebuilds the text event index
+  (skip paths, unfinished `.arxgo-part` cleanup, `text_rel_path`) even when this run does not
+  generate sidecars.
 - **Description.** `DescriptionConfig.Payload` `catia` makes `MarkdownDescription.Write` run
   `catia.ExtractPath` on `tx.Begin.Dst` after `placed` (execute and recovery), render the `catia:`
   line without `video:`/`created:`, and keep a `state.CatiaSummary` (kind, format, release empty
-  when unknown, component count) for the `described` record. Recovery gets it through the optional
-  `state.DescribedAnnotator` (`SplitResolver.DescribedCatia`). An extraction error is logged at warn
-  with its kind (`CATIA metadata extraction failed; description has empty values`) and never fails
-  the move. Occupancy, fallback names (`.arxgo.md`), conflicts, adoption and source-changed retry
-  are the video rules.
+  when unknown, component count) for the `described` record. The run context is attached
+  (`useContext` / `resolverAttach`) so a cancel stops the metadata pass. Recovery gets the summary
+  through the optional `state.DescribedAnnotator` (`SplitResolver.DescribedCatia`). An extraction
+  error is logged at warn with its kind (`CATIA metadata extraction failed; description has empty
+  values`) and never fails the move. Occupancy, fallback names (`.arxgo.md`), conflicts, adoption
+  and source-changed retry are the video rules.
 - **Registry** (`report.CatiaHeader`, `CatiaRow`, `WriteCatiaCSV`, `LoadCatiaCSV`,
   `MergeCatiaRows`). `arxgo-catia.csv` in both roots: payload columns 1-10, then `text_rel_path`
-  (always empty in this build), `catia_kind`, `catia_format`, `catia_release`,
-  `catia_components`, `mtime`; columns 11-16 empty in every row are omitted and readers accept any
-  canonical-order subset. Rows replay CATIA runs only (`splitEvents`, shared with video) with the
-  video status rules; the summary comes from the `described` record, so regeneration never re-reads
-  CATIA files; `mtime`, name, size and MIME are completed from the file registry; URLs follow the
-  video rules with the CATIA archive as mirror. A corrupt registry stops before the first move
-  (exit 5). CATIA split never writes `arxgo-videos.csv`, and video split never writes
-  `arxgo-catia.csv`.
+  (last `text_done` for that `rel_path`, empty when none), `catia_kind`, `catia_format`,
+  `catia_release`, `catia_components`, `mtime`; columns 11-16 empty in every row are omitted and
+  readers accept any canonical-order subset. Rows replay CATIA runs only (`splitEvents`, shared
+  with video) with the video status rules; the summary comes from the `described` record, so
+  regeneration never re-reads CATIA files; `mtime`, name, size and MIME are completed from the file
+  registry; URLs follow the video rules with the CATIA archive as mirror. A corrupt registry stops
+  before the first move (exit 5). CATIA split never writes `arxgo-videos.csv`, and video split
+  never writes `arxgo-catia.csv`.
 - **Recovery by the other payload** (`recoverReplaced`, `lockOtherMirror`). When a split or restore
   replaces an interrupted run of the other payload in the same archive, it takes the lock of the
   mirror root that run recorded (with the current `--force-unlock` setting), rebuilds its resolver
   (`cli.recovererFor` accepts CATIA split runs) and releases the lock after recovery. A missing root
   exits 5 naming it. A run of the same payload on another mirror root, or a scan, still exits 5.
+
+## CATIA text sidecars (`internal/archive`, `internal/report`, `internal/state`, `internal/cli`)
+
+`split --catia --catia-text` generates owned Markdown sidecars after `commit`, sequentially (no
+preview-style queue), reading the mirror copy. Catch-up covers CATIA files earlier CATIA splits
+moved that are still in the mirror and still lack a published sidecar.
+
+- **Path and occupancy.** `<rel_path>.text.md`; when that name holds anything that is not an owned
+  sidecar for this `rel_path`, `<rel_path>.arxgo.text.md`, then the indexed description name with a
+  `.text.md` suffix. Occupancy reads the first line (`arxgo-text: <rel_path>`, first 64 KiB) with
+  `InspectTextSidecar`; a hyphenated marker cannot go through `parseField`, so inspection splits on
+  `: ` and unquotes. A foreign file is kept; the conflict is logged.
+- **WAL.** `state.TextEvents`: `text_begin` (sidecar path) then `text_done` (size) or `text_failed`
+  (reason), version 2 envelope, `BeginEvent`/`FinishEvent`. The body is written as
+  `<dst>.arxgo-part`, fsynced, and renamed without replacing. Crash points `wal:text_begin`,
+  `fs:text_part` and `fs:text_sidecar`. The next CATIA split removes unfinished part files and
+  retries; an existing owned file at the generating path is adopted. Cancellation leaves the event
+  unfinished (exit 130), not `text_failed`.
+- **Failures.** Extraction errors (`TextFailed` or `Err`, including a broken 3dxml root) and an
+  occupied rename never roll back the move. They count in `texts_failed` (never `catia_failed` /
+  `videos_failed`), appear as issues, and finish as `StatusPartial` (exit 6). A later
+  `--catia-text` run writes the missing sidecar. Without `--catia-text`, split neither creates nor
+  removes sidecars.
+- **Preflight.** `Candidates.TextBytes` is min(1 MiB, file size) per moved or remaining file that
+  still needs a sidecar, as need `texts` on the archive device.

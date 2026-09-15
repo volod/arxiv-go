@@ -150,7 +150,7 @@ func (e previewExecutor) done(video, preview, txid string) error {
 	if _, err := e.w.FinishEvent(e.idx.family, txid, e.idx.family.Done, "", size, ""); err != nil {
 		return err
 	}
-	e.idx.owned.put(video, preview, size)
+	e.idx.remember(video, preview, size)
 	e.idx.generating.remove(video, preview)
 	e.s.Stats.PreviewsDone.Add(1)
 	e.s.Stats.ArchiveWritten.Add(size)

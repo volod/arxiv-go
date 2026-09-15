@@ -65,7 +65,7 @@ also refused there until it ships ([0046](../records/0046-catia-implement-catia-
 resumes only when the recorded payload and mirror root match too.
 
 A later process resumes `current` when that run has no report and the operation plus defining
-options match (roots, payload and operation flags; not logging, progress, checkpoint cadence, `--min-free`,
+options match (roots, payload, `--catia-text` and other operation flags; not logging, progress, checkpoint cadence, `--min-free`,
 `--dry-run`, `--new-run` or `--force-unlock`). `--dry-run` always creates its own directory, recovers
 nothing and never changes `current`.
 
@@ -147,14 +147,16 @@ and restore operations (copy and rename) recover to the same tree as an uninterr
 ## Disk-space preflight (`internal/archive`)
 
 `preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
-`Candidates` is a summary (count, bytes, largest, media rows, and `PreviewBytes`, the split
-estimate of previews not yet published). `DeviceInfo` lists devices with their roles (`archive`,
-`video_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
+`Candidates` is a summary (count, bytes, largest, media rows, `PreviewBytes`, the split
+estimate of previews not yet published, and `TextBytes`, min(1 MiB, file size) per CATIA file that
+still needs a `--catia-text` sidecar). `DeviceInfo` lists devices with their roles (`archive`,
+`video_archive`, `catia_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
 device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
 
 - Estimates follow the [preflight table](../../openspec/stage-1-core/integrity.md#preflight):
   registry 256 B per row plus 512 B per media row (scan); descriptions 4 KiB, video registry 1 KiB per
-  copy, WAL 2 KiB per candidate (split); all candidate bytes on another device; only the largest
+  copy, WAL 2 KiB per candidate (split); `--catia-text` adds need `texts` (min(1 MiB, file size) per
+  file that still needs a sidecar) on the archive device; all candidate bytes on another device; only the largest
   candidate for `--transfer copy` on a shared device; nothing for same-device `restore` renames
   except WAL, and all candidate bytes for `restore` across devices or with `copy`.
 - A device passes when required + `--min-free` <= available (caller-available bytes). A zero-total

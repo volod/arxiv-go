@@ -26,6 +26,7 @@ type DescriptionConfig struct {
 	Crash                                       state.CrashHook
 	Now                                         func() time.Time
 	Log                                         *slog.Logger // extraction warnings; nil discards them
+	Ctx                                         context.Context
 }
 
 // MarkdownDescription implements SplitDescriptionWriter with full front matter, links and metadata.
@@ -101,11 +102,14 @@ func (m *MarkdownDescription) Catia(rel string) *state.CatiaSummary {
 // extractCatia runs the metadata pass on the placed destination. A failure is logged with its kind
 // and yields empty values; it never fails the move.
 func (m *MarkdownDescription) extractCatia(tx state.Tx) catia.Info {
-	info := catia.ExtractPath(context.Background(), tx.Begin.Dst)
+	m.mu.Lock()
+	ctx, log := m.cfg.Ctx, m.cfg.Log
+	m.mu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	info := catia.ExtractPath(ctx, tx.Begin.Dst)
 	if info.ErrorKind != "" {
-		m.mu.Lock()
-		log := m.cfg.Log
-		m.mu.Unlock()
 		if log == nil {
 			log = slog.New(slog.DiscardHandler)
 		}

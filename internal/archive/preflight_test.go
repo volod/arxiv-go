@@ -70,6 +70,12 @@ func TestPlanPreflightTable(t *testing.T) {
 			[]wantDevice{
 				{"/a", []Need{{"descriptions", 4 * kib}, {"video_registry", kib}, {"wal", 2 * kib}, {"previews", 5 * kib}}},
 				{"/v", []Need{{"video_registry", kib}, {"videos", gib}}}}},
+		{"split catia text hook on archive device", Candidates{Count: 2, Bytes: 3 * gib, Largest: 2 * gib, TextBytes: kib},
+			PreflightOptions{Op: "split", Payload: PayloadCatia},
+			devices(dev(100*gib, "/a", RoleArchive), dev(100*gib, "/c", RoleCatiaArchive)),
+			[]wantDevice{
+				{"/a", []Need{{"descriptions", 8 * kib}, {"catia_registry", 2 * kib}, {"wal", 4 * kib}, {"texts", kib}}},
+				{"/c", []Need{{"catia_registry", 2 * kib}, {"catia", 3 * gib}}}}},
 		{"restore same device auto is negligible", videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "auto"}, shared,
 			[]wantDevice{{"/a", []Need{{"wal", 6 * kib}}}}},
 		{"restore other device auto", videos3, PreflightOptions{Op: "restore", Payload: PayloadVideo, Transfer: "auto"}, separate,

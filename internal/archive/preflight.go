@@ -49,6 +49,9 @@ type Candidates struct {
 	MediaRows int64 // scan in media mode: rows that carry media metadata
 	// PreviewBytes is the estimate of the previews split still has to write to the archive device.
 	PreviewBytes int64
+	// TextBytes is the estimate of CATIA text sidecars split still has to write to the archive
+	// device when --catia-text is set: min(1 MiB, file size) per file that still needs a sidecar.
+	TextBytes int64
 }
 
 // PreflightOptions are the run options that change the requirement.
@@ -168,6 +171,7 @@ func Plan(c Candidates, o PreflightOptions, info DeviceInfo) Requirement {
 		add(mirror, noun+"_registry", mulSat(count, payloadRegistryRowBytes))
 		add(RoleArchive, "wal", mulSat(count, walBytes))
 		add(RoleArchive, "previews", nonNeg(c.PreviewBytes))
+		add(RoleArchive, "texts", nonNeg(c.TextBytes))
 		switch {
 		case !shared:
 			add(mirror, plural, nonNeg(c.Bytes))

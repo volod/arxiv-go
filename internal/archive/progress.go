@@ -20,6 +20,7 @@ type Stats struct {
 	ArchiveWritten, ArchiveFreed            atomic.Int64
 	VideoArchiveWritten, VideoArchiveFreed  atomic.Int64
 	PreviewsDone, PreviewsFailed            atomic.Int64
+	TextsDone, TextsFailed                  atomic.Int64
 	CatiaDone, CatiaSkipped, CatiaFailed    atomic.Int64
 	CatiaBytes                              atomic.Int64
 	CatiaArchiveWritten, CatiaArchiveFreed  atomic.Int64
@@ -34,6 +35,7 @@ func (s *Stats) Snapshot() state.Counters {
 		ArchiveWritten: s.ArchiveWritten.Load(), ArchiveFreed: s.ArchiveFreed.Load(),
 		VideoWritten: s.VideoArchiveWritten.Load(), VideoFreed: s.VideoArchiveFreed.Load(),
 		PreviewsDone: s.PreviewsDone.Load(), PreviewsFailed: s.PreviewsFailed.Load(),
+		TextsDone: s.TextsDone.Load(), TextsFailed: s.TextsFailed.Load(),
 		CatiaDone: s.CatiaDone.Load(), CatiaSkipped: s.CatiaSkipped.Load(), CatiaFailed: s.CatiaFailed.Load(),
 		CatiaBytes:   s.CatiaBytes.Load(),
 		CatiaWritten: s.CatiaArchiveWritten.Load(), CatiaFreed: s.CatiaArchiveFreed.Load(),
@@ -54,6 +56,8 @@ func (s *Stats) Restore(c state.Counters) {
 	s.VideoArchiveFreed.Store(c.VideoFreed)
 	s.PreviewsDone.Store(c.PreviewsDone)
 	s.PreviewsFailed.Store(c.PreviewsFailed)
+	s.TextsDone.Store(c.TextsDone)
+	s.TextsFailed.Store(c.TextsFailed)
 	s.CatiaDone.Store(c.CatiaDone)
 	s.CatiaSkipped.Store(c.CatiaSkipped)
 	s.CatiaFailed.Store(c.CatiaFailed)

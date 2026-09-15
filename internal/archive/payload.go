@@ -56,7 +56,8 @@ type splitHooks interface {
 	writeRegistry(c SplitConfig) error
 }
 
-// postCommit is the optional sidecar generated after a file's move commits (video previews).
+// postCommit is the optional sidecar generated after a file's move commits (video previews or
+// CATIA text).
 type postCommit interface {
 	committed(rel string) error
 	// stop waits for queued work and joins its fatal error with err.

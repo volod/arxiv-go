@@ -39,6 +39,7 @@ var flagTable = []flagDef{
 	// Split flags.
 	{name: "video", ops: splitOnly, group: groupSplit, usage: "Move video files into --video-archive (the default payload)", bind: boolean(false)},
 	{name: "catia", ops: splitOnly, group: groupSplit, usage: "Move CATIA files into --catia-archive instead of videos", bind: boolean(false)},
+	{name: "catia-text", ops: splitOnly, group: groupSplit, usage: "With --catia, write a searchable text sidecar of extracted accessible text for moved CATIA files that lack one", bind: boolean(false)},
 	{name: "transfer", ops: splitOnly, group: groupSplit, arg: "MODE", usage: "auto: rename on the same device, copy+verify+delete otherwise; copy: always copy+verify+delete", bind: enum(TransferAuto, transferModes)},
 	{name: "verify", ops: splitOnly, group: groupSplit, arg: "MODE", usage: "size or hash (SHA-256 while copying and re-read from the destination)", bind: enum(VerifySize, verifyModes)},
 	{name: "base-url", ops: splitOnly, group: groupSplit, arg: "URL", usage: "Absolute http(s) URL of the published video or CATIA archive; descriptions link to URL/<rel_path>", bind: str("")},

@@ -13,7 +13,7 @@ import (
 const RoleCatiaArchive Role = "catia_archive"
 
 // catiaPayload moves CATIA files into the CATIA archive with CATIA descriptions and writes
-// arxgo-catia.csv. It has no post-commit sidecar yet and no restore.
+// arxgo-catia.csv. --catia-text generates post-commit text sidecars; restore is not in this build.
 var catiaPayload = &payloadSpec{
 	kind: PayloadCatia, noun: "catia", plural: "catia", role: RoleCatiaArchive, registry: scanner.CatiaRegistryName,
 	candidate: func(ft scanner.FileType) bool { return ft.IsCatia },
@@ -39,20 +39,55 @@ var catiaPayload = &payloadSpec{
 	newSplit: func(s *Session) splitHooks { return &catiaSplit{s: s} },
 }
 
-// catiaSplit is the CATIA part of split: arxgo-catia.csv. Descriptions carry the catia: line
-// through the description writer of the run's payload.
-type catiaSplit struct{ s *Session }
-
-// prepare stops the run on a corrupt operator registry before the first archive move.
-func (v *catiaSplit) prepare(context.Context, *SplitConfig) error {
-	_, err := loadCatiaRegistry(v.s)
-	return err
+// catiaSplit is the CATIA part of split: arxgo-catia.csv and optional text sidecars.
+type catiaSplit struct {
+	s       *Session
+	rows    []report.CatiaRow
+	history []runHistory
+	idx     *eventIndex
+	text    bool
 }
 
-func (v *catiaSplit) plan(context.Context, *SplitConfig, *Candidates) error { return nil }
+// prepare stops the run on a corrupt operator registry before the first archive move and
+// reconstructs text-sidecar events of earlier CATIA runs so skip paths and catch-up are exact.
+func (v *catiaSplit) prepare(_ context.Context, c *SplitConfig) error {
+	rows, err := loadCatiaRegistry(v.s)
+	if err != nil {
+		return err
+	}
+	v.rows, v.text = rows, c.CatiaText
+	if v.history, err = readHistory(v.s.cfg.Archive, PayloadCatia); err != nil {
+		return err
+	}
+	if v.idx, err = newTextIndex(v.s.cfg.Archive, v.history); err != nil {
+		return err
+	}
+	if !v.s.cfg.DryRun {
+		if err := v.idx.removeUnfinishedParts(); err != nil {
+			return err
+		}
+	}
+	c.Scan.SkipPaths = append(c.Scan.SkipPaths, v.idx.skipPaths()...)
+	return nil
+}
 
-func (v *catiaSplit) start(context.Context, *state.WAL) (postCommit, error) {
-	return noPostCommit{}, nil
+func (v *catiaSplit) plan(_ context.Context, c *SplitConfig, remaining *Candidates) error {
+	if !c.CatiaText {
+		return nil
+	}
+	n, err := estimateTextBytes(v)
+	if err != nil {
+		return err
+	}
+	remaining.TextBytes = n
+	return nil
+}
+
+func (v *catiaSplit) start(ctx context.Context, w *state.WAL) (postCommit, error) {
+	if !v.text {
+		return noPostCommit{}, nil
+	}
+	return startTextSidecars(ctx, v, w)
 }
 
 func (v *catiaSplit) writeRegistry(c SplitConfig) error {
@@ -60,7 +95,7 @@ func (v *catiaSplit) writeRegistry(c SplitConfig) error {
 	if err := s.Phase(phaseReport, Totals{}); err != nil {
 		return err
 	}
-	rows, err := collectCatiaRows(s, c)
+	rows, err := collectCatiaRows(s, c, v.idx)
 	if err != nil {
 		return err
 	}
@@ -98,7 +133,7 @@ func loadCatiaRegistry(s *Session) ([]report.CatiaRow, error) {
 
 // collectCatiaRows replays the CATIA run history onto the existing registry, adds the files this
 // run skipped before a transaction began and completes cells from the file registry.
-func collectCatiaRows(s *Session, c SplitConfig) ([]report.CatiaRow, error) {
+func collectCatiaRows(s *Session, c SplitConfig, idx *eventIndex) ([]report.CatiaRow, error) {
 	existing, err := loadCatiaRegistry(s)
 	if err != nil {
 		return nil, err
@@ -134,6 +169,9 @@ func collectCatiaRows(s *Session, c SplitConfig) ([]report.CatiaRow, error) {
 			}
 		}
 		finishURL(s, c.BaseURL, &rows[i].PayloadRow)
+		if idx != nil {
+			rows[i].TextRelPath = idx.ownedPath(rows[i].RelPath)
+		}
 	}
 	return rows, nil
 }

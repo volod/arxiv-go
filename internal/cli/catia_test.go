@@ -86,6 +86,41 @@ func TestSplitCatiaCommandIgnoresVideoArchiveEnvironment(t *testing.T) {
 	}
 }
 
+func TestSplitCatiaTextCommandWritesSidecar(t *testing.T) {
+	arc, _, cat, _ := catiaCLIFixture(t)
+	withLockIdentity(t, 500)
+	var out, errOut bytes.Buffer
+	e := testEnv(&out, &errOut, noProcessEnv)
+	code := run(context.Background(), []string{"split", "--catia", "--catia-text", "--archive", arc,
+		"--catia-archive", cat, "--min-free", "0"}, e)
+	if code != ExitOK {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	sidecar, err := os.ReadFile(filepath.Join(arc, "cad", "fixture-part.CATPart.text.md"))
+	if err != nil || !bytes.HasPrefix(sidecar, []byte("arxgo-text: cad/fixture-part.CATPart\n")) {
+		t.Fatalf("sidecar: %s, %v", sidecar, err)
+	}
+	id, err := state.ReadCurrent(arc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var o state.RunOptions
+	if err := state.ReadJSON(filepath.Join(state.StateDir(arc), "runs", id, state.OptionsFile), &o); err != nil {
+		t.Fatal(err)
+	}
+	var defining SplitOptions
+	if err := json.Unmarshal(o.Defining, &defining); err != nil {
+		t.Fatal(err)
+	}
+	if !defining.CatiaText {
+		t.Fatalf("catia-text is not defining: %s", o.Defining)
+	}
+	csv, err := os.ReadFile(filepath.Join(arc, "arxgo-catia.csv"))
+	if err != nil || !bytes.Contains(csv, []byte("cad/fixture-part.CATPart.text.md")) {
+		t.Fatalf("registry: %s, %v", csv, err)
+	}
+}
+
 func TestCatiaUsageErrorsExitBeforeLock(t *testing.T) {
 	arc, video, cat, _ := catiaCLIFixture(t)
 	if err := os.Mkdir(cat, 0o755); err != nil {
@@ -110,6 +145,8 @@ func TestCatiaUsageErrorsExitBeforeLock(t *testing.T) {
 		{"catia with sample", []string{"--catia", "--catia-archive", cat, "--sample", "start"}, nil, "--sample start cannot be used with --catia"},
 		{"catia with image from env", []string{"--catia", "--catia-archive", cat}, map[string]string{"ARXGO_IMAGE": "series"}, "ARXGO_IMAGE series cannot be used with --catia"},
 		{"catia with publish", []string{"--catia", "--catia-archive", cat, "--publish", "gdrive"}, nil, "option not available in this build"},
+		{"catia-text without catia", []string{"--video-archive", video, "--catia-text"}, nil, "requires --catia"},
+		{"catia-text from env without catia", []string{"--video-archive", video}, map[string]string{"ARXGO_CATIA_TEXT": "true"}, "requires --catia"},
 		{"both payload variables", []string{"--catia-archive", cat}, map[string]string{"ARXGO_VIDEO": "true", "ARXGO_CATIA": "true"}, "mutually exclusive"},
 		{"catia on restore", []string{"--catia", "--video-archive", video}, nil, "flag provided but not defined: --catia"},
 	}

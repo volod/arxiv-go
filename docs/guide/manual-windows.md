@@ -155,25 +155,33 @@ archive with `--catia`. It is a separate run from the video split; one run moves
 ```powershell
 .\arxgo.exe split --catia --archive 'D:\archive' --catia-archive 'F:\catia' --dry-run
 .\arxgo.exe split --catia --archive 'D:\archive' --catia-archive 'F:\catia' --verify hash
+.\arxgo.exe split --catia --catia-text --archive 'D:\archive' --catia-archive 'F:\catia'
 ```
 
 `D:\archive\cad\bracket.CATPart` becomes `F:\catia\cad\bracket.CATPart`, and
 `D:\archive\cad\bracket.CATPart.md` describes it with the usual description fields and a
 `catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
 format, release, number of referenced documents). It never lists names or other text from inside
-the file. Videos, the video archive and `arxgo-videos.csv` are not touched. Both roots get
-`arxgo-catia.csv`: the same first ten columns as `arxgo-videos.csv`, then `catia_kind`,
-`catia_format`, `catia_release`, `catia_components` and `mtime` (a column empty in every row is
-omitted). Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for
-videos. A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+the file. `--catia-text` writes a second owned file `cad\bracket.CATPart.text.md` whose first line
+is `arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable
+strings. Those strings can include authoring user ids and workstation paths; leave the flag unset
+unless that is wanted. If `<rel_path>.text.md` already holds a file that is not this sidecar, the
+owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the
+CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing
+and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
+archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
+ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
+`catia_release`, `catia_components` and `mtime` (a column empty in every row is omitted).
+Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
+A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
 
 The CATIA archive must not be the main archive, the video archive, or inside either (or contain
 them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
 `--sample` or `--image`; `--catia-archive` without `--catia` is refused too. Each of these exits 2
 before anything is written. `ARXGO_VIDEO_ARCHIVE` in `.env` does not affect a CATIA run, and
 `ARXGO_CATIA_ARCHIVE` does not affect a video run. `ARXGO_CATIA=true` makes `--catia` the default;
-a `--video` or `--catia` flag on the command line overrides it. Restoring CATIA files and
-searchable text sidecars are not available in this build.
+a `--video` or `--catia` flag on the command line overrides it. Restoring CATIA files is not
+available in this build.
 
 ## Restore videos
 

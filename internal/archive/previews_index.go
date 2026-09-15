@@ -49,6 +49,7 @@ type eventIndex struct {
 	archive                     string
 	partPath                    func(string) string
 	owned, generating, deleting eventSet
+	last                        map[string]string // owner -> sidecar of the last successful Done
 }
 
 // previewIndex is the event index of video previews.
@@ -60,7 +61,7 @@ func newPreviewIndex(archive string, history []runHistory) (*previewIndex, error
 
 func newEventIndex(family state.EventFamily, archive string, partPath func(string) string, history []runHistory) (*eventIndex, error) {
 	idx := &eventIndex{family: family, archive: archive, partPath: partPath,
-		owned: eventSet{}, generating: eventSet{}, deleting: eventSet{}}
+		owned: eventSet{}, generating: eventSet{}, deleting: eventSet{}, last: map[string]string{}}
 	for _, run := range history {
 		if err := idx.replay(run); err != nil {
 			return nil, err
@@ -91,11 +92,14 @@ func (idx *eventIndex) replay(run runHistory) error {
 		case f.Done, f.Failed:
 			idx.generating.remove(owner, begins[rec.TxID])
 			if rec.Step == f.Done && rec.Size > 0 {
-				idx.owned.put(owner, sidecar, rec.Size)
+				idx.remember(owner, sidecar, rec.Size)
 			}
 		case f.Deleted:
 			idx.deleting.remove(owner, sidecar)
 			idx.owned.remove(owner, sidecar)
+			if idx.last[owner] == sidecar {
+				delete(idx.last, owner)
+			}
 		}
 		if !f.Opens(rec.Step) {
 			delete(begins, rec.TxID)
@@ -106,6 +110,29 @@ func (idx *eventIndex) replay(run runHistory) error {
 
 func (idx *eventIndex) abs(preview string) string {
 	return filepath.Join(idx.archive, filepath.FromSlash(preview))
+}
+
+// remember records a completed sidecar as the latest for owner.
+func (idx *eventIndex) remember(owner, sidecar string, size int64) {
+	idx.owned.put(owner, sidecar, size)
+	if idx.last == nil {
+		idx.last = map[string]string{}
+	}
+	idx.last[owner] = sidecar
+}
+
+// ownedPath is the archive-relative path of one completed sidecar of owner, from the last
+// successful Done. Text sidecars have at most one live file; when several Dones exist the last
+// one wins, matching arxgo-catia.csv text_rel_path.
+func (idx *eventIndex) ownedPath(owner string) string {
+	if p := idx.last[owner]; p != "" && idx.owned.has(owner, p) {
+		return p
+	}
+	paths := idx.owned.sorted(owner)
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[len(paths)-1]
 }
 
 // published reports a completed sidecar whose file still has its recorded size.

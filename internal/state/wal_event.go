@@ -22,8 +22,13 @@ var PreviewEvents = EventFamily{Name: "preview",
 	Begin: StepPreviewBegin, Done: StepPreviewDone, Failed: StepPreviewFailed,
 	Delete: StepPreviewDelete, Deleted: StepPreviewDeleted}
 
+// TextEvents are the stage-4 CATIA text sidecar generation and cleanup events.
+var TextEvents = EventFamily{Name: "text",
+	Begin: StepTextBegin, Done: StepTextDone, Failed: StepTextFailed,
+	Delete: StepTextDelete, Deleted: StepTextDeleted}
+
 // eventFamilies lists every family a WAL accepts.
-var eventFamilies = []EventFamily{PreviewEvents}
+var eventFamilies = []EventFamily{PreviewEvents, TextEvents}
 
 // Has reports whether step belongs to the family.
 func (f EventFamily) Has(step Step) bool {

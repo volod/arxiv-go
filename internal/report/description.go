@@ -155,6 +155,16 @@ const (
 // that is not a readable regular file (a directory, a symlink, a file without read permission) is
 // foreign: arxgo never overwrites or deletes it. Only a failure to look up the path is an error.
 func InspectDescription(path, relPath string) (DescriptionOccupancy, error) {
+	return inspectMarker(path, DescriptionMarker, relPath)
+}
+
+// InspectTextSidecar reports whether path is missing, an owned CATIA text sidecar for relPath, or
+// a foreign file. The first line must be "arxgo-text: <relPath>" (first 64 KiB).
+func InspectTextSidecar(path, relPath string) (DescriptionOccupancy, error) {
+	return inspectMarker(path, TextSidecarMarker, relPath)
+}
+
+func inspectMarker(path, marker, relPath string) (DescriptionOccupancy, error) {
 	fi, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -173,8 +183,13 @@ func InspectDescription(path, relPath string) (DescriptionOccupancy, error) {
 	if err != nil && !(errors.Is(err, io.EOF) && line != "") {
 		return DescriptionForeign, nil
 	}
-	key, value, ok := parseField(strings.TrimRight(line, "\r\n"), true)
-	if !ok || key != DescriptionMarker || value != relPath {
+	line = strings.TrimPrefix(strings.TrimRight(line, "\r\n"), "\uFEFF")
+	key, value, found := strings.Cut(line, ": ")
+	if !found {
+		return DescriptionForeign, nil
+	}
+	value, err = unquoteValue(value)
+	if err != nil || key != marker || value != relPath {
 		return DescriptionForeign, nil
 	}
 	return DescriptionOwned, nil

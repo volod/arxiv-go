@@ -69,7 +69,7 @@ func (s *Session) recoverReplaced(ctx context.Context, rd state.RunDir, prev sta
 	log := slog.New(state.Fanout(s.cfg.Console, runLog.Handler()))
 	log.Warn("recovering the interrupted run before a new run replaces it", "previous_run", rd.ID,
 		"previous_op", prev.Op, "payload", payload.Kind, "open_transactions", open)
-	resolverLog(res, log)
+	resolverAttach(res, log, ctx)
 	n, err := state.Recover(ctx, w, res, log)
 	if err != nil {
 		return err

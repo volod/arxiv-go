@@ -3,16 +3,16 @@
 Owner: `project-foundation`. Split preview settings and restore preview cleanup are active.
 Cloud publishing flags are listed so the parser recognizes their names; using them exits 2 with
 `option not available in this build`. CATIA flags are specified for
-[stage 4](../stage-4-catia/README.md): `--video`, `--catia` and `--catia-archive` are active for
-`split` (and `--catia-archive` is accepted and ignored by `scan`); on `restore`, and `--catia-text`
-everywhere, they are unknown flags (exit 2) until their stage-4 tasks ship.
+[stage 4](../stage-4-catia/README.md): `--video`, `--catia`, `--catia-archive` and `--catia-text`
+are active for `split` (`--catia-archive` is accepted and ignored by `scan`). On `restore` the CATIA
+payload flags are unknown (exit 2) until CATIA restore ships.
 
 ## Synopsis
 
 ```text
 arxgo [scan]  --archive PATH [common flags] [scan flags]
 arxgo split   --archive PATH --video-archive PATH [common flags] [scan flags] [split flags]
-arxgo split   --catia --archive PATH --catia-archive PATH [common flags] [scan flags] [split flags]
+arxgo split   --catia --archive PATH --catia-archive PATH [--catia-text] [common flags] [scan flags] [split flags]
 arxgo restore --archive PATH --video-archive PATH [common flags] [restore flags]
 arxgo restore --catia --archive PATH --catia-archive PATH [common flags] [restore flags]
 arxgo version

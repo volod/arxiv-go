@@ -30,6 +30,7 @@ type settings struct {
 	sampleDuration, sampleEvery              time.Duration
 	imageEvery                               time.Duration
 	previewMaxItems                          int
+	catiaText                                bool
 
 	// reserved maps an unavailable feature flag name to its value, recording whether it was given.
 	reserved map[string]*reservedValue
@@ -139,7 +140,7 @@ func boolField(s *settings, name string) *bool {
 		"dry-run": &s.dryRun, "new-run": &s.newRun, "force-unlock": &s.forceUnlock,
 		"follow-symlinks": &s.followSymlinks, "create-dirs": &s.createDirs,
 		"overwrite": &s.overwrite, "registry-update": &s.registryUpdate,
-		"video": &s.video, "catia": &s.catia,
+		"video": &s.video, "catia": &s.catia, "catia-text": &s.catiaText,
 	}
 	return fields[name]
 }

@@ -37,6 +37,11 @@ const (
 	StepPreviewFailed      Step = "preview_failed"
 	StepPreviewDelete      Step = "preview_delete"
 	StepPreviewDeleted     Step = "preview_deleted"
+	StepTextBegin          Step = "text_begin"
+	StepTextDone           Step = "text_done"
+	StepTextFailed         Step = "text_failed"
+	StepTextDelete         Step = "text_delete"
+	StepTextDeleted        Step = "text_deleted"
 )
 
 // Transfer recorded on begin: copy path vs same-device rename.

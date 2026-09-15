@@ -31,6 +31,7 @@ func TestRunExitCodes(t *testing.T) {
 		{"help", []string{"help"}, ExitOK, "Usage:", ""},
 		{"help scan", []string{"help", "scan"}, ExitOK, "--large-threshold SIZE", ""},
 		{"help split lists preview settings", []string{"help", "split"}, ExitOK, "--sample MODE", ""},
+		{"help split lists catia-text", []string{"help", "split"}, ExitOK, "--catia-text", ""},
 		{"help restore", []string{"help", "restore"}, ExitOK, "(default true; env ARXGO_REGISTRY_UPDATE)", ""},
 		{"help unknown", []string{"help", "shuffle"}, ExitUsage, "", `unknown operation "shuffle"`},
 		{"help publish", []string{"help", "publish"}, ExitUsage, "", "not available in this build"},

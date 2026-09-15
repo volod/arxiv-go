@@ -72,7 +72,7 @@ var defaultHandlers = Handlers{
 		cfg.Recoverer = resolver
 		return runSession(ctx, cfg, log, archive.SplitBody(archive.SplitConfig{
 			Scan: scan, Transfer: o.Transfer, Verify: verifyMode(o.Verify), BaseURL: o.BaseURL, Descriptions: resolver.Descriptions,
-			Preview: o.Preview, Tools: o.Tools,
+			Preview: o.Preview, Tools: o.Tools, CatiaText: o.CatiaText,
 		}))
 	},
 	Restore: func(ctx context.Context, o RestoreOptions, log *slog.Logger) int {

@@ -28,36 +28,13 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-text-sidecars
-
-Operators want searchable text beside each moved CATIA file, also for archives split earlier.
-
-- Serves: `catia-archive` -- [Text sidecars](../openspec/stage-4-catia/split-restore.md#text-sidecars)
-- Agent status: CLEAR
-- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md).
-- User-visible outcome: `split --catia --catia-text` writes owned `<rel_path>.text.md` sidecars after
-  each commit and for previously moved files that lack one; failures never roll back a move.
-- Scope boundary: `--catia-text` flag and validation; `text_begin`/`text_done`/`text_failed` events
-  on the shared post-commit mechanism; part files and non-replacing rename; sidecar collision naming;
-  rerun catch-up; `texts_done`/`texts_failed` counters and exit 6; `text_rel_path` in
-  `arxgo-catia.csv`. No restore cleanup.
-- Data and artifact paths: `internal/cli/`, `internal/archive/`, `internal/state/`.
-- Execution path: Generated trees in `t.TempDir()`; injected extraction failure; crash between
-  `text_begin` and `text_done`; split without then with `--catia-text`.
-- Acceptance gates: Sidecars match the contract; a foreign `<rel_path>.text.md` is kept and the
-  sidecar goes to `<rel_path>.arxgo.text.md`; failure leaves the file moved with exit 6; crash
-  recovery leaves no part file and retries; second run moves nothing and writes only missing
-  sidecars; `--catia-text` without `--catia` exits 2; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-stage-4-catia`.
-
 #### implement-catia-restore
 
 Return CATIA files without touching the video payload or deleting foreign Markdown.
 
 - Serves: `catia-archive` -- [Restore](../openspec/stage-4-catia/split-restore.md#restore)
 - Agent status: CLEAR
-- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md); `implement-catia-text-sidecars`.
+- Dependencies: [CATIA split](records/0046-catia-implement-catia-split.md); [CATIA text sidecars](records/0047-catia-implement-catia-text-sidecars.md).
 - User-visible outcome: `arxgo restore --catia` returns CATIA files, honors directory and conflict
   policies, and deletes or keeps owned descriptions and text sidecars.
 - Scope boundary: Restore `--video`, `--catia` and `--catia-archive` with the split validation rules,

@@ -47,6 +47,27 @@ func TestPreviewEventsSurviveWALReopen(t *testing.T) {
 	}
 }
 
+func TestTextEventsUseSharedEnvelope(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wal.jsonl")
+	w, err := OpenWAL(path, walTestRun, WALOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	begin, err := w.BeginEvent(TextEvents, "cad/fixture.CATPart", "/archive/cad/fixture.CATPart.text.md", 0, false)
+	if err != nil || begin.V != EventWALVersion || begin.Step != StepTextBegin {
+		t.Fatalf("text begin = %+v, %v", begin, err)
+	}
+	if _, err := w.FinishEvent(TextEvents, begin.TxID, StepTextDone, "", 80, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.FinishEvent(PreviewEvents, begin.TxID, StepPreviewDone, "", 1, ""); err == nil {
+		t.Fatal("preview outcome accepted for a text event")
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // fixtureEvents is a second sidecar family, registered only in tests, proving that the begin,
 // finish and replay rules are shared rather than preview-specific.
 var fixtureEvents = EventFamily{Name: "fixture", Begin: "fixture_begin", Done: "fixture_done",

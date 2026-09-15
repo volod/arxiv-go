@@ -25,6 +25,9 @@ type SplitConfig struct {
 	Tools        media.Toolset
 	// StageCopy is a test seam for source mutation during a copy. Nil uses fsops.StageCopy.
 	StageCopy func(context.Context, string, string, fsops.CopyOptions) (fsops.CopyResult, error)
+	// CatiaText writes owned text sidecars after each CATIA commit and for earlier moved files
+	// that still lack one. Ignored for the video payload.
+	CatiaText bool
 }
 
 // SplitBody scans, preflights, and executes the payload's candidate list in walk order. The caller must
@@ -65,7 +68,7 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		s.Log.Info("dry run: split plan complete", "payload", s.payload.kind, "candidates", remaining.Count, "bytes", remaining.Bytes)
 		return nil
 	}
-	c.Descriptions = splitDescriptions(s, c)
+	c.Descriptions = splitDescriptions(ctx, s, c)
 	if err := s.Phase("execute", Totals{Items: remaining.Count, Bytes: remaining.Bytes}); err != nil {
 		return err
 	}
@@ -130,12 +133,12 @@ func countRemaining(list string, w *state.WAL) (Candidates, error) {
 
 // splitDescriptions returns the configured description writer with the session's crash hook and clock, or the
 // Markdown writer when none is configured.
-func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
+func splitDescriptions(ctx context.Context, s *Session, c SplitConfig) SplitDescriptionWriter {
 	if c.Descriptions == nil {
 		return NewMarkdownDescription(DescriptionConfig{
 			Archive: s.cfg.Archive, Mirror: s.cfg.Payload.Root, BaseURL: c.BaseURL,
 			Registry: c.Scan.Registry, Version: s.cfg.Version, Payload: s.payload.kind, Verify: c.Verify,
-			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now, Log: s.Log,
+			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now, Log: s.Log, Ctx: ctx,
 		})
 	}
 	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
@@ -146,6 +149,7 @@ func splitDescriptions(s *Session, c SplitConfig) SplitDescriptionWriter {
 			m.cfg.Now = s.cfg.Now
 		}
 		m.useLog(s.Log)
+		m.useContext(ctx)
 	}
 	return c.Descriptions
 }
@@ -159,11 +163,25 @@ func (m *MarkdownDescription) useLog(log *slog.Logger) {
 	}
 }
 
+func (m *MarkdownDescription) useContext(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cfg.Ctx = ctx
+}
+
 // resolverLog gives the description writer of a split resolver the run log before recovery.
 func resolverLog(res Resolver, log *slog.Logger) {
+	resolverAttach(res, log, nil)
+}
+
+func resolverAttach(res Resolver, log *slog.Logger, ctx context.Context) {
 	if r, ok := res.(SplitResolver); ok {
 		if m, ok := r.Descriptions.(*MarkdownDescription); ok {
 			m.useLog(log)
+			m.useContext(ctx)
 		}
 	}
 }

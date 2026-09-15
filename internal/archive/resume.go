@@ -109,7 +109,7 @@ func (s *Session) recoverWAL(ctx context.Context) error {
 	if s.cfg.Recoverer == nil {
 		return nil
 	}
-	resolverLog(s.cfg.Recoverer, s.Log)
+	resolverAttach(s.cfg.Recoverer, s.Log, ctx)
 	_, err = state.Recover(ctx, w, s.cfg.Recoverer, s.Log)
 	return err
 }

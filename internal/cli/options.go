@@ -91,6 +91,9 @@ type SplitOptions struct {
 	// CreateMirror is true when the payload's mirror root does not exist yet; its parent does, and
 	// the split operation creates it after taking the lock.
 	CreateMirror bool
+	// CatiaText writes owned text sidecars after each CATIA commit and for earlier moved files
+	// that still lack one. Valid only with --catia.
+	CatiaText bool
 }
 
 // RestoreOptions configures the restore operation.
@@ -207,7 +210,7 @@ func buildScanOptions(s *settings, fsys rootFS) (ScanOptions, error) {
 func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 	v := &validator{}
 	common, missing := buildCommon(OpSplit, s, fsys, v)
-	o := SplitOptions{Common: common, CreateMirror: missing}
+	o := SplitOptions{Common: common, CreateMirror: missing, CatiaText: s.catiaText}
 	o.ScanSettings = buildScan(s, o.Archive, fsys, v)
 	o.Transfer, o.Verify = s.transfer, s.verify
 	o.Preview = media.PreviewOptions{SampleMode: s.sampleMode, ImageMode: s.imageMode,
@@ -232,6 +235,8 @@ func buildSplitOptions(s *settings, fsys rootFS) (SplitOptions, error) {
 				v.addf("%s %s cannot be used with --catia: previews are generated for videos only", s.explicit[f.name], f.mode)
 			}
 		}
+	} else if s.catiaText {
+		v.addf("%s requires --catia", s.explicit["catia-text"])
 	}
 	if s.baseURL != "" {
 		u, err := validateBaseURL(s.baseURL)
