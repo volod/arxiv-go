@@ -8,11 +8,16 @@ import (
 
 	"github.com/volod/arxiv-go/internal/archive"
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/state"
 )
 
 // sessionHooks lets tests replace the process identity used by the run lock and the clock. It sees
 // the complete configuration just before the session starts.
 var sessionHooks = func(cfg *archive.Config) {}
+
+// lockHooks lets tests replace the process identity a read-only operation uses to judge the run
+// lock.
+var lockHooks = func(opts *state.LockOptions) {}
 
 // body is an operation's work inside a started session.
 type body func(ctx context.Context, s *archive.Session) error

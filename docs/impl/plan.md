@@ -28,29 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### implement-catia-text-index
-
-Extracted CATIA text lands in one sidecar per file; reading or feeding a whole archive at once
-means assembling them in the shell by guessing sidecar names.
-
-- Serves: `catia-archive` -- [Text index](../openspec/stage-4-catia/catia.md#text-index)
-- Agent status: CLEAR
-- Dependencies: [Self-locating metadata](records/0055-catia-record-source-location-in-metadata.md).
-- User-visible outcome: `arxgo catia-index` writes one Markdown document of every moved CATIA
-  file's metadata, properties and components, with harvested strings only on request.
-- Scope boundary: A read-only operation reading the CATIA run history, owned descriptions and owned
-  sidecars; `--out` and `--strings`; the reserved default output path. No extraction, no write to a
-  description, sidecar or registry, no other output format.
-- Data and artifact paths: `internal/archive/catia_index.go`, `internal/cli/`,
-  `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
-- Execution path: Fixture archive split with `--catia-text`, then the index built and compared;
-  a deleted sidecar covering the `Missing text` section.
-- Acceptance gates: Section count equals the `moved` rows of `arxgo-catia.csv`; a missing sidecar is
-  listed once and not skipped silently; `--strings` is the only difference between the two outputs;
-  a rerun is byte-identical; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
 #### review-registry-and-metadata
 
 Review registry schema stability and the metadata a detached reader sees before cloud work starts.
@@ -62,13 +39,13 @@ Review registry schema stability and the metadata a detached reader sees before 
   [Preserved archive registry](records/0053-registry-preserve-archive-registry.md);
   [Registry detection reuse](records/0054-registry-reuse-registry-detection.md);
   [Self-locating metadata](records/0055-catia-record-source-location-in-metadata.md);
-  `implement-catia-text-index`.
+  [CATIA text index](records/0056-catia-implement-catia-text-index.md).
 - User-visible outcome: Registry schemas and metadata documents are coherent across commands and
   payloads, and stage 3 can start without reopening them.
 - Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact
   exclusion, the reuse rule and stamp lifecycle, description and sidecar field order and escaping, index correctness against the run history, cap accounting. No speculative
   refactor.
-- Data and artifact paths: The records of the five tasks above, `internal/report/`,
+- Data and artifact paths: The records of the five dependencies above, `internal/report/`,
   `internal/archive/`.
 - Execution path: Invariant-to-evidence table, targeted tests, routed notes.
 - Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`

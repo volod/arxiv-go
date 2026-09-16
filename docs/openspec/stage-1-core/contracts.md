@@ -274,6 +274,69 @@ Restore `--descriptions delete` removes the sidecar only when the first line is
 `arxgo-text: <rel_path>` (first 64 KiB). Extraction and sidecar rules:
 [text extraction](../stage-4-catia/catia.md#text-extraction).
 
+## CATIA text index
+
+`arxgo catia-index` writes `<archive>/arxgo-catia-text.md` (or `--out`): UTF-8 without BOM, `\n`
+line endings, values escaped as description values are. Behavior:
+[text index](../stage-4-catia/catia.md#text-index).
+
+```markdown
+# arxgo CATIA text index
+
+archive: /data/archive
+catia_archive: /mnt/nas/catia
+history_at: 2026-09-15T12:05:02Z
+files: 2
+components: 2
+missing_text: 1
+
+## cad/fixture-part.CATPart
+
+file_name: fixture-part.CATPart
+file_size: 4096 (4.0 KiB)
+file_mime: application/octet-stream
+modified: 2026-09-15T12:00:00Z
+catia: CATPart | V5_CFV2 | V5R30 SP5 | 0 components
+moved_to: [fixture-part.CATPart](file:///mnt/nas/catia/cad/fixture-part.CATPart)
+description: cad/fixture-part.CATPart.md
+
+## cad/fixture-product.CATProduct
+
+file_name: fixture-product.CATProduct
+file_size: 8192 (8.0 KiB)
+file_mime: application/octet-stream
+modified: 2026-09-15T12:00:00Z
+catia: CATProduct | V5_CFV2 | V5R30 SP5 | 2 components
+moved_to: [fixture-product.CATProduct](file:///mnt/nas/catia/cad/fixture-product.CATProduct)
+description: cad/fixture-product.CATProduct.md
+text: cad/fixture-product.CATProduct.text.md
+truncated: false
+properties:
+- release: V5R30 SP5
+- build_level: 2026-01-01.00.00
+components:
+- fixture-part.CATPart
+- fixture-sub.CATProduct
+
+## Missing text
+
+- missing: cad/fixture-part.CATPart
+```
+
+| Part | Content |
+| --- | --- |
+| title | `# arxgo CATIA text index`, then a blank line |
+| `archive` | absolute archive root |
+| `catia_archive` | mirror root of the latest CATIA run; omitted without CATIA history |
+| `history_at` | RFC 3339 UTC time of the newest record of the CATIA run history; omitted without history |
+| `files`, `components`, `missing_text` | section count, component items listed in all sections, entries under `Missing text` |
+| `## <rel_path>` | one section per moved CATIA file in walk order, preceded by a blank line; `rel_path` quoted when it needs escaping |
+| identity lines | `file_name`, then `file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url` and `description` as in the [text sidecar](#catia-text-sidecar), from the owned description; from the sidecar without `description` when the description is gone |
+| `text`, `truncated` | archive-relative path of the owned sidecar and its `truncated` value; omitted when the file is listed under `Missing text` |
+| `properties:`, `components:` | the sidecar's blocks, items byte-identical; omitted when empty |
+| `strings:` | the sidecar's block, only with `--strings` |
+| `## Missing text` | last section, only when some file has no usable owned sidecar: `- <reason>: <rel_path>` with reason `not_recorded`, `missing`, `foreign` or `unreadable` |
+
 ## WAL record
 
 ```json

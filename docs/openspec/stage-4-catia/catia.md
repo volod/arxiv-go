@@ -213,22 +213,45 @@ at once needs them in one document, and assembling that in the shell means guess
 instead of reading the ownership the WAL recorded.
 
 `arxgo catia-index --archive PATH [--out PATH] [--strings]` writes one Markdown document from the
-owned descriptions and sidecars that the CATIA run history records:
+owned descriptions and sidecars that the CATIA run history records
+([contract](../stage-1-core/contracts.md#catia-text-index)):
 
-- a header with `archive`, `catia_archive`, `generated_at` and the file and component counts;
-- one `## <rel_path>` section per CATIA file in walk order, holding the description's identity
-  fields, then the sidecar's `properties:` and `components:` blocks;
+- a header with `archive`, `catia_archive` (the mirror root of the latest CATIA run), `history_at`
+  (the time of the newest record of the CATIA run history, so the document names the state it
+  reflects and a rerun over the same state writes the same bytes) and the `files`, `components` and
+  `missing_text` counts;
+- one `## <rel_path>` section per CATIA file whose replayed CATIA history ends `moved` (the rows
+  `arxgo-catia.csv` marks `moved`), in walk order, holding the identity block of its owned
+  description (the sidecar identity fields and `description:`), then `text:` and `truncated:` of its
+  owned sidecar and the sidecar's `properties:` and `components:` blocks;
 - `strings:` only with `--strings`, because harvested runs dominate the size;
 - `--out` defaults to `<archive>/arxgo-catia-text.md`, a [reserved path](../spec.md#reserved-paths);
-- files whose sidecar is missing are listed once under a `## Missing text` section, not skipped
-  silently.
+- files without a usable owned sidecar keep their section and are listed once under a final
+  `## Missing text` section with a reason, not skipped silently: `not_recorded` (no completed text
+  event in the history), `missing` (the recorded sidecar is gone), `foreign` (the file at the
+  recorded path no longer starts with `arxgo-text: <rel_path>`), `unreadable`.
 
-It reads only, takes no lock beyond the archive read lock, needs no mirror root, and never
-re-extracts a CATIA file.
+Ownership comes from the history, never from file names: the owned description is found with the
+[self-locating metadata](#self-locating-metadata) rule and the sidecar is the last completed text
+event of that file, so fallback names are read like plain ones. When the description is gone, the
+section takes the identity fields the sidecar repeated and has no `description:` line; the index
+logs a warning.
+
+It reads only: it starts no run, writes no run log, takes no lock and writes nothing but the output
+(through a part file and an atomic replace). A lock held by a live process on this host, or by
+another host, exits 5 because that run is changing the history and the sidecars; a stale or
+unreadable lock is logged and the recorded history is indexed. Corrupt run state exits 5; an
+interrupt exits 130 and leaves an earlier output unchanged. It needs no mirror root and never
+re-extracts a CATIA file. Missing text alone does not change the exit code (0).
+
+`--out` is validated before anything is read: it must not be a directory, its parent must exist,
+and it must not name run state, a registry, a part file, or an existing arxgo description or text
+sidecar (exit 2). Another existing file named by `--out` is replaced. An index written inside the
+archive under another name is an ordinary file for the next scan.
 
 Evaluation: the section count equals the `moved` rows of `arxgo-catia.csv`; a file whose sidecar was
-deleted appears under `Missing text`; `--strings` is the only difference between the two sizes; a
-rerun writes a byte-identical document.
+deleted appears under `Missing text`; removing the `strings:` blocks from the `--strings` output
+gives the default output byte for byte; a rerun writes a byte-identical document.
 
 Excluded: other output formats, chunking for an embedding model, and any write to a description,
 sidecar or registry.

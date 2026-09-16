@@ -8,7 +8,8 @@ const (
 	RegistryName      = "arxgo-registry.csv"
 	VideoRegistryName = "arxgo-videos.csv"
 	CatiaRegistryName = "arxgo-catia.csv"
-	PartSuffix        = ".arxgo-part" // same value as fsops.PartSuffix
+	CatiaIndexName    = "arxgo-catia-text.md" // default output of the CATIA text index
+	PartSuffix        = ".arxgo-part"         // same value as fsops.PartSuffix
 )
 
 // Kind classifies a delivered entry.

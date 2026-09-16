@@ -15,11 +15,14 @@ arxgo split   --archive PATH --video-archive PATH [common flags] [scan flags] [s
 arxgo split   --catia --archive PATH --catia-archive PATH [--catia-text] [common flags] [scan flags] [split flags]
 arxgo restore --archive PATH --video-archive PATH [common flags] [restore flags]
 arxgo restore --catia --archive PATH --catia-archive PATH [common flags] [restore flags]
+arxgo catia-index --archive PATH [--out PATH] [--strings] [--log-level LEVEL] [--log-format FORMAT]
 arxgo version
 arxgo help [operation]
 ```
 
-The operation name `publish` is reserved for cloud publishing.
+The operation name `publish` is reserved for cloud publishing. `catia-index` (stage 4) reads the
+archive and starts no run, so of the common flags it accepts only `--archive`, `--log-level` and
+`--log-format`; any other common flag is an unknown flag (exit 2).
 
 The operation is the first non-flag argument; when absent, the operation is `scan`. Flags use the
 standard library `flag` syntax (`--name value` or `--name=value`). Every flag may also be given as
@@ -133,6 +136,15 @@ Used by `scan`, and by `split` for its scan phase.
 | `--preview-max-items N` | `100` | Stage 2. Cap on fragments per series clip and frames per series |
 | `--publish TARGET` | none | Cloud publishing. `gdrive` or `sharepoint`; target-specific flags are in [cloud targets](../stage-3-cloud/cloud-targets.md) |
 
+## Index flags
+
+Used by `catia-index` only ([text index](../stage-4-catia/catia.md#text-index)).
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--out PATH` | `<archive>/arxgo-catia-text.md` | Output document; replaced atomically |
+| `--strings` | `false` | Include the `strings:` blocks of the text sidecars |
+
 `--metadata` doubles as the "type of metadata" option from the requirements: `file` needs no
 external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.
 
@@ -180,6 +192,9 @@ Validation happens before the lock is taken and before any filesystem write.
   separator there (a literal `[` is matched with `[[]`).
 - An explicit `--registry` is made absolute. It must not be a directory, and its parent directory
   must exist.
+- `catia-index`: `--archive` exists and is a directory. `--out` is made absolute; it must not be a
+  directory, its parent must exist, and it must not name run state, a registry, a part file or an
+  existing arxgo description or text sidecar.
 - Tool-backed options are checked through [tool discovery](metadata.md#tool-discovery).
 
 ## Exit codes
@@ -191,7 +206,7 @@ Validation happens before the lock is taken and before any filesystem write.
 | 2 | Usage or validation error |
 | 3 | Required external tool missing; download link printed |
 | 4 | Insufficient free space found by preflight |
-| 5 | Run lock held by a live process, or recovery needs operator action |
+| 5 | Run lock held by a live process (for `catia-index`: by a live process or another host), or recovery needs operator action |
 | 6 | Completed with skipped items (conflicts, missing directories, unreadable files) or failed previews or CATIA text extraction; see report |
 | 130 | Interrupted by signal after writing a checkpoint |
 
@@ -204,4 +219,5 @@ arxgo split --archive /data/archive --video-archive /mnt/nas/video --metadata me
 arxgo split --catia --archive /data/archive --catia-archive /mnt/nas/catia --catia-text
 arxgo restore --archive D:\archive --video-archive \\nas\video --create-dirs
 arxgo restore --catia --archive /data/archive --catia-archive /mnt/nas/catia
+arxgo catia-index --archive /data/archive --out /data/catia-index.md
 ```

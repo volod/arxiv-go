@@ -260,3 +260,18 @@ func (l *Lock) Release() error {
 	}
 	return fsops.SyncDir(filepath.Dir(l.path))
 }
+
+// InspectLock reports the lock of root without taking it: nil when there is none, otherwise the
+// *LockedError that AcquireLock would classify it as. Read-only operations use it to refuse to read
+// state that a live run is changing.
+func InspectLock(root string, opts LockOptions) (*LockedError, error) {
+	_, _, err := inspectLock(LockPath(root), opts.withDefaults())
+	var locked *LockedError
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case errors.As(err, &locked):
+		return locked, nil
+	}
+	return nil, err
+}

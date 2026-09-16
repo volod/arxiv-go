@@ -19,6 +19,8 @@ func TestLocalRelPath(t *testing.T) {
 		"arxgo-registry.csv":           false,
 		"arxgo-catia.csv":              false,
 		"a/arxgo-catia.csv":            true,
+		"arxgo-catia-text.md":          false,
+		"a/arxgo-catia-text.md":        true,
 		"a/clip.mp4.arxgo-part":        false,
 		"a/clip-smpl01.arxgo-part.mp4": false, // preview part
 		"a/clip.arxgo-part.x.mp4":      true,

@@ -35,6 +35,8 @@ const (
 	OpScan    = "scan"
 	OpSplit   = "split"
 	OpRestore = "restore"
+	// OpCatiaIndex writes the CATIA text index; it reads the archive and starts no run.
+	OpCatiaIndex = "catia-index"
 	// OpPublish is reserved for cloud publishing.
 	OpPublish = "publish"
 )
@@ -46,9 +48,10 @@ var version = "dev"
 // Handlers execute validated operations and return an exit code. Handlers must return promptly
 // after ctx is canceled; the dispatcher then reports ExitInterrupted.
 type Handlers struct {
-	Scan    func(ctx context.Context, opts ScanOptions, log *slog.Logger) int
-	Split   func(ctx context.Context, opts SplitOptions, log *slog.Logger) int
-	Restore func(ctx context.Context, opts RestoreOptions, log *slog.Logger) int
+	Scan       func(ctx context.Context, opts ScanOptions, log *slog.Logger) int
+	Split      func(ctx context.Context, opts SplitOptions, log *slog.Logger) int
+	Restore    func(ctx context.Context, opts RestoreOptions, log *slog.Logger) int
+	CatiaIndex func(ctx context.Context, opts CatiaIndexOptions, log *slog.Logger) int
 }
 
 // defaultHandlers is the operation table of this build. Each operation runs inside a run session.
@@ -95,6 +98,11 @@ var defaultHandlers = Handlers{
 		cfg.SidecarCleanup = archive.RestoreSidecarCleanup(cfg.Payload.Kind, rc)
 		return runSession(ctx, cfg, log, archive.RestoreBody(rc))
 	},
+	CatiaIndex: func(ctx context.Context, o CatiaIndexOptions, log *slog.Logger) int {
+		cfg := archive.CatiaIndexConfig{Archive: o.Archive, Out: o.Out, Strings: o.Strings}
+		lockHooks(&cfg.Lock)
+		return exitCode(archive.CatiaIndex(ctx, cfg, log))
+	},
 }
 
 // env is the process environment seen by the dispatcher; tests replace it.
@@ -129,7 +137,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 }
 
 func isOperation(s string) bool {
-	return s == OpScan || s == OpSplit || s == OpRestore
+	return s == OpScan || s == OpSplit || s == OpRestore || s == OpCatiaIndex
 }
 
 func run(ctx context.Context, args []string, e env) int {
@@ -199,6 +207,14 @@ func run(ctx context.Context, args []string, e env) int {
 		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
 		logOptions(log, op, o, e.envFile, fileValues)
 		code = e.handlers.Restore(ctx, o, log)
+	case OpCatiaIndex:
+		o, err := buildCatiaIndexOptions(s, e.fs)
+		if err != nil {
+			return usageError(e, op, err)
+		}
+		log := NewLogger(e.stderr, o.LogLevel, o.LogFormat)
+		logOptions(log, op, o, e.envFile, fileValues)
+		code = e.handlers.CatiaIndex(ctx, o, log)
 	}
 	if ctx.Err() != nil && code != ExitOK {
 		return ExitInterrupted

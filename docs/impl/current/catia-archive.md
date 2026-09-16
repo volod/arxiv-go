@@ -8,10 +8,11 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0048 CATIA restore](../records/0048-catia-implement-catia-restore.md);
 [0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md);
 [0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md);
-[0055 self-locating metadata](../records/0055-catia-record-source-location-in-metadata.md).
+[0055 self-locating metadata](../records/0055-catia-record-source-location-in-metadata.md);
+[0056 CATIA text index](../records/0056-catia-implement-catia-text-index.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
-sidecars and CATIA restore ship and are proven through the built binary on a generated archive; the
+sidecars, `catia-index` and CATIA restore ship and are proven through the built binary on a generated archive; the
 capability stays planned until the stage-4 checkpoint is accepted.
 
 ## Classification (`internal/catia`, `internal/scanner`)
@@ -215,6 +216,41 @@ A description or sidecar copied into a search index still says which archive and
   line and all blocks, and sets `truncated: true`. Blocks then fill the remainder as before, so the
   identity block reduces the room for components and strings.
 
+## CATIA text index (`internal/archive`, `internal/report`, `internal/cli`)
+
+`arxgo catia-index --archive PATH [--out PATH] [--strings]` writes one Markdown document of every
+moved CATIA file ([0056](../records/0056-catia-implement-catia-text-index.md); contract:
+[CATIA text index](../../openspec/stage-1-core/contracts.md#catia-text-index)).
+
+- **Source** (`archive.CatiaIndex`, `catia_index.go`). The CATIA run history (`readHistory`) is
+  replayed with `replayCatiaRows`, the function that writes `arxgo-catia.csv`; local `moved` rows
+  become sections in walk order (`scanner.Compare`). The owned description is
+  `ownedDescriptionPath` (the `described` WAL path while still owned, then the naming order, shared
+  with sidecar identity); the owned sidecar is the last `text_done` of the text event index, used
+  when its first line is `arxgo-text: <rel_path>`. No file name is guessed, so fallback names index
+  under the right file.
+- **Document.** Header `archive`, `catia_archive` (latest CATIA run's mirror), `history_at` (newest
+  history record, so reruns are byte-identical), `files`, `components`, `missing_text`. A section
+  holds `file_name` and the description identity lines (from the sidecar, without `description:`,
+  when the description is gone; logged), `text:` and `truncated:`, then the sidecar's
+  `properties:` and `components:` items byte-identical, and `strings:` only with `--strings` (read
+  in a second pass per sidecar, so strings are never held in memory). Files without a usable
+  sidecar keep their section and are listed once under a final `## Missing text` as
+  `- <reason>: <rel_path>` (`not_recorded`, `missing`, `foreign`, `unreadable`), with one warning.
+- **Read-only.** No run directory, run log or lock; the output goes through `fsops.AtomicWrite`.
+  `state.InspectLock` classifies an existing lock: live or remote exits 5, stale or unreadable is
+  logged. Corrupt history exits 5, an interrupt 130 with an earlier output unchanged, a write
+  failure 1. Missing text keeps exit 0.
+- **CLI** (`cli/catia_index.go`). Only `--archive`, `--log-level`, `--log-format`, `--out` and
+  `--strings` (`ARXGO_OUT`, `ARXGO_STRINGS`) are accepted. `--out` is absolute, not a directory,
+  with an existing parent, and not run state, a registry, a part file or an existing arxgo
+  description or sidecar (case-folded on Windows); exit 2 otherwise. An operator file named by
+  `--out` is replaced.
+- **Reserved name.** `arxgo-catia-text.md` directly under a walked root is excluded from scans
+  (`scanner.CatiaIndexName`), so the default output never becomes a registry row or a candidate.
+- **Scale.** On 2000 generated V5 files the index takes 0.10 s and 26 MB RSS (1.4 MB document;
+  20.6 MB with `--strings` in 0.19 s).
+
 ## CATIA restore (`internal/cli`, `internal/archive`)
 
 `arxgo restore --catia --archive PATH --catia-archive PATH` returns CATIA files through the shared
@@ -294,6 +330,8 @@ file. Names and properties are invented. Through the binary only:
   `catia_done` and `texts_done` equal to the file count in the resumed report, `arxgo-videos.csv`
   unchanged, each mirror root holding only its own payload and registry; a rerun moves and writes
   nothing and leaves `arxgo-catia.csv` byte-identical;
+- `catia-index` after the rerun: sections equal to the `moved` rows, no missing text, a
+  byte-identical rerun, and a `--strings --out` document that differs only by `strings:` blocks;
 - `restore --catia --transfer copy` killed, then `restore --transfer copy` (video) killed, which
   first rolls the CATIA run forward; `restore --catia` rolls the video run forward and completes
   (registries retired, CATIA archive empty); `restore` completes; reruns exit 0;
@@ -335,7 +373,7 @@ files reporting `0 components` are 892 of 1641 `CATPart` (a part normally lists 
 466 `CATProduct` and none of the 148 `CATDrawing`.
 
 Descriptions and sidecars now name their archive and sidecars repeat the description identity
-([self-locating metadata](#self-locating-metadata-internalreport-internalarchive)). There is still
-no command that assembles the sidecars into one document
-([text index](../../openspec/stage-4-catia/catia.md#text-index)); until it ships, the manuals carry
-shell recipes that copy or aggregate the sidecars on disk.
+([self-locating metadata](#self-locating-metadata-internalreport-internalarchive)). `catia-index`
+assembles the sidecars into one document
+([text index](#catia-text-index-internalarchive-internalreport-internalcli)); the manuals keep a
+shell recipe that copies the sidecars out one document per file.

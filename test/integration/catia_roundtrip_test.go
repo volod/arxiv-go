@@ -111,6 +111,7 @@ func TestCatiaSplitRestoreRoundTrip(t *testing.T) {
 	if !bytes.Equal(catiaCSV, readFile(t, filepath.Join(archive, "arxgo-catia.csv"))) {
 		t.Error("CATIA split rerun changed arxgo-catia.csv")
 	}
+	checkCatiaIndex(t, bin, archive, work)
 	checkSplitOutputs(t, g, video, before)
 
 	// Restores: kill a CATIA restore, then a video restore (whose start rolls the CATIA run forward,

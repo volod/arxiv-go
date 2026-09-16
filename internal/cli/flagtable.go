@@ -12,19 +12,19 @@ import (
 var flagTable = []flagDef{
 	// Common flags.
 	{name: "archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the main archive (required)", bind: str("")},
-	{name: "video-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the video archive (required for video split and restore; unused by scan)", bind: str("")},
-	{name: "catia-archive", ops: allOps, group: groupCommon, arg: "PATH", usage: "Root of the CATIA archive (required for split and restore --catia; unused by scan)", bind: str("")},
+	{name: "video-archive", ops: runOps, group: groupCommon, arg: "PATH", usage: "Root of the video archive (required for video split and restore; unused by scan)", bind: str("")},
+	{name: "catia-archive", ops: runOps, group: groupCommon, arg: "PATH", usage: "Root of the CATIA archive (required for split and restore --catia; unused by scan)", bind: str("")},
 	{name: "log-level", ops: allOps, group: groupCommon, arg: "LEVEL", usage: "Console log level: debug, info, warn, error", bind: enum("info", logLevels)},
 	{name: "log-format", ops: allOps, group: groupCommon, arg: "FORMAT", usage: "Console log format: text or json", bind: enum("text", logFormats)},
-	{name: "progress-interval", ops: allOps, group: groupCommon, arg: "DURATION", usage: "Minimum interval between progress lines", bind: duration(defaultProgress, func(s *settings) *time.Duration { return &s.progressInterval })},
-	{name: "checkpoint-every", ops: allOps, group: groupCommon, arg: "N", usage: "Checkpoint after this many processed files", bind: func(fs *flag.FlagSet, s *settings, name, usage string) {
+	{name: "progress-interval", ops: runOps, group: groupCommon, arg: "DURATION", usage: "Minimum interval between progress lines", bind: duration(defaultProgress, func(s *settings) *time.Duration { return &s.progressInterval })},
+	{name: "checkpoint-every", ops: runOps, group: groupCommon, arg: "N", usage: "Checkpoint after this many processed files", bind: func(fs *flag.FlagSet, s *settings, name, usage string) {
 		fs.IntVar(&s.checkpointEvery, name, defaultEvery, usage)
 	}},
-	{name: "checkpoint-interval", ops: allOps, group: groupCommon, arg: "DURATION", usage: "... or after this much time, whichever comes first", bind: duration(defaultCkptTime, func(s *settings) *time.Duration { return &s.checkpointInterval })},
-	{name: "dry-run", ops: allOps, group: groupCommon, usage: "Validate, scan and preflight; print the plan; mutate nothing except the run log", bind: boolean(false)},
-	{name: "min-free", ops: allOps, group: groupCommon, arg: "SIZE", usage: "Free space that must remain on every written device", bind: size(defaultMinFree, func(s *settings) *Size { return &s.minFree })},
-	{name: "new-run", ops: allOps, group: groupCommon, usage: "Recover an incomplete previous run, then start a fresh scan", bind: boolean(false)},
-	{name: "force-unlock", ops: allOps, group: groupCommon, usage: "Take over a lock whose owner process is not alive", bind: boolean(false)},
+	{name: "checkpoint-interval", ops: runOps, group: groupCommon, arg: "DURATION", usage: "... or after this much time, whichever comes first", bind: duration(defaultCkptTime, func(s *settings) *time.Duration { return &s.checkpointInterval })},
+	{name: "dry-run", ops: runOps, group: groupCommon, usage: "Validate, scan and preflight; print the plan; mutate nothing except the run log", bind: boolean(false)},
+	{name: "min-free", ops: runOps, group: groupCommon, arg: "SIZE", usage: "Free space that must remain on every written device", bind: size(defaultMinFree, func(s *settings) *Size { return &s.minFree })},
+	{name: "new-run", ops: runOps, group: groupCommon, usage: "Recover an incomplete previous run, then start a fresh scan", bind: boolean(false)},
+	{name: "force-unlock", ops: runOps, group: groupCommon, usage: "Take over a lock whose owner process is not alive", bind: boolean(false)},
 
 	// Scan flags, shared by split for its scan phase.
 	{name: "large-threshold", ops: scanSplitOps, group: groupScan, arg: "SIZE", usage: "Files at least this large get is_large=true", bind: size(defaultLarge, func(s *settings) *Size { return &s.largeThreshold })},
@@ -72,6 +72,10 @@ var flagTable = []flagDef{
 	{name: "create-dirs", ops: restoreOnly, group: groupRestore, usage: "Recreate a missing parent directory instead of skipping the file", bind: boolean(false)},
 	{name: "overwrite", ops: restoreOnly, group: groupRestore, usage: "Replace an existing, different destination file instead of skipping it", bind: boolean(false)},
 	{name: "registry-update", ops: restoreOnly, group: groupRestore, usage: "Mark restored rows in arxgo-videos.csv, or arxgo-catia.csv with --catia", bind: boolean(true)},
+
+	// CATIA text index flags.
+	{name: "out", ops: indexOnly, group: groupIndex, arg: "PATH", usage: "Index output path (default <archive>/arxgo-catia-text.md)", bind: str("")},
+	{name: "strings", ops: indexOnly, group: groupIndex, usage: "Include the harvested strings: blocks of the text sidecars", bind: boolean(false)},
 }
 
 // splitList splits an environment value for a repeatable flag on the platform path list

@@ -166,6 +166,7 @@ any mutation. Details: [tool discovery](stage-1-core/metadata.md#tool-discovery)
 | `scan` | yes | registry output only | 1 |
 | `split` | no | moves videos (or CATIA with `--catia`), writes descriptions and registries | 1 (previews: 2, CATIA: 4, upload: 3) |
 | `restore` | no | moves videos or CATIA back, removes or keeps descriptions, previews and CATIA text | 1 (previews: 2, CATIA: 4) |
+| `catia-index` | no | index document output only | 4 |
 
 The full contract is in the [CLI specification](stage-1-core/cli.md).
 

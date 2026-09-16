@@ -39,11 +39,15 @@ func (t *splitTexts) identity(rel string) report.TextIdentity {
 	return report.TextIdentityOf(d, archiveRelOr(t.s.cfg.Archive, path))
 }
 
-// descriptionPath is the owned description of rel: the one the WAL recorded when it is still owned,
-// otherwise the one the description naming rule finds next to the file.
 func (t *splitTexts) descriptionPath(rel string) (string, error) {
-	archive := t.s.cfg.Archive
-	if hint, ok := t.hints[rel]; ok {
+	return ownedDescriptionPath(t.s.cfg.Archive, t.hints[rel], rel)
+}
+
+// ownedDescriptionPath is the owned description of rel: hint (the archive-relative path the WAL
+// recorded) when it is still owned, otherwise the one the description naming rule finds next to
+// the file. It returns "" when there is none.
+func ownedDescriptionPath(archive, hint, rel string) (string, error) {
+	if hint != "" {
 		p := filepath.Join(archive, filepath.FromSlash(hint))
 		if occ, err := report.InspectDescription(p, rel); err == nil && occ == report.DescriptionOwned {
 			return p, nil

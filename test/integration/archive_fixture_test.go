@@ -192,7 +192,7 @@ func isArxgoOutput(rel string) bool {
 	if rel == ".arxgo" || strings.HasPrefix(rel, ".arxgo/") {
 		return true
 	}
-	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" ||
+	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" || rel == "arxgo-catia-text.md" ||
 		strings.HasPrefix(rel, "arxgo-videos.") || strings.HasPrefix(rel, "arxgo-catia."))
 }
 

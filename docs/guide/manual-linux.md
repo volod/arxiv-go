@@ -219,13 +219,29 @@ a `--video` or `--catia` flag on the command line overrides it.
 
 ## Collect CATIA text for a search index
 
-`--catia-text` leaves one sidecar next to each description. To feed them to a search engine, a
-vector database or a language model, assemble them first. These recipes read only; run them while
-the descriptions and sidecars are still in the archive, that is before a `restore --descriptions
-delete`.
+`--catia-text` leaves one sidecar next to each description. `arxgo catia-index` assembles them into
+one Markdown document, reading the ownership the split recorded instead of guessing sidecar names.
+Run it while the descriptions and sidecars are still in the archive, that is before a
+`restore --descriptions delete`:
 
-A sidecar already names its archive and repeats its description's fields, so each one is a
-self-contained document. Copy them outside the archive so the next scan does not register them:
+```bash
+./arxgo catia-index --archive /data/archive
+./arxgo catia-index --archive /data/archive --strings --out /data/catia-index-with-strings.md
+```
+
+The document (default `/data/archive/arxgo-catia-text.md`, which `scan` never registers) has a
+header with the archive, the CATIA archive and counts, then one `## <rel_path>` section per moved
+CATIA file: the description's fields (`catia:` summary, size, hash, `moved_to`), the sidecar path,
+`properties:` and `components:`. Without `--strings` it is the form worth giving to a language
+model; the harvested `strings:` blocks usually make the document tens of times larger. Files whose
+sidecar is missing are listed at the end under `## Missing text` with a reason (`not_recorded`:
+split never wrote one, rerun `split --catia --catia-text`; `missing`, `foreign`: the recorded file
+was deleted or replaced). The command only reads: it starts no run, and a rerun over an unchanged
+archive writes the same bytes. It exits 5 while another arxgo run holds the archive lock.
+
+For a search index that wants one document per file, copy the sidecars instead: each already names
+its archive and repeats its description's fields. Copy them outside the archive so the next scan
+does not register them:
 
 ```bash
 ARCHIVE=/data/archive
@@ -241,34 +257,9 @@ done
 
 A sidecar from an earlier release lacks `archive:` and the description fields; for those, write
 `{ printf 'archive: %s\n' "$ARCHIVE"; cat "$rel.md"; tail -n +2 "$text"; }` instead of the `cp`.
-
-One aggregated assembly index: each file's `catia:` summary line and its component list, without
-the harvested `strings:` blocks. This is the form worth giving to a language model; on an archive
-of 2255 CATIA files it is under 1 MB, while the same index with strings is about 65 MB.
-
-```bash
-cd "$ARCHIVE"
-{ printf '# CATIA assembly index\n\narchive: %s\n' "$ARCHIVE"
-  find . -name '*.text.md' -not -path './.arxgo/*' -print0 | LC_ALL=C sort -z |
-  while IFS= read -r -d '' text; do
-    rel=${text#./}; rel=${rel%.text.md}
-    printf '\n## %s\n\n' "$rel"
-    grep -m1 '^catia: ' "$text"
-    sed -n '/^components:$/,/^strings:$/{/^strings:$/d;p;}' "$text"
-  done
-} > /data/catia-assembly-index.md
-```
-
-Drop the `grep`/`sed` pair and use `tail -n +2 "$text"` instead to keep every field and every
-harvested string.
-
-Both recipes find sidecars by the `.text.md` suffix and derive `rel_path` from the plain name
-`<rel_path>.text.md`. When a foreign file
-forced a fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the split logged it and the
-`text_rel_path` column of `arxgo-catia.csv` holds the real path; those files need the column rather
-than the name pattern. A supported `arxgo catia-index` operation that reads the recorded ownership
-instead of guessing names is
-[specified](../openspec/stage-4-catia/catia.md#text-index) and not yet built.
+This recipe derives `rel_path` from the plain name `<rel_path>.text.md`; when a foreign file forced
+a fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the `text_rel_path` column of
+`arxgo-catia.csv` holds the real path, and `catia-index` lists it under the right file.
 
 When the file registry itself feeds an index, scan with `--metadata media` rather than the default
 `--metadata file`: the default fills `media_*` columns only for ISO BMFF containers (MP4, MOV, M4A,

@@ -32,6 +32,8 @@ type settings struct {
 	imageEvery                               time.Duration
 	previewMaxItems                          int
 	catiaText                                bool
+	out                                      string
+	includeStrings                           bool
 
 	// reserved maps an unavailable feature flag name to its value, recording whether it was given.
 	reserved map[string]*reservedValue
@@ -46,6 +48,7 @@ const (
 	groupScan    group = "Scan flags"
 	groupSplit   group = "Split flags"
 	groupRestore group = "Restore flags"
+	groupIndex   group = "Index flags"
 )
 
 // flagDef is one row of the shared flag table. A name may appear in several rows when its
@@ -61,7 +64,9 @@ type flagDef struct {
 }
 
 var (
-	allOps          = []string{OpScan, OpSplit, OpRestore}
+	allOps          = []string{OpScan, OpSplit, OpRestore, OpCatiaIndex}
+	runOps          = []string{OpScan, OpSplit, OpRestore}
+	indexOnly       = []string{OpCatiaIndex}
 	scanSplitOps    = []string{OpScan, OpSplit}
 	splitOnly       = []string{OpSplit}
 	restoreOnly     = []string{OpRestore}
@@ -132,6 +137,7 @@ func stringField(s *settings, name string) *string {
 		"sample": &s.sampleMode, "image": &s.imageMode,
 		"sample-resolution": &s.sampleResolution, "image-resolution": &s.imageResolution,
 		"sample-quality": &s.sampleQuality, "image-quality": &s.imageQuality,
+		"out": &s.out,
 	}
 	return fields[name]
 }
@@ -142,6 +148,7 @@ func boolField(s *settings, name string) *bool {
 		"follow-symlinks": &s.followSymlinks, "redetect": &s.redetect, "create-dirs": &s.createDirs,
 		"overwrite": &s.overwrite, "registry-update": &s.registryUpdate,
 		"video": &s.video, "catia": &s.catia, "catia-text": &s.catiaText,
+		"strings": &s.includeStrings,
 	}
 	return fields[name]
 }

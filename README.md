@@ -44,11 +44,15 @@ search index:
 
 ```text
 ./arxgo split --catia --catia-text --archive /data/archive --catia-archive /mnt/catia
+./arxgo catia-index --archive /data/archive
 ./arxgo restore --catia --archive /data/archive --catia-archive /mnt/catia
 ```
 
-Both manuals show how to copy those sidecars out or assemble them into one document for a search engine, a vector
-database or a language model.
+`catia-index` reads the recorded descriptions and sidecars (it moves and extracts nothing) and
+writes one Markdown document, `arxgo-catia-text.md`, with a section per moved CATIA file and its
+component list, for a search engine, a vector database or a language model; `--strings` adds the
+harvested strings and a `Missing text` section lists files without a sidecar. Both manuals also
+show how to copy the sidecars out one document per file.
 
 The [Linux manual](docs/guide/manual-linux.md) and
 [Windows manual](docs/guide/manual-windows.md) cover extraction, checksum checks, configuration,

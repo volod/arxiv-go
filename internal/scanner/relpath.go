@@ -12,7 +12,7 @@ var retiredRegistryName = regexp.MustCompile(`^arxgo-(videos|catia)\.restored-[0
 // reservedName reports the names arxgo owns directly under a walked root.
 func reservedName(name string) bool {
 	switch name {
-	case StateDirName, RegistryName, VideoRegistryName, CatiaRegistryName:
+	case StateDirName, RegistryName, VideoRegistryName, CatiaRegistryName, CatiaIndexName:
 		return true
 	}
 	return retiredRegistryName.MatchString(name)
