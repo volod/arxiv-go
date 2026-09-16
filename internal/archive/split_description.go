@@ -141,7 +141,7 @@ func (m *MarkdownDescription) input(tx state.Tx) report.DescriptionInput {
 		}
 	}
 	in := report.DescriptionInput{
-		RelPath: tx.Begin.RelPath, FileSize: tx.Begin.Size, FileMIME: reg.FileMIME, SHA256: sum,
+		RelPath: tx.Begin.RelPath, Archive: m.cfg.Archive, FileSize: tx.Begin.Size, FileMIME: reg.FileMIME, SHA256: sum,
 		Modified: tx.Begin.Mtime, MovedAt: m.cfg.Now(), MovedTo: tx.Begin.Dst,
 		URL:   report.ComposeURL(m.cfg.BaseURL, tx.Begin.RelPath),
 		Media: reg.Metadata.Media,

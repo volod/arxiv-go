@@ -17,6 +17,7 @@ var updateGolden = flag.Bool("update", false, "rewrite golden files")
 func descriptionInput(url bool, mediaMode bool, rel string) DescriptionInput {
 	in := DescriptionInput{
 		RelPath:  rel,
+		Archive:  "/mnt/nas/archive",
 		FileSize: 734003200,
 		FileMIME: "video/mp4",
 		Modified: time.Date(2024, 5, 1, 10, 22, 3, 0, time.UTC),
@@ -64,6 +65,9 @@ func TestRenderDescriptionGoldens(t *testing.T) {
 			}
 			if bytes.Contains(got, []byte("\n\n")) {
 				t.Errorf("blank line in description:\n%s", got)
+			}
+			if lines := strings.SplitN(string(got), "\n", 3); len(lines) < 3 || lines[1] != "archive: /mnt/nas/archive" {
+				t.Errorf("archive is not the second line:\n%s", got)
 			}
 			description, err := ParseDescription(bytes.NewReader(got))
 			if err != nil || description[DescriptionMarker] != tc.in.RelPath || description["file_size"] != "734003200 (700.0 MiB)" {

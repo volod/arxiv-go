@@ -28,32 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### CATIA archive -- `catia-archive`
 
-#### record-source-location-in-metadata
-
-A description or text sidecar harvested into a search index no longer sits next to its file, and
-nothing inside it says which archive the path belongs to; a sidecar says nothing about the file
-beyond its path.
-
-- Serves: `catia-archive` -- [Self-locating metadata](../openspec/stage-4-catia/catia.md#self-locating-metadata)
-- Agent status: CLEAR
-- Dependencies: [Stage-4 checkpoint](records/0051-catia-review-stage-4-catia.md).
-- User-visible outcome: Every description and text sidecar names its archive root, and each sidecar
-  carries the identity block of its description, so a harvested document stands alone.
-- Scope boundary: The shared description renderer and the sidecar renderer, the archive root passed
-  into them, and the sidecar cap accounting. Both payloads share the renderer, so the video
-  description gains `archive:` in the same change. No marker-line change, no new registry column,
-  no rewrite of descriptions earlier runs wrote.
-- Data and artifact paths: `internal/report/description.go`, `internal/report/catia.go`,
-  `internal/archive/split_description.go`, `internal/archive/text.go`.
-- Execution path: Renderer table tests; a CATIA split fixture comparing sidecar and description
-  fields; a cap test whose identity block alone exceeds 1 MiB.
-- Acceptance gates: `archive:` is the second line of both files; a hash-verified split writes the
-  same `sha256`, `file_size` and `catia` values in sidecar and description; an oversized identity
-  block yields `truncated: true` with no blocks; `restore --descriptions delete` still removes
-  both; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
 #### implement-catia-text-index
 
 Extracted CATIA text lands in one sidecar per file; reading or feeding a whole archive at once
@@ -61,7 +35,7 @@ means assembling them in the shell by guessing sidecar names.
 
 - Serves: `catia-archive` -- [Text index](../openspec/stage-4-catia/catia.md#text-index)
 - Agent status: CLEAR
-- Dependencies: `record-source-location-in-metadata`.
+- Dependencies: [Self-locating metadata](records/0055-catia-record-source-location-in-metadata.md).
 - User-visible outcome: `arxgo catia-index` writes one Markdown document of every moved CATIA
   file's metadata, properties and components, with harvested strings only on request.
 - Scope boundary: A read-only operation reading the CATIA run history, owned descriptions and owned
@@ -87,7 +61,8 @@ Review registry schema stability and the metadata a detached reader sees before 
 - Dependencies: [Registry full schema](records/0052-registry-stabilize-registry-columns.md);
   [Preserved archive registry](records/0053-registry-preserve-archive-registry.md);
   [Registry detection reuse](records/0054-registry-reuse-registry-detection.md);
-  `record-source-location-in-metadata`; `implement-catia-text-index`.
+  [Self-locating metadata](records/0055-catia-record-source-location-in-metadata.md);
+  `implement-catia-text-index`.
 - User-visible outcome: Registry schemas and metadata documents are coherent across commands and
   payloads, and stage 3 can start without reopening them.
 - Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact

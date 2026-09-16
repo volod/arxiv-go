@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0055`.
+Next unused sequence: `0056`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -63,3 +63,4 @@ Next unused sequence: `0055`.
 | [0052 Registry full schema](0052-registry-stabilize-registry-columns.md) | File, video and CATIA registries always written with their full header; empty-column compaction removed from the writers and the scan; readers keep accepting compacted files from earlier builds | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
 | [0053 Preserved archive registry](0053-registry-preserve-archive-registry.md) | File registry keeps preserved rows with `location` for moved files from the replayed WAL of both payloads (base, mirror, kept, reconstructed sources), excludes owned descriptions, previews and sidecars, keeps unchanged CSVs untouched, writes `.arxgo/registry.json`; split and restore update `location`; retired payload registries reserved | Accepted; `make ci` and `make test-integration` pass on Linux, real-binary lifecycle byte-identical; Windows cross-compiled |
 | [0054 Registry detection reuse](0054-registry-reuse-registry-detection.md) | Stamped base registry streamed in walk order; unchanged present files reuse their rows without being opened; `is_large`/`is_catia` recomputed; `--redetect`; `reused` statistic; `registry_base` in the checkpoint with restart on a changed base; split reads its scan rows once for previews, descriptions and payload registries | Accepted; `make ci` and `make test-integration` pass on Linux; traced real-binary run opens only new files; Windows cross-compiled |
+| [0055 Self-locating metadata](0055-catia-record-source-location-in-metadata.md) | `archive:` second line of video and CATIA descriptions and of text sidecars; sidecar identity block copied from the owned description (WAL-recorded path, then naming order); identity counted against the 1 MiB cap first; preflight sidecar estimate + 4 KiB; manual recipes simplified | Accepted; `make ci` and `make test-integration` pass on Linux; real-binary split/restore checked; Windows cross-compiled |

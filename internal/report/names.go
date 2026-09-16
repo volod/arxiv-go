@@ -34,6 +34,45 @@ func ChooseDescriptionPath(srcAbs, relPath string) (string, error) {
 	return "", fmt.Errorf("description conflict near %s: no available filename", srcAbs)
 }
 
+// FindDescriptionPath returns the owned description of relPath next to srcAbs, or "" when there is
+// none. It walks the names ChooseDescriptionPath prefers: both fixed names, then indexed names up
+// to the first absent one, which ChooseDescriptionPath would have taken instead of a later name.
+func FindDescriptionPath(srcAbs, relPath string) (string, error) {
+	dir := filepath.Dir(srcAbs)
+	videoName := filepath.Base(srcAbs)
+	for _, name := range []string{videoName + ".md", videoName + ".arxgo.md"} {
+		if occ, p, err := inspectDescriptionName(dir, name, relPath); err != nil || occ == DescriptionOwned {
+			return p, err
+		}
+	}
+	for i := 1; i <= maxDescriptionIndex; i++ {
+		name, ok := indexedDescriptionName(videoName, i, dir)
+		if !ok {
+			continue
+		}
+		occ, p, err := inspectDescriptionName(dir, name, relPath)
+		switch {
+		case err != nil || occ == DescriptionOwned:
+			return p, err
+		case occ == DescriptionAbsent:
+			return "", nil
+		}
+	}
+	return "", nil
+}
+
+func inspectDescriptionName(dir, name, relPath string) (DescriptionOccupancy, string, error) {
+	if !fitsName(dir, name) {
+		return DescriptionForeign, "", nil
+	}
+	p := filepath.Join(dir, name)
+	occ, err := InspectDescription(p, relPath)
+	if err != nil || occ != DescriptionOwned {
+		return occ, "", err
+	}
+	return occ, p, nil
+}
+
 // ChooseTextSidecarPath picks an absolute CATIA text sidecar path next to the original file at
 // srcAbs. Preference: <name>.text.md, then <name>.arxgo.text.md, then the indexed description
 // rule with a .text.md suffix. An existing sidecar whose first line names relPath is reused.

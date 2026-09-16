@@ -27,6 +27,7 @@ const descriptionHeaderLimit = 64 << 10
 // DescriptionInput is the data for one video description. Empty optional fields are omitted.
 type DescriptionInput struct {
 	RelPath  string
+	Archive  string // absolute archive root, written as archive: directly after the marker
 	FileSize int64
 	FileMIME string
 	SHA256   string
@@ -38,7 +39,8 @@ type DescriptionInput struct {
 	Catia    *catia.Info // when set, a CATIA description: no created: or video: fields
 }
 
-// RenderDescription returns a description: one "key: value" line per field, the marker first, no blank lines.
+// RenderDescription returns a description: one "key: value" line per field, the marker first and the
+// archive root second, no blank lines.
 // Preview links are appended later by ReplacePreviewLinks.
 func RenderDescription(in DescriptionInput) []byte {
 	var b strings.Builder
@@ -51,6 +53,7 @@ func RenderDescription(in DescriptionInput) []byte {
 		}
 	}
 	field(DescriptionMarker, in.RelPath)
+	field("archive", in.Archive)
 	if in.FileSize > 0 {
 		field("file_size", strconv.FormatInt(in.FileSize, 10)+" ("+FormatSize(in.FileSize)+")")
 	}

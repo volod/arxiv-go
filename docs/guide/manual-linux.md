@@ -192,19 +192,23 @@ archive with `--catia`. It is a separate run from the video split; one run moves
 `/data/archive/cad/bracket.CATPart` becomes `/mnt/catia/cad/bracket.CATPart`, and
 `cad/bracket.CATPart.md` in the main archive describes it with the usual description fields and a
 `catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
-format, release, number of referenced documents). It never lists names or other text from inside
-the file. `--catia-text` writes a second owned file `cad/bracket.CATPart.text.md` whose first line
-is `arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable
-strings. Those strings can include authoring user ids and workstation paths; leave the flag unset
-unless that is wanted. If `<rel_path>.text.md` already holds a file that is not this sidecar, the
-owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the
-CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing
-and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
-archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
-ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
-`catia_release`, `catia_components` and `mtime`, all written on every run.
-Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
-A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+format, release, number of referenced documents). It never lists names or other text from inside the
+file. `--catia-text` writes a second owned file `cad/bracket.CATPart.text.md` whose first line is
+`arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable strings.
+Those strings can include authoring user ids and workstation paths; leave the flag unset unless that
+is wanted. Both files name the archive on their second line (`archive: /data/archive`), and the
+sidecar repeats the description's identity fields (`file_name`, `file_size`, `file_mime`, `sha256`,
+`modified`, `catia`, `moved_to`, `url`) and names it (`description: cad/bracket.CATPart.md`), so
+either file still says what it is about when copied out of the archive. Files written by earlier
+releases are not rewritten and lack these lines. If `<rel_path>.text.md` already holds a file that
+is not this sidecar, the owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed
+extraction leaves the CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful
+split moves nothing and writes only missing sidecars. `--catia-text` without `--catia` exits 2.
+Videos, the video archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`:
+the same first ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`,
+`catia_format`, `catia_release`, `catia_components` and `mtime`, all written on every run. Transfer
+modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos. A damaged or
+unrecognized CATIA file is still moved; its summary then says `unknown`.
 
 The CATIA archive must not be the main archive, the video archive, or inside either (or contain
 them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
@@ -218,10 +222,10 @@ a `--video` or `--catia` flag on the command line overrides it.
 `--catia-text` leaves one sidecar next to each description. To feed them to a search engine, a
 vector database or a language model, assemble them first. These recipes read only; run them while
 the descriptions and sidecars are still in the archive, that is before a `restore --descriptions
-delete`. Set `ARCHIVE` to the archive root; it is the one thing the files themselves do not name.
+delete`.
 
-One self-contained document per CATIA file, written outside the archive so the next scan does not
-register them:
+A sidecar already names its archive and repeats its description's fields, so each one is a
+self-contained document. Copy them outside the archive so the next scan does not register them:
 
 ```bash
 ARCHIVE=/data/archive
@@ -231,9 +235,12 @@ find . -name '*.text.md' -not -path './.arxgo/*' -print0 |
 while IFS= read -r -d '' text; do
   rel=${text#./}; rel=${rel%.text.md}
   mkdir -p "$OUT/$(dirname "$rel")"
-  { printf 'archive: %s\n' "$ARCHIVE"; cat "$rel.md"; tail -n +2 "$text"; } > "$OUT/$rel.catia.md"
+  cp "$text" "$OUT/$rel.catia.md"
 done
 ```
+
+A sidecar from an earlier release lacks `archive:` and the description fields; for those, write
+`{ printf 'archive: %s\n' "$ARCHIVE"; cat "$rel.md"; tail -n +2 "$text"; }` instead of the `cp`.
 
 One aggregated assembly index: each file's `catia:` summary line and its component list, without
 the harvested `strings:` blocks. This is the form worth giving to a language model; on an archive
@@ -246,16 +253,17 @@ cd "$ARCHIVE"
   while IFS= read -r -d '' text; do
     rel=${text#./}; rel=${rel%.text.md}
     printf '\n## %s\n\n' "$rel"
-    grep -m1 '^catia: ' "$rel.md"
+    grep -m1 '^catia: ' "$text"
     sed -n '/^components:$/,/^strings:$/{/^strings:$/d;p;}' "$text"
   done
 } > /data/catia-assembly-index.md
 ```
 
-Drop the `grep`/`sed` pair and use `tail -n +2 "$rel.md"; tail -n +2 "$text"` instead to keep every
-field and every harvested string.
+Drop the `grep`/`sed` pair and use `tail -n +2 "$text"` instead to keep every field and every
+harvested string.
 
-Both recipes assume the plain names `<rel_path>.md` and `<rel_path>.text.md`. When a foreign file
+Both recipes find sidecars by the `.text.md` suffix and derive `rel_path` from the plain name
+`<rel_path>.text.md`. When a foreign file
 forced a fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the split logged it and the
 `text_rel_path` column of `arxgo-catia.csv` holds the real path; those files need the column rather
 than the name pattern. A supported `arxgo catia-index` operation that reads the recorded ownership

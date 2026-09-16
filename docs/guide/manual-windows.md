@@ -188,21 +188,26 @@ archive with `--catia`. It is a separate run from the video split; one run moves
 ```
 
 `D:\archive\cad\bracket.CATPart` becomes `F:\catia\cad\bracket.CATPart`, and
-`D:\archive\cad\bracket.CATPart.md` describes it with the usual description fields and a
-`catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
-format, release, number of referenced documents). It never lists names or other text from inside
-the file. `--catia-text` writes a second owned file `cad\bracket.CATPart.text.md` whose first line
-is `arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable
-strings. Those strings can include authoring user ids and workstation paths; leave the flag unset
-unless that is wanted. If `<rel_path>.text.md` already holds a file that is not this sidecar, the
-owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the
-CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing
-and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
-archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
-ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
-`catia_release`, `catia_components` and `mtime`, all written on every run.
-Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
-A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+`D:\archive\cad\bracket.CATPart.md` describes it with the usual description fields and a `catia:`
+summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind, format,
+release, number of referenced documents). It never lists names or other text from inside the file.
+`--catia-text` writes a second owned file `cad\bracket.CATPart.text.md` whose first line is
+`arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable strings.
+Those strings can include authoring user ids and workstation paths; leave the flag unset unless that
+is wanted. Both files name the archive on their second line (`archive: "D:\\archive"`, quoted
+because of the backslash), and the sidecar repeats the description's identity fields (`file_name`,
+`file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url`) and names it
+(`description: cad/bracket.CATPart.md`), so either file still says what it is about when copied out
+of the archive. Files written by earlier releases are not rewritten and lack these lines. If
+`<rel_path>.text.md` already holds a file that is not this sidecar, the owned file is
+`<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the CATIA file moved
+and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing and writes only
+missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video archive and
+`arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first ten columns as
+`arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`, `catia_release`,
+`catia_components` and `mtime`, all written on every run. Transfer modes, `--verify`, `--base-url`,
+conflicts, `--min-free` and reruns work as for videos. A damaged or unrecognized CATIA file is still
+moved; its summary then says `unknown`.
 
 The CATIA archive must not be the main archive, the video archive, or inside either (or contain
 them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
@@ -216,10 +221,10 @@ a `--video` or `--catia` flag on the command line overrides it.
 `--catia-text` leaves one sidecar next to each description. To feed them to a search engine, a
 vector database or a language model, assemble them first. These run read-only; use them while the
 descriptions and sidecars are still in the archive, that is before a `restore --descriptions
-delete`. `$Archive` is the one thing the files themselves do not name.
+delete`.
 
-One self-contained document per CATIA file, written outside the archive so the next scan does not
-register them:
+A sidecar already names its archive and repeats its description's fields, so each one is a
+self-contained document. Copy them outside the archive so the next scan does not register them:
 
 ```powershell
 $Archive = 'D:\archive'
@@ -229,12 +234,14 @@ Get-ChildItem -LiteralPath $Archive -Recurse -Filter *.text.md |
     $rel  = $_.FullName.Substring($Archive.Length + 1) -replace '\.text\.md$',''
     $dest = Join-Path $Out "$rel.catia.md"
     New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
-    @("archive: $Archive") +
-      (Get-Content -LiteralPath (Join-Path $Archive "$rel.md")) +
-      (Get-Content -LiteralPath $_.FullName | Select-Object -Skip 1) |
-      Set-Content -LiteralPath $dest -Encoding utf8NoBOM
+    Copy-Item -LiteralPath $_.FullName -Destination $dest
   }
 ```
+
+A sidecar from an earlier release lacks `archive:` and the description fields; for those, write
+`@("archive: $Archive") + (Get-Content -LiteralPath (Join-Path $Archive "$rel.md")) +
+(Get-Content -LiteralPath $_.FullName | Select-Object -Skip 1)` to `$dest` with
+`Set-Content -Encoding utf8NoBOM` instead of the `Copy-Item`.
 
 One aggregated assembly index: each file's `catia:` summary line and its component list, without
 the harvested `strings:` blocks. This is the form worth giving to a language model; on an archive
@@ -251,18 +258,17 @@ Get-ChildItem -LiteralPath $Archive -Recurse -Filter *.text.md |
     $to   = [array]::IndexOf($text, 'strings:')
     if ($to -lt 0) { $to = $text.Length }
     $lines += @('', "## $rel", '')
-    $lines += (Get-Content -LiteralPath (Join-Path $Archive "$rel.md") |
-               Where-Object { $_ -like 'catia: *' } | Select-Object -First 1)
+    $lines += ($text | Where-Object { $_ -like 'catia: *' } | Select-Object -First 1)
     if ($from -ge 0) { $lines += $text[$from..($to - 1)] }
   }
 $lines | Set-Content -LiteralPath 'D:\catia-assembly-index.md' -Encoding utf8NoBOM
 ```
 
-Both assume the plain names `<rel_path>.md` and `<rel_path>.text.md`. When a foreign file forced a
-fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the split logged it and the
-`text_rel_path` column of `arxgo-catia.csv` holds the real path; those files need the column rather
-than the name pattern. A supported `arxgo catia-index` operation that reads the recorded ownership
-instead of guessing names is
+Both find sidecars by the `.text.md` suffix and derive `rel_path` from the plain name
+`<rel_path>.text.md`. When a foreign file forced a fallback name (`<rel_path>.arxgo.text.md` or an
+indexed name), the split logged it and the `text_rel_path` column of `arxgo-catia.csv` holds the
+real path; those files need the column rather than the name pattern. A supported `arxgo catia-index`
+operation that reads the recorded ownership instead of guessing names is
 [specified](../openspec/stage-4-catia/catia.md#text-index) and not yet built.
 
 When the file registry itself feeds an index, scan with `--metadata media` rather than the default

@@ -61,7 +61,7 @@ func TestRenderCatiaText(t *testing.T) {
 		},
 	}
 	got := string(RenderCatiaText(in))
-	want := "arxgo-text: cad/fixture-product.CATProduct\nextracted_at: 2026-09-15T12:05:01Z\ntruncated: false\nproperties:\n- release: V5R30 SP5\n- build_level: 2026-01-01.00.00\ncomponents:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\nstrings:\n- fixture assembly note\n"
+	want := "arxgo-text: cad/fixture-product.CATProduct\nfile_name: fixture-product.CATProduct\nextracted_at: 2026-09-15T12:05:01Z\ntruncated: false\nproperties:\n- release: V5R30 SP5\n- build_level: 2026-01-01.00.00\ncomponents:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\nstrings:\n- fixture assembly note\n"
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}

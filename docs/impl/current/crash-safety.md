@@ -155,14 +155,14 @@ and restore operations (copy and rename) recover to the same tree as an uninterr
 
 `preflight.go` holds the pure model: `Plan(Candidates, PreflightOptions, DeviceInfo) Requirement`.
 `Candidates` is a summary (count, bytes, largest, media rows, `PreviewBytes`, the split
-estimate of previews not yet published, and `TextBytes`, min(1 MiB, file size) per CATIA file that
+estimate of previews not yet published, and `TextBytes`, min(1 MiB, file size + 4 KiB) per CATIA file that
 still needs a `--catia-text` sidecar). `DeviceInfo` lists devices with their roles (`archive`,
 `video_archive`, `catia_archive`, `registry`) and `fsops.Space`. The result has one `DeviceRequirement` per write
 device with named estimates (`needs`), `Required`, `MinFree`, `Available` and `Shortfall`.
 
 - Estimates follow the [preflight table](../../openspec/stage-1-core/integrity.md#preflight):
   registry 256 B per row plus 512 B per media row (scan); descriptions 4 KiB, video registry 1 KiB per
-  copy, WAL 2 KiB per candidate (split); `--catia-text` adds need `texts` (min(1 MiB, file size) per
+  copy, WAL 2 KiB per candidate (split); `--catia-text` adds need `texts` (min(1 MiB, file size + 4 KiB) per
   file that still needs a sidecar) on the archive device; all candidate bytes on another device; only the largest
   candidate for `--transfer copy` on a shared device; nothing for same-device `restore` renames
   except WAL, and all candidate bytes for `restore` across devices or with `copy`.

@@ -7,7 +7,8 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0047 CATIA text sidecars](../records/0047-catia-implement-catia-text-sidecars.md);
 [0048 CATIA restore](../records/0048-catia-implement-catia-restore.md);
 [0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md);
-[0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md).
+[0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md);
+[0055 self-locating metadata](../records/0055-catia-record-source-location-in-metadata.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
 sidecars and CATIA restore ship and are proven through the built binary on a generated archive; the
@@ -64,7 +65,8 @@ sidecar collection cap, not by file size. An extraction error fills empty/unknow
   compressed bytes.
 - **Report.** `RenderDescription` with `Catia` set writes `catia:` instead of `created:` / `video:`.
   `CatiaLine` is `kind | format | release | N component(s)`. `RenderCatiaText` writes the
-  `arxgo-text:` sidecar (properties, components, strings) with the 1 MiB cap and `truncated`.
+  `arxgo-text:` sidecar (archive, identity block, properties, components, strings) with the 1 MiB
+  cap and `truncated`; see [self-locating metadata](#self-locating-metadata-internalreport-internalarchive).
 
 CATIA split calls `ExtractPath` on the placed destination for the description (the run context,
 so Ctrl+C can stop a large-file pass). With `--catia-text`, a second `ExtractPath` after `commit`
@@ -184,8 +186,34 @@ moved that are still in the mirror and still lack a published sidecar.
   `videos_failed`), appear as issues, and finish as `StatusPartial` (exit 6). A later
   `--catia-text` run writes the missing sidecar. Without `--catia-text`, split neither creates nor
   removes sidecars.
-- **Preflight.** `Candidates.TextBytes` is min(1 MiB, file size) per moved or remaining file that
-  still needs a sidecar, as need `texts` on the archive device.
+- **Preflight.** `Candidates.TextBytes` is min(1 MiB, file size + 4 KiB) per moved or remaining
+  file that still needs a sidecar, as need `texts` on the archive device; the 4 KiB
+  (`textIdentityReserve`) covers the archive and identity lines.
+
+## Self-locating metadata (`internal/report`, `internal/archive`)
+
+A description or sidecar copied into a search index still says which archive and file it is about
+([0055](../records/0055-catia-record-source-location-in-metadata.md)).
+
+- **`archive:`** is the second line of every description (video and CATIA, the shared
+  `RenderDescription`, from `DescriptionConfig.Archive`) and of every sidecar (`CatiaTextInput.Archive`,
+  the split's archive root). The CLI passes an absolute root; `splitDescriptions` fills an empty
+  writer root from the session. Marker lines, occupancy, restore and recovery are unchanged, and
+  descriptions of earlier runs are not rewritten.
+- **Identity block.** After `archive:` a sidecar writes `file_name` (base of `rel_path`), then
+  `file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url` copied verbatim from
+  the parsed owned description (`report.TextIdentityOf`), and `description:` (its archive-relative
+  path), then `extracted_at` and `truncated`. Values re-quote with the description escaping, so each
+  line is byte-identical to the description's.
+- **Finding the description** (`text_identity.go`). The path the `described` WAL record of an
+  earlier CATIA run names (`movedDescriptions` over the run history), when still owned; otherwise
+  `report.FindDescriptionPath`, which walks the description naming order (both fixed names, then
+  indexed names up to the first absent one). With no owned or readable description the sidecar keeps
+  `file_name` only and split warns `text sidecar has no description identity`.
+- **Cap.** The marker, `archive`, `extracted_at` and `truncated` lines are reserved first. Identity
+  lines are kept in order while they fit; the first that does not fit drops it, every later identity
+  line and all blocks, and sets `truncated: true`. Blocks then fill the remainder as before, so the
+  identity block reduces the room for components and strings.
 
 ## CATIA restore (`internal/cli`, `internal/archive`)
 
@@ -306,9 +334,8 @@ byte-level scan found plus 340 more, because it decodes UTF-16 names such a scan
 files reporting `0 components` are 892 of 1641 `CATPart` (a part normally lists only itself), 3 of
 466 `CATProduct` and none of the 148 `CATDrawing`.
 
-Two gaps are open work, specified but not implemented: a description and a sidecar do not name
-their archive root, and a sidecar carries no identity fields
-([self-locating metadata](../../openspec/stage-4-catia/catia.md#self-locating-metadata)); and there
-is no command that assembles the sidecars into one document
-([text index](../../openspec/stage-4-catia/catia.md#text-index)). Until they ship, the manuals
-carry shell recipes that do both from the sidecars on disk.
+Descriptions and sidecars now name their archive and sidecars repeat the description identity
+([self-locating metadata](#self-locating-metadata-internalreport-internalarchive)). There is still
+no command that assembles the sidecars into one document
+([text index](../../openspec/stage-4-catia/catia.md#text-index)); until it ships, the manuals carry
+shell recipes that copy or aggregate the sidecars on disk.

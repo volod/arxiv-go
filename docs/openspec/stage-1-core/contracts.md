@@ -165,6 +165,7 @@ without previews the file holds the video's metadata alone.
 
 ```markdown
 arxgo: projects/2024/interview.mp4
+archive: /data/archive
 file_size: 734003200 (700.0 MiB)
 file_mime: video/mp4
 sha256: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
@@ -181,6 +182,7 @@ url: https://storage.example.com/video/projects/2024/interview.mp4
 | Field | Content | Present |
 | --- | --- | --- |
 | `arxgo` | `rel_path` of the video, relative to the archive root | always, first line |
+| `archive` | absolute path of the archive root the description was written in (native form; on Windows the backslashes make it quoted, for example `"D:\\archive"`) | always, second line |
 | `file_size` | bytes, then the binary-unit size in parentheses | always |
 | `file_mime` | detected MIME type | when detected |
 | `sha256` | SHA-256 of the video | `--verify hash` |
@@ -210,6 +212,7 @@ and harvested strings are not written here.
 
 ```markdown
 arxgo: cad/fixture-part.CATPart
+archive: /data/archive
 file_size: 4096 (4.0 KiB)
 file_mime: application/octet-stream
 modified: 2026-09-15T12:00:00Z
@@ -221,7 +224,7 @@ moved_to: [fixture-part.CATPart](file:///mnt/nas/catia/cad/fixture-part.CATPart)
 | Field | Content | Present |
 | --- | --- | --- |
 | `arxgo` | `rel_path` of the CATIA file | always, first line |
-| `file_size`, `file_mime`, `sha256`, `modified`, `moved_at`, `moved_to`, `url` | as for a video description | same rules |
+| `archive`, `file_size`, `file_mime`, `sha256`, `modified`, `moved_at`, `moved_to`, `url` | as for a video description | same rules |
 | `catia` | kind, format, release, component count | always on a CATIA description |
 
 ## CATIA text sidecar
@@ -234,6 +237,14 @@ line endings, at most 1 MiB, written through a part file and a non-replacing ren
 
 ```markdown
 arxgo-text: cad/fixture-product.CATProduct
+archive: /data/archive
+file_name: fixture-product.CATProduct
+file_size: 8192 (8.0 KiB)
+file_mime: application/octet-stream
+modified: 2026-09-15T12:00:00Z
+catia: CATProduct | V5_CFV2 | V5R30 SP5 | 2 components
+moved_to: [fixture-product.CATProduct](file:///mnt/nas/catia/cad/fixture-product.CATProduct)
+description: cad/fixture-product.CATProduct.md
 extracted_at: 2026-09-15T12:05:01Z
 truncated: false
 properties:
@@ -249,6 +260,10 @@ strings:
 | Field or block | Content |
 | --- | --- |
 | `arxgo-text` | `rel_path` of the CATIA file; always first |
+| `archive` | absolute archive root, as in the description; always second |
+| `file_name` | base name of the CATIA file; always |
+| `file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url` | the values of the description's fields of the same name, when the description has them |
+| `description` | archive-relative slash path of the owned description the values come from; omitted, with the fields above, when split finds no owned description (a warning is logged) |
 | `extracted_at` | RFC 3339 UTC |
 | `truncated` | `true` when the 1 MiB cap or a 3dxml ZIP limit dropped items |
 | `properties:` | `- key: value` items in a fixed order: `release`, `build_level` (V5); `schema_version`, `title`, `author`, `generator`, `created` (3dxml); omitted when empty |

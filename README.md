@@ -38,14 +38,16 @@ Windows PowerShell: .\arxgo.exe split --archive 'D:\archive' --video-archive 'E:
 ```
 
 CATIA files move in their own run, into their own archive, and `--catia-text` writes a searchable
-`<file>.text.md` next to each description:
+`<file>.text.md` next to each description. Descriptions and sidecars name their archive root, and a
+sidecar repeats its description's identity fields, so each still stands alone once copied into a
+search index:
 
 ```text
 ./arxgo split --catia --catia-text --archive /data/archive --catia-archive /mnt/catia
 ./arxgo restore --catia --archive /data/archive --catia-archive /mnt/catia
 ```
 
-Both manuals show how to assemble those sidecars into one document for a search engine, a vector
+Both manuals show how to copy those sidecars out or assemble them into one document for a search engine, a vector
 database or a language model.
 
 The [Linux manual](docs/guide/manual-linux.md) and

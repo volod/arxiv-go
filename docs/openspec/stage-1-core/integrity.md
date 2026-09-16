@@ -150,7 +150,7 @@ Preflight runs after the scan and before the first mutation, and prints its comp
 | `restore`, other devices, or `--transfer copy` | archive device: sum of candidate sizes (`copy` keeps the video archive copy) |
 | `split` and `restore` run state | archive device additionally: 2 KiB of WAL records per candidate |
 | Stage 2 previews | archive device additionally: estimated preview bytes from [previews](../stage-2-previews/previews.md#space-estimate) |
-| Stage 4 CATIA | as the `split`/`restore` rows with the CATIA archive in the video archive role (preflight role `catia_archive`); `--catia-text` adds min(1 MiB, file size) per candidate on the archive device |
+| Stage 4 CATIA | as the `split`/`restore` rows with the CATIA archive in the video archive role (preflight role `catia_archive`); `--catia-text` adds min(1 MiB, file size + 4 KiB) per candidate on the archive device, the 4 KiB covering the sidecar's archive and identity lines |
 
 A device is a write device when a role placed on it is written by the operation: the archive and
 the video archive for `split`, the archive for `restore`, and the registry file's device for

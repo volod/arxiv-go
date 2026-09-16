@@ -188,6 +188,9 @@ func splitDescriptions(ctx context.Context, s *Session, c SplitConfig) SplitDesc
 	}
 	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
 		m.useRows(c.scanRows)
+		if m.cfg.Archive == "" {
+			m.cfg.Archive = s.cfg.Archive
+		}
 		if s.cfg.Crash != nil {
 			m.cfg.Crash = s.cfg.Crash
 		}

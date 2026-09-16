@@ -190,7 +190,13 @@ archive the path belongs to, and a sidecar says nothing about the file at all be
 - Field order stays fixed, values keep the description escaping, and the first line is unchanged:
   `arxgo: <rel_path>` for a description and `arxgo-text: <rel_path>` for a sidecar, so occupancy,
   conflict naming, restore and recovery are untouched.
-- The identity block counts against the sidecar's 1 MiB cap before any block is filled.
+- The identity block counts against the sidecar's 1 MiB cap before any block is filled. The
+  marker, `archive:`, `extracted_at:` and `truncated:` lines are always written; identity fields are
+  kept in order while they fit, and the first that does not fit drops itself and every later
+  field and block and sets `truncated: true`.
+- The owned description is the one the WAL `described` record of an earlier run names while it is
+  still owned, otherwise the first owned name in the description naming order. Without one, the
+  sidecar holds `file_name` only and split logs a warning; the sidecar is still written.
 
 Evaluation: a split writes `archive:` as the second line of both files; a sidecar of a hash-verified
 split carries the same `sha256`, `file_size` and `catia` values as its description; a sidecar whose
