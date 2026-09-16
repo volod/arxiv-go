@@ -44,11 +44,12 @@ func writeRestoreOutputs(s *Session, c RestoreConfig, existing []report.VideoRow
 }
 
 // writeRestoredRegistry atomically writes data as the payload registry name in both roots and,
-// with retire, renames each copy to <stem>.restored-<run-id>.csv.
+// with retire, renames each copy to <stem>.restored-<run-id>.csv. A copy that already holds data
+// is not rewritten.
 func writeRestoredRegistry(s *Session, name string, data []byte, retire bool) error {
 	retired := strings.TrimSuffix(name, ".csv") + ".restored-" + s.Run.ID + ".csv"
 	for _, csvPath := range registryPaths(s, name) {
-		if err := s.cfg.FS.AtomicWriteFile(csvPath, data, 0o644); err != nil {
+		if err := writeFileIfChanged(s.cfg.FS, csvPath, data); err != nil {
 			return err
 		}
 		if !retire {

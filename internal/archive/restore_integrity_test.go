@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -65,7 +66,10 @@ func TestRestoreIgnoresRegistryPathsOutsideArchive(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			before := mustRead(t, filepath.Join(r.archive, "arxgo-registry.csv"))
+			before, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
+			if err != nil {
+				t.Fatal(err)
+			}
 			cfg, c := restoreConfig(r, "auto")
 			rec := &recorder{}
 			cfg.Console = rec
@@ -75,8 +79,19 @@ func TestRestoreIgnoresRegistryPathsOutsideArchive(t *testing.T) {
 			if exists(filepath.Join(filepath.Dir(r.archive), "escaped.mp4")) {
 				t.Fatal("restore wrote outside the archive")
 			}
-			if !bytes.Equal(mustRead(t, filepath.Join(r.archive, "arxgo-registry.csv")), before) {
-				t.Fatal("restore replaced a reserved file")
+			// The file registry is not replaced by a payload row naming it: restore only sets the
+			// location of the video it returned.
+			after, err := report.LoadRegistry(filepath.Join(r.archive, "arxgo-registry.csv"))
+			if err != nil {
+				t.Fatalf("file registry replaced: %v", err)
+			}
+			for i := range before {
+				if before[i].RelPath == "nested/clip.mp4" {
+					before[i].Location = report.LocationArchive
+				}
+			}
+			if !reflect.DeepEqual(after, before) {
+				t.Fatalf("restore changed the file registry beyond location:\n got %+v\nwant %+v", after, before)
 			}
 			if !bytes.Equal(mustRead(t, src), videoFixture) || exists(dst) {
 				t.Fatal("video not restored to its own relative path")

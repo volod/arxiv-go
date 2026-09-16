@@ -151,7 +151,9 @@ any mutation. Details: [tool discovery](stage-1-core/metadata.md#tool-discovery)
 
 - `<root>/.arxgo/` in either root: run lock, state, write-ahead logs, checkpoints and run logs.
 - `<archive>/arxgo-registry.csv`, `<archive>/arxgo-videos.csv`, `<archive>/arxgo-catia.csv` and
-  the same names inside the video archive and CATIA archive roots.
+  the same names inside the video archive and CATIA archive roots, and the payload registries a
+  restore retired, `arxgo-videos.restored-<run-id>.csv` and `arxgo-catia.restored-<run-id>.csv`,
+  directly under those roots.
 - `<archive>/arxgo-catia-text.md`, the default output of the
   [CATIA text index](stage-4-catia/catia.md#text-index).
 - Temporary transfer files ending in `.arxgo-part`, and preview part files named

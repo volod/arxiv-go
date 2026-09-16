@@ -83,7 +83,12 @@ func (r *scanRun) pipeline(ctx context.Context) error {
 	case werr != nil:
 		return werr
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Only a completed walk proves the remaining moved files absent; written earlier, they would
+	// move the cursor past entries a resumed walk still has to deliver.
+	return r.writeRemainingPreserved()
 }
 
 func isCancel(err error) bool {
@@ -116,6 +121,9 @@ func (r *scanRun) writeAll(ctx context.Context, order <-chan *scanItem) error {
 		}
 		if err := ctx.Err(); err != nil {
 			return context.Cause(ctx)
+		}
+		if err := r.writePreservedBefore(it.e.Key, it.e.Kind == scanner.KindDir); err != nil {
+			return err
 		}
 		if err := r.write(it); err != nil {
 			r.healthy = false
@@ -169,7 +177,26 @@ func (r *scanRun) write(it *scanItem) error {
 		r.skip(e.Rel, scanner.ReasonUnreadable, it.err.Error())
 		return nil
 	}
-	size, ft := e.Info.Size(), it.ft
+	row := r.fileRow(it)
+	st.AddFile(row.FileSize, row.FileMIME, state.FileFlags{Binary: row.IsBinary, Media: row.IsMedia, Picture: row.IsPicture,
+		Video: row.IsVideo, Catia: row.IsCatia, Large: row.IsLarge})
+	r.s.Stats.Files.Add(1)
+	r.s.Stats.Bytes.Add(row.FileSize)
+	if err := r.reg.Write(row); err != nil {
+		return err
+	}
+	ft := it.ft
+	ft.IsVideo = row.IsVideo
+	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
+		return nil
+	}
+	return r.cand.write(Candidate{RelPath: e.Rel, Size: row.FileSize, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})
+}
+
+// fileRow is the registry row of a detected regular file. An audio-only media parse clears
+// is_video.
+func (r *scanRun) fileRow(it *scanItem) report.RegistryRow {
+	e, ft := it.e, it.ft
 	if it.media != nil {
 		if it.media.Error != "" {
 			r.s.Log.Warn("media metadata unavailable", "rel_path", e.Rel, "error", it.media.Error)
@@ -180,23 +207,13 @@ func (r *scanRun) write(it *scanItem) error {
 			ft.IsVideo = false
 		}
 	}
-	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Catia: ft.IsCatia, Large: ft.IsLarge})
-	r.s.Stats.Files.Add(1)
-	r.s.Stats.Bytes.Add(size)
 	meta := report.FileMetadata(e.Info.ModTime())
 	meta.Media = it.media
-	row := report.RegistryRow{
-		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: size, FileType: ft.Type, FileMIME: ft.MIME,
+	return report.RegistryRow{
+		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: e.Info.Size(), FileType: ft.Type, FileMIME: ft.MIME,
 		IsBinary: ft.IsBinary, IsMedia: ft.IsMedia, IsPicture: ft.IsPicture, IsVideo: ft.IsVideo, IsCatia: ft.IsCatia, IsLarge: ft.IsLarge,
-		Metadata: meta,
+		Location: report.LocationArchive, Metadata: meta,
 	}
-	if err := r.reg.Write(row); err != nil {
-		return err
-	}
-	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
-		return nil
-	}
-	return r.cand.write(Candidate{RelPath: e.Rel, Size: size, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})
 }
 
 // readMedia collects container metadata. File mode uses the pure-Go ISO parser only; media mode

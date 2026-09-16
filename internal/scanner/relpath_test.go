@@ -23,6 +23,10 @@ func TestLocalRelPath(t *testing.T) {
 		"a/clip-smpl01.arxgo-part.mp4": false, // preview part
 		"a/clip.arxgo-part.x.mp4":      true,
 		".arxgo":                       false,
+		"arxgo-videos.restored-20260913T101500Z-1a2b3c4d.csv":  false, // retired by restore
+		"arxgo-catia.restored-20260913T101500Z-1a2b3c4d.csv":   false,
+		"a/arxgo-catia.restored-20260913T101500Z-1a2b3c4d.csv": true,
+		"arxgo-videos.restored-notes.csv":                      true,
 	} {
 		if got := LocalRelPath(rel); got != want {
 			t.Errorf("LocalRelPath(%q) = %v, want %v", rel, got, want)

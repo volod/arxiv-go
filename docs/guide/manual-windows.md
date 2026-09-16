@@ -78,6 +78,20 @@ written with empty cells. A spreadsheet, database or search index therefore sees
 file, whatever the archive holds. A registry written by an earlier build that left out empty
 columns is still read, and the next run writes it with every column.
 
+The file registry describes the archive you curated, not only what is currently under its root.
+After `split`, each moved video or CATIA file keeps its row, unchanged except for column 12,
+`location`: `video-archive` or `catia-archive` instead of `archive`. Descriptions, previews and
+text sidecars arxgo wrote never get a row. A later scan adds rows only for files you added, and
+drops rows only for files you deleted from the archive yourself. `restore --registry-update` sets
+`location` back to `archive`. When a run finds nothing to change, it leaves the CSV untouched, so
+its modification time shows when the archive last changed. arxgo keeps a stamp of the last
+registry in `.arxgo/registry.json`. If the registry and the stamp are lost, the next scan rebuilds
+the moved rows from the video and CATIA archive copies. A copy it cannot read gives a row rebuilt
+from the run history and a `registry-row-reconstructed` warning. A registry from an earlier build
+without `location` is read as if every file were in the archive. Restore's retired copies,
+`arxgo-videos.restored-<run-id>.csv` and `arxgo-catia.restored-<run-id>.csv`, are arxgo files and
+have no row.
+
 ## Move videos to a video archive
 
 ```powershell

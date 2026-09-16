@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/report"
@@ -41,6 +43,9 @@ type ScanConfig struct {
 	Workers int
 	Window  int
 
+	// mirror marks restore's scan of a mirror root: no archive view, no preserved rows, no stamp.
+	mirror bool
+
 	// afterEntry is a test hook called after each written entry with the count written by this
 	// process. An error simulates a crash: the scan stops without making buffered output durable.
 	afterEntry func(n int64) error
@@ -68,8 +73,10 @@ func ScanBody(c ScanConfig) func(ctx context.Context, s *Session) error {
 }
 
 // Scan writes the file registry of c.Root through its part file and candidates.jsonl in the run
-// directory, resuming from the session's checkpoint, then renames the registry into place (not in
-// a dry run) and records the statistics. Skipped entries make the run partial.
+// directory, resuming from the session's checkpoint, then places the registry (not in a dry run)
+// and records the statistics. Skipped entries make the run partial. A scan of the archive merges
+// the preserved rows of moved files, excludes owned artifacts, keeps an unchanged registry and
+// writes the registry stamp.
 func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, error) {
 	c.defaults()
 	cp := s.Checkpointed()
@@ -83,6 +90,14 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 			return nil, err
 		}
 	}
+	var view *archiveView
+	if !c.mirror {
+		var err error
+		if view, err = loadArchiveView(s.cfg.Archive); err != nil {
+			return nil, err
+		}
+		c.SkipPaths = append(slices.Clone(c.SkipPaths), view.owned...)
+	}
 	run, err := openScan(s, c, cp)
 	if err != nil {
 		return nil, err
@@ -90,6 +105,11 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 	if err := s.Phase(PhaseScan, Totals{}); err != nil {
 		_ = run.close()
 		return nil, err
+	}
+	if view != nil {
+		if err := run.preparePreserved(ctx, view); err != nil {
+			return nil, errors.Join(err, run.close())
+		}
 	}
 	if err := run.pipeline(ctx); err != nil {
 		if run.healthy {
@@ -101,8 +121,15 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 		return nil, err
 	}
 	if !s.cfg.DryRun {
-		if err := fsops.Replace(run.part, c.Registry); err != nil {
-			return nil, fmt.Errorf("place registry: %w", err)
+		placed, err := placeRegistry(run.part, c.Registry)
+		if err != nil {
+			return nil, err
+		}
+		run.stats.Registry = placed.outcome
+		if view != nil {
+			if err := writeRegistryStamp(s, c, run.stats, placed); err != nil {
+				return nil, err
+			}
 		}
 	}
 	run.stats.Complete = true
@@ -127,16 +154,18 @@ func scanEstimate(c ScanConfig, cp state.Checkpoint) Candidates {
 
 // scanRun is the state of one process's scan: outputs, statistics and the resume cursor.
 type scanRun struct {
-	s       *Session
-	cfg     ScanConfig
-	part    string
-	detect  scanner.DetectOptions
-	reg     *report.RegistryWriter
-	cand    *candidateWriter
-	stats   *state.ScanStats
-	start   scanner.Key // resume cursor from the checkpoint
-	cursor  scanner.Key // key of the last written entry
-	healthy bool        // outputs accepted every write so far
+	s         *Session
+	cfg       ScanConfig
+	part      string
+	detect    scanner.DetectOptions
+	globs     []scanner.Glob  // compiled --exclude, applied to preserved rows
+	preserved *preservedQueue // preserved rows after the resume cursor; nil for a mirror scan
+	reg       *report.RegistryWriter
+	cand      *candidateWriter
+	stats     *state.ScanStats
+	start     scanner.Key // resume cursor from the checkpoint
+	cursor    scanner.Key // key of the last written entry
+	healthy   bool        // outputs accepted every write so far
 }
 
 // openScan opens the outputs: after the checkpointed offsets when the run resumes with intact part
@@ -145,6 +174,13 @@ func openScan(s *Session, c ScanConfig, cp state.Checkpoint) (*scanRun, error) {
 	r := &scanRun{
 		s: s, cfg: c, part: fsops.PartPath(c.Registry), healthy: true,
 		detect: scanner.NewDetectOptions(c.LargeThreshold, c.VideoExtensions),
+	}
+	for _, pattern := range c.Exclude {
+		g, err := scanner.CompileGlob(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("--exclude %q: %w", pattern, err)
+		}
+		r.globs = append(r.globs, g)
 	}
 	candPath := s.Run.File(state.CandidatesFile)
 	if cp.Scan != nil && cp.RegistryOffset > 0 && !s.cfg.DryRun {
@@ -167,7 +203,10 @@ func openScan(s *Session, c ScanConfig, cp state.Checkpoint) (*scanRun, error) {
 		_ = r.reg.Close()
 		return nil, err
 	}
-	r.stats = &state.ScanStats{}
+	r.stats = &state.ScanStats{StartedAt: s.cfg.Now().UTC().Truncate(time.Second)}
+	if cp.Scan != nil && !cp.Scan.StartedAt.IsZero() {
+		r.stats.StartedAt = cp.Scan.StartedAt // the scan of an earlier process of this run
+	}
 	s.Stats.Files.Store(0)
 	s.Stats.Bytes.Store(0)
 	return r, nil
@@ -252,7 +291,8 @@ func (s *Session) summarizeScan(st *state.ScanStats) {
 		"bytes", FormatBytes(sum.Bytes), "binary", flag(sum.Binary), "media", flag(sum.Media),
 		"picture", flag(sum.Picture), "video", flag(sum.Video), "catia", flag(sum.Catia), "large", flag(sum.Large),
 		"skipped", st.SkippedTotal(), "skipped_unreadable", st.Skipped[scanner.ReasonUnreadable],
-		"skipped_special", st.Skipped[scanner.ReasonSpecial], "top_mime", strings.Join(top, " "),
+		"skipped_special", st.Skipped[scanner.ReasonSpecial], "preserved", flag(sum.Preserved),
+		"registry", sum.Registry, "top_mime", strings.Join(top, " "),
 		"elapsed", FormatDuration(secondsDuration(sum.ElapsedS)))
 	s.SetScanSummary(sum)
 	if st.SkippedTotal() > 0 {

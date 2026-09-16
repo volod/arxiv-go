@@ -14,7 +14,9 @@ trial on an archive copy are accepted.
 `arxgo restore` takes locks on both roots and recovers an incomplete run: the current restore run
 when it resumes, or an interrupted split or restore that this run replaces (with that run's own
 options, see [crash safety](crash-safety.md#run-layout-internalstate)). It then scans the **video
-archive** (the file registry for that scan stays in the run directory).
+archive** (the file registry for that scan stays in the run directory). With `--registry-update` it
+also sets `location` `archive` on the restored rows of the stamped file registry
+([archive view](archive-registry.md#archive-view)).
 
 Candidates are `is_video=true` rows plus every file whose path is the `rel_path` of a `moved`
 or `restored` row in `arxgo-videos.csv` (`ScanConfig.Include`), so a video that split selected

@@ -69,10 +69,8 @@ func (v *catiaSplit) prepare(_ context.Context, c *SplitConfig) error {
 			return err
 		}
 	}
-	// Owned text sidecars stay in the file registry. The preview mechanism hides its sidecars from
-	// the scan because a preview clip is a video and would become a candidate of the next split; a
-	// text sidecar is Markdown and can never be a CATIA candidate, so hiding it would only drop a
-	// real archive file from the operator's inventory.
+	// Owned text sidecars have no file-registry row: the scan excludes them with every other owned
+	// artifact (archive view).
 	return nil
 }
 

@@ -342,9 +342,11 @@ without it (written by an earlier build) counts as `false`.
 empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
 `candidates.jsonl`, omitted when zero), `registry_base` (`{"size","sha256"}` of the base registry
 the scan reuses, omitted without a base) and `scan`: the scan statistics matching the cursor and
-offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`catia`/`large`
-as `{"count","bytes"}`, `largest_video`, `mime` per type, `skipped` per reason, `reused`, and
-`preserved` as `{"count","bytes"}`). `catia` is omitted
+offsets (`complete`, `started_at` (the scan phase start of the run's first process, to the second,
+which the registry stamp records as `scan_started_at`), `files`, `dirs`, `symlinks`, `bytes`,
+`binary`/`media`/`picture`/`video`/`catia`/`large` as `{"count","bytes"}`, `largest_video`, `mime`
+per type, `skipped` per reason, `reused`, `preserved` as `{"count","bytes"}`, and `registry`
+(`written` or `unchanged`) once complete). `catia` is omitted
 when zero. `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
 counters, the split preview counters `previews_done`/`previews_failed`, and the CATIA counters
 `catia_done`/`catia_skipped`/`catia_failed`, `catia_bytes`, `catia_archive_bytes_written`/

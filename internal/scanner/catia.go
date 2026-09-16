@@ -23,3 +23,8 @@ func markCatia(ft *FileType, name string) {
 	ft.IsVideo = false
 	ft.IsMedia = ft.IsPicture || strings.HasPrefix(ft.MIME, "audio/")
 }
+
+// IsCatiaName reports whether a base file name has a built-in CATIA extension, the is_catia rule.
+func IsCatiaName(name string) bool {
+	return catia.IsExtension(fileExt(name))
+}

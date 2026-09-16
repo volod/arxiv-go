@@ -22,7 +22,9 @@ that returns a cross-device error rechecks space for all remaining videos as cop
 the copy path. The destination keeps the archive-relative path. Newly created parent directories
 keep the source permission bits on Linux and each new directory's parent is fsynced. A
 directory-flush error after a successful rename is treated as placed. Non-video files stay in
-place.
+place. After the execute phase split writes `arxgo-videos.csv` and then sets `location`
+`video-archive` on the file-registry rows of the videos it moved
+([archive view](archive-registry.md#archive-view)).
 
 Each candidate has a WAL transaction. An incomplete transfer before `placed` is aborted and
 retried; at or after `placed`, recovery writes the description, verifies the destination, removes a

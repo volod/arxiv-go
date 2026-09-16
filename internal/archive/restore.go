@@ -50,7 +50,7 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 		return err
 	}
 	c.Scan.Root = s.cfg.Payload.Root
-	c.Scan.Preflight = false
+	c.Scan.Preflight, c.Scan.mirror = false, true
 	if c.Scan.Registry == "" {
 		c.Scan.Registry = s.Run.File(state.ScanRegistryFile)
 	}
@@ -119,10 +119,13 @@ func Restore(ctx context.Context, s *Session, c RestoreConfig) error {
 	if !c.KeepSource {
 		pruneRestoredDirs(s)
 	}
-	if c.RegistryUpdate {
-		return hooks.updateRegistry(c)
+	if !c.RegistryUpdate {
+		return nil
 	}
-	return nil
+	if err := hooks.updateRegistry(c); err != nil {
+		return err
+	}
+	return updateRestoredLocations(s)
 }
 
 // restoreResolverOf returns the resolver installed for recovery, so execution and recovery share

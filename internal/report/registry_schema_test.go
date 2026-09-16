@@ -79,12 +79,13 @@ func TestRegistryReadersAcceptCompactedFiles(t *testing.T) {
 		}
 		m := rows[0].Metadata
 		if m.MTime != "2024-05-01T10:22:03Z" || m.LinkTarget != "" || m.Media == nil || m.Media.Container != "mp4" ||
-			m.Media.Source != "" || m.Media.Width != 0 || !rows[0].IsVideo {
+			m.Media.Source != "" || m.Media.Width != 0 || !rows[0].IsVideo || rows[0].Location != LocationArchive {
 			t.Fatalf("row = %+v media %+v", rows[0], m.Media)
 		}
 		bare := strings.Join(RegistryHeader[:FileRegistryRequired], ",") + "\n" +
 			"b.txt,b.txt,txt,1,false,text/plain,false,false,false,false,false\n"
-		if rows, err := ReadRegistry(strings.NewReader(bare)); err != nil || len(rows) != 1 || HasMetadata(rows[0].Metadata) {
+		if rows, err := ReadRegistry(strings.NewReader(bare)); err != nil || len(rows) != 1 || HasMetadata(rows[0].Metadata) ||
+			rows[0].Location != LocationArchive {
 			t.Fatalf("required-only registry = %+v (%v)", rows, err)
 		}
 	})

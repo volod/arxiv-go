@@ -46,7 +46,8 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		candidate := s.payload.candidate
 		c.Scan.Candidate = func(_ string, ft scanner.FileType) bool { return candidate(ft) }
 	}
-	if _, err := Scan(ctx, s, c.Scan); err != nil {
+	scanned, err := Scan(ctx, s, c.Scan)
+	if err != nil {
 		return err
 	}
 	w, err := s.OpenWAL()
@@ -110,7 +111,10 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 	if err := post.stop(err); err != nil {
 		return err
 	}
-	return hooks.writeRegistry(c)
+	if err := hooks.writeRegistry(c); err != nil {
+		return err
+	}
+	return updateSplitLocations(s, c.Scan, scanned, w.Committed().Paths())
 }
 
 // syncCommittedCounter makes the WAL authoritative after a crash: a committed transaction may

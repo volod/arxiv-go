@@ -5,7 +5,9 @@ videos to a mirrored archive with video descriptions and optional FFmpeg preview
 them. It does the same for CATIA CAD files with `--catia`, into a separate CATIA archive, and can
 extract their accessible text into searchable Markdown sidecars. Runs can recover after
 interruption. Every CSV it writes keeps the same full set of columns from run to run, so a
-spreadsheet, database or search index loads it with one schema. Cloud publishing is not
+spreadsheet, database or search index loads it with one schema. The file registry keeps a row for
+every moved file with its current `location` and is rewritten only when the archive really
+changed. Cloud publishing is not
 available in current builds.
 
 ## Quick start
