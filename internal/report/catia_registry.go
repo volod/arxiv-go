@@ -39,23 +39,23 @@ func (r CatiaRow) cells() []string {
 	return rec
 }
 
-// WriteCatiaCSV writes the header and rows to w. Columns 11-16 that are empty in every row are
-// omitted.
+// WriteCatiaCSV writes the full header and rows to w. A column empty in every row is written with
+// empty cells.
 func WriteCatiaCSV(w io.Writer, rows []CatiaRow) error {
 	data := make([][]string, 0, len(rows))
 	for _, r := range rows {
 		data = append(data, r.cells())
 	}
-	header, data := dropEmptyColumns(CatiaHeader, PayloadRegistryKeep, data)
 	cw := csv.NewWriter(w)
-	if err := cw.Write(header); err != nil {
+	if err := cw.Write(CatiaHeader); err != nil {
 		return err
 	}
 	return cw.WriteAll(data)
 }
 
 // LoadCatiaCSV reads a CATIA registry. The header must hold the payload columns followed by any
-// subset of the optional columns in canonical order.
+// subset of the optional columns in canonical order: a registry written by an earlier build omitted
+// the columns empty in every row, and a missing column is read as empty.
 func LoadCatiaCSV(r io.Reader) ([]CatiaRow, error) {
 	records, err := csv.NewReader(r).ReadAll()
 	if err != nil {

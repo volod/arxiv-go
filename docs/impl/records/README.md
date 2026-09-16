@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0048`.
+Next unused sequence: `0053`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -60,3 +60,4 @@ Next unused sequence: `0048`.
 | [0049 Replaced restore sidecar cleanup](0049-catia-repair-replaced-restore-sidecar-cleanup.md) | `sidecar_cleanup` in restore run options; the next restore with cleanup deletes previews or text sidecars a replaced interrupted restore left | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |
 | [0050 Stage-4 proof](0050-catia-prove-stage-4-on-generated-archive.md) | `TestCatiaSplitRestoreRoundTrip`: generated mixed archive, killed video and CATIA splits and restores with cross-payload roll-forward, byte-identical round trip; resumed split sidecar counters synced from the WAL | Accepted; `make ci` and `make test-integration` pass on Linux; Windows vetted |
 | [0051 Stage-4 checkpoint](0051-catia-review-stage-4-catia.md) | Stage-4 review on a disposable copy of the operator archive: five defects repaired (hash recorded on the rename path, text sidecars kept in the file registry, `file_type` name fallback, zero `mtime` omitted from later WAL steps, scan finish line), five notes dispositioned, registry-schema and metadata gaps routed | Accepted; `make ci` passes on Linux and a 4031-file round trip is byte-identical; Windows cross-compiled and vetted |
+| [0052 Registry full schema](0052-registry-stabilize-registry-columns.md) | File, video and CATIA registries always written with their full header; empty-column compaction removed from the writers and the scan; readers keep accepting compacted files from earlier builds | Accepted; `make ci` and `make test-integration` pass on Linux; Windows cross-compiled |

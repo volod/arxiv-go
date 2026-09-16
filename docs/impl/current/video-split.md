@@ -77,8 +77,9 @@ mounted or renamed elsewhere ([0034](../records/0034-preview-repair-stage-2-prev
 Placement and its failure handling (destination conflict, cross-device fallback, changed source)
 are shared with restore in `archive/transfer.go`.
 Rows are sorted by the walk-order key. The CSV uses flat metadata columns, omits the duplicate
-video path, supplies a local `file://` URL when no base URL is set, and omits metadata columns that
-are empty in every row. `--dry-run` still scans and
+video path, supplies a local `file://` URL when no base URL is set, and writes every column, also one
+empty in every row ([0052](../records/0052-registry-stabilize-registry-columns.md)).
+`--dry-run` still scans and
 reports a plan without moving videos or writing descriptions or
 registries; the normal run directory under `.arxgo` is still written.
 

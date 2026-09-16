@@ -20,6 +20,10 @@ var RegistryHeader = []string{
 	"is_binary", "is_media", "is_picture", "is_video", "is_catia",
 }
 
+// FileRegistryRequired is the number of file-registry columns every reader requires (rel_path
+// through is_catia). Writers always write the full RegistryHeader.
+const FileRegistryRequired = 11
+
 func init() { RegistryHeader = append(RegistryHeader, MetadataHeader...) }
 
 // Metadata is the normalized optional data shared by both CSV registries.
@@ -146,7 +150,7 @@ func (w *RegistryWriter) Write(r RegistryRow) error {
 	w.record[6], w.record[7] = strconv.FormatBool(r.IsBinary), strconv.FormatBool(r.IsMedia)
 	w.record[8], w.record[9] = strconv.FormatBool(r.IsPicture), strconv.FormatBool(r.IsVideo)
 	w.record[10] = strconv.FormatBool(r.IsCatia)
-	copy(w.record[FileRegistryKeep:], MetadataCells(r.Metadata))
+	copy(w.record[FileRegistryRequired:], MetadataCells(r.Metadata))
 	return w.csv.Write(w.record)
 }
 

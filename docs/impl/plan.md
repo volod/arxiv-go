@@ -28,32 +28,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ### Archive registry -- `archive-registry`
 
-#### stabilize-registry-columns
-
-A registry's header depends on what the archive currently holds, so the same tree yields different
-schemas from one command to the next and a downstream loader breaks.
-
-- Serves: `archive-registry` -- [Full schema](../openspec/stage-1-core/registry.md#full-schema)
-- Agent status: CLEAR
-- Dependencies: [Stage-4 checkpoint](records/0051-catia-review-stage-4-catia.md).
-- User-visible outcome: Every CSV arxgo writes (file, video and CATIA registry) carries its full
-  contract header on every run of every command, so a spreadsheet, database or search index sees
-  one stable schema.
-- Scope boundary: Remove empty-column compaction from the three writers; readers keep accepting
-  files from earlier builds that omitted optional columns; update golden files and the manuals. No
-  option, no new column, no change to column order, cell values or rows.
-- Data and artifact paths: `internal/report/csv_compact.go`, `internal/report/csv.go`,
-  `internal/report/csv_read.go`, `internal/report/videos.go`, `internal/report/catia_registry.go`,
-  `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
-- Execution path: Table tests over the three writers with rows that leave every optional column
-  empty; reader tests over compacted files; a scan-split-scan fixture comparing headers.
-- Acceptance gates: An empty archive, a video tree, the same tree after `split` and a CATIA tree
-  write byte-identical file-registry headers; a payload registry has the same header with and
-  without `--verify hash`, previews and `--catia-text`; a compacted registry from an earlier build
-  is read with missing columns empty; `make ci` passes.
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
 #### preserve-archive-registry
 
 After `split` moves payload files out and writes descriptions and sidecars, the next scan writes a
@@ -62,7 +36,7 @@ original archive is gone and every run rewrites the file.
 
 - Serves: `archive-registry` -- [Archive view](../openspec/stage-1-core/registry.md#archive-view)
 - Agent status: CLEAR
-- Dependencies: `stabilize-registry-columns`.
+- Dependencies: [Registry full schema](records/0052-registry-stabilize-registry-columns.md).
 - User-visible outcome: The file registry keeps a row for every moved file with its `location`,
   never lists descriptions, sidecars or previews, gains exactly the rows of newly added files, and
   is left untouched when nothing changed; `scan` and `split` write the same registry.
@@ -177,8 +151,8 @@ Review registry schema stability and the metadata a detached reader sees before 
 - Serves: `catia-archive` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: `stabilize-registry-columns`; `preserve-archive-registry`;
-  `reuse-registry-detection`; `record-source-location-in-metadata`; `implement-catia-text-index`.
+- Dependencies: [Registry full schema](records/0052-registry-stabilize-registry-columns.md);
+  `preserve-archive-registry`; `reuse-registry-detection`; `record-source-location-in-metadata`; `implement-catia-text-index`.
 - User-visible outcome: Registry schemas and metadata documents are coherent across commands and
   payloads, and stage 3 can start without reopening them.
 - Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact

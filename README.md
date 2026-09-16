@@ -4,7 +4,9 @@
 videos to a mirrored archive with video descriptions and optional FFmpeg previews, and restoring
 them. It does the same for CATIA CAD files with `--catia`, into a separate CATIA archive, and can
 extract their accessible text into searchable Markdown sidecars. Runs can recover after
-interruption. Cloud publishing is not available in current builds.
+interruption. Every CSV it writes keeps the same full set of columns from run to run, so a
+spreadsheet, database or search index loads it with one schema. Cloud publishing is not
+available in current builds.
 
 ## Quick start
 

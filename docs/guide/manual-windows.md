@@ -72,6 +72,12 @@ video formats, or repeat `--exclude` for multiple relative patterns. CATIA exten
 Glob paths use `/` even
 on Windows, as in `cache/**`.
 
+Every CSV arxgo writes (`arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-catia.csv`) has all
+of its columns on every run of every command, in a fixed order; a column that no row fills is
+written with empty cells. A spreadsheet, database or search index therefore sees one schema per
+file, whatever the archive holds. A registry written by an earlier build that left out empty
+columns is still read, and the next run writes it with every column.
+
 ## Move videos to a video archive
 
 ```powershell
@@ -171,7 +177,7 @@ CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful spli
 and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
 archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
 ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
-`catia_release`, `catia_components` and `mtime` (a column empty in every row is omitted).
+`catia_release`, `catia_components` and `mtime`, all written on every run.
 Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
 A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
 

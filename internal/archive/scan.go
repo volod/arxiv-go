@@ -101,9 +101,6 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 		return nil, err
 	}
 	if !s.cfg.DryRun {
-		if err := report.DropEmptyCSVColumns(run.part, report.FileRegistryKeep); err != nil {
-			return nil, fmt.Errorf("compact registry: %w", err)
-		}
 		if err := fsops.Replace(run.part, c.Registry); err != nil {
 			return nil, fmt.Errorf("place registry: %w", err)
 		}

@@ -59,8 +59,8 @@ func TestPayloadRegistryColumnOrder(t *testing.T) {
 	if !slices.Equal(PayloadHeader, want) || PayloadRegistryKeep != len(want) {
 		t.Fatalf("payload header = %q", PayloadHeader)
 	}
-	if !slices.Equal(VideoHeader[:VideoRegistryKeep], append(slices.Clone(want), "previews")) ||
-		!slices.Equal(VideoHeader[VideoRegistryKeep:], MetadataHeader) {
+	if !slices.Equal(VideoHeader[:VideoRegistryRequired], append(slices.Clone(want), "previews")) ||
+		!slices.Equal(VideoHeader[VideoRegistryRequired:], MetadataHeader) {
 		t.Fatalf("video header = %q", VideoHeader)
 	}
 	row := VideoRow{RelPath: "a/b.mp4", FileName: "b.mp4", Status: StatusMoved, URL: "file:///v/a/b.mp4",
@@ -70,8 +70,9 @@ func TestPayloadRegistryColumnOrder(t *testing.T) {
 	if err := WriteVideoCSV(&b, []VideoRow{row}); err != nil {
 		t.Fatal(err)
 	}
-	wantCSV := strings.Join(VideoHeader[:VideoRegistryKeep], ",") + "\n" +
-		"a/b.mp4,b.mp4,moved,file:///v/a/b.mp4,a/b.mp4.md,7,abc,copy,r1,video/mp4,a/b-img01.png\n"
+	wantCSV := strings.Join(VideoHeader, ",") + "\n" +
+		"a/b.mp4,b.mp4,moved,file:///v/a/b.mp4,a/b.mp4.md,7,abc,copy,r1,video/mp4,a/b-img01.png" +
+		strings.Repeat(",", len(MetadataHeader)) + "\n"
 	if b.String() != wantCSV {
 		t.Fatalf("csv =\n%s\nwant\n%s", b.String(), wantCSV)
 	}

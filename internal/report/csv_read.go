@@ -21,8 +21,8 @@ func LoadRegistry(path string) ([]RegistryRow, error) {
 	return ReadRegistry(f)
 }
 
-// ReadRegistry parses a file registry from r. Metadata columns that were omitted because they
-// were empty in every row are treated as empty.
+// ReadRegistry parses a file registry from r. Metadata columns missing from a registry written by
+// an earlier build that omitted them are treated as empty.
 func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 	cr := csv.NewReader(r)
 	records, err := cr.ReadAll()
@@ -32,7 +32,7 @@ func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("file registry: empty file")
 	}
-	keep, err := checkRequiredHeader(records[0], RegistryHeader, FileRegistryKeep)
+	keep, err := checkRequiredHeader(records[0], RegistryHeader, FileRegistryRequired)
 	if err != nil {
 		return nil, fmt.Errorf("file registry: %w", err)
 	}

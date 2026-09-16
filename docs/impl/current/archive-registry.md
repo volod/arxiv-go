@@ -7,7 +7,8 @@ The flat CSV metadata layout was delivered in
 [0040](../records/0040-split-flatten-operator-csv-outputs.md); default ISO BMFF collection in
 [0041](../records/0041-metadata-collect-iso-metadata-by-default.md). `is_catia` and the current
 file-registry column order were added in
-[0043](../records/0043-catia-implement-catia-classification.md).
+[0043](../records/0043-catia-implement-catia-classification.md). Every registry keeps its full header
+since [0052](../records/0052-registry-stabilize-registry-columns.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -38,11 +39,12 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   files that cannot be opened or read get no row; each is logged once, counted in `skipped` by
   reason and listed in the report's `issues`. The required columns are `rel_path`, `file_name`,
   `file_type`, `file_size`, `is_large`, `file_mime`, `is_binary`, `is_media`, `is_picture`,
-  `is_video`, `is_catia`, then compactable metadata. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
+  `is_video`, `is_catia`, then the flat metadata columns. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
   and 3GP, flat `media_*` columns from the ISO BMFF parser (a parse failure sets `media_error`).
   `--metadata media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
-  and fills those columns for other audio/video files and ISO failures. A completed registry omits
-  metadata columns that are empty in every row ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)).
+  and fills those columns for other audio/video files and ISO failures
+  ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)). The registry always has the
+  full header, also on an empty archive ([full schema](#full-schema)).
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
@@ -171,9 +173,25 @@ and legacy Office documents). An AppleDouble sidecar keeps an empty `file_type`,
 extension in its name belongs to the file it describes
 ([0051](../records/0051-catia-review-stage-4-catia.md)).
 
-The set of columns a registry carries still depends on the archive's current content, because a
-column empty in every row is dropped: the same tree yields a 28-column file registry from
-`scan --metadata media` and a 12-column one from a `scan` after its videos moved out. A scan after
-`split` also drops the moved files' rows, lists descriptions and sidecars, and every scan detects
-every file again. [Registry stability](../../openspec/stage-1-core/registry.md#registry-stability)
-specifies the full schema, the preserved archive view and incremental updates; it is open work.
+## Full schema
+
+([0052](../records/0052-registry-stabilize-registry-columns.md);
+[spec](../../openspec/stage-1-core/registry.md#full-schema).) `arxgo-registry.csv`,
+`arxgo-videos.csv` and `arxgo-catia.csv` are written with every column their writer knows
+(`report.RegistryHeader`, `report.VideoHeader`, `report.CatiaHeader`), in contract order, on every
+run of `scan`, `split` and `restore`; a column empty in every row has empty cells. The scan no
+longer rewrites its part file after the walk, and no writer drops columns. The same tree therefore
+yields a byte-identical 40-column file-registry header from an empty archive, a video tree, the
+same tree after `split` and a CATIA tree, and a payload registry has the same header with or
+without `--verify hash`, previews and `--catia-text`.
+
+Readers still accept registries from earlier builds that omitted optional columns: the file and
+video registries require their leading columns (`report.FileRegistryRequired`, 11;
+`report.VideoRegistryRequired`, 11) and read any canonical-order subset of the metadata columns;
+the CATIA registry reads any canonical-order subset of columns 11-16. A missing column is empty,
+and the next write of that file has the full header.
+
+The file registry has no `location` column yet. A scan after `split` still drops the moved files'
+rows, lists descriptions and sidecars, and every scan detects every file again.
+[Registry stability](../../openspec/stage-1-core/registry.md#registry-stability) specifies the
+preserved archive view and incremental updates; they are open work.

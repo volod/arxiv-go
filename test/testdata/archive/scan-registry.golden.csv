@@ -1,28 +1,28 @@
-rel_path,file_name,file_type,file_size,is_large,file_mime,is_binary,is_media,is_picture,is_video,is_catia,mtime,link_target,media_source,media_container,media_has_audio,media_error
-" leading-space.txt"," leading-space.txt",txt,14,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-.hidden,.hidden,txt,12,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-a/b,b,txt,15,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-a-b/x,x,txt,17,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-"comma,name.txt","comma,name.txt",txt,6,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-deep/l1/l2/l3/l4/deep.mp4,deep.mp4,mp4,76,true,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,false,ISO BMFF parse failed: moov box missing
-deep/l1/l2/l3/l4/z-last.txt,z-last.txt,txt,10,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-deep/l1/l2/sibling.txt,sibling.txt,txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-empty.mp4,empty.mp4,,0,false,inode/x-empty,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-empty.txt,empty.txt,,0,false,inode/x-empty,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-lies/text-named.mp4,text-named.mp4,txt,26,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-lies/video-named.txt,video-named.txt,mp4,76,true,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,false,ISO BMFF parse failed: moov box missing
-links/notes-link,notes-link,symlink,0,false,,false,false,false,false,false,{{SYMLINK_MTIME}},../notes.txt?a=1&b=<2>,,,,
-media/Clip.MTS,Clip.MTS,mts,80,true,application/octet-stream,true,true,false,true,false,2024-05-01T10:22:03Z,,,,,
-media/audio-only.mp4,audio-only.mp4,mp4,32,false,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,false,ISO BMFF parse failed: moov box missing
-media/song.m4a,song.m4a,m4a,36,false,audio/x-m4a,true,true,false,false,false,2024-05-01T10:22:03Z,,go-mp4,m4a,false,ISO BMFF parse failed: moov box missing
-media/tape.dat,tape.dat,dat,60,false,application/octet-stream,true,true,false,true,false,2024-05-01T10:22:03Z,,,,,
-name with spaces.txt,name with spaces.txt,txt,7,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
+rel_path,file_name,file_type,file_size,is_large,file_mime,is_binary,is_media,is_picture,is_video,is_catia,mtime,link_target,media_source,media_container,media_duration_s,media_bit_rate,media_width,media_height,media_rotation,media_frame_rate,media_video_codec,media_audio_codec,media_has_audio,media_video_streams,media_audio_streams,media_subtitle_streams,media_creation_time,media_tag_title,media_tag_comment,media_tag_encoder,media_tag_artist,media_tag_album,media_tag_date,media_tag_genre,media_tag_composer,media_tag_grouping,media_tag_description,media_tag_copyright,media_error
+" leading-space.txt"," leading-space.txt",txt,14,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+.hidden,.hidden,txt,12,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+a/b,b,txt,15,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+a-b/x,x,txt,17,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"comma,name.txt","comma,name.txt",txt,6,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+deep/l1/l2/l3/l4/deep.mp4,deep.mp4,mp4,76,true,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,,,,,,,,,false,,,,,,,,,,,,,,,,ISO BMFF parse failed: moov box missing
+deep/l1/l2/l3/l4/z-last.txt,z-last.txt,txt,10,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+deep/l1/l2/sibling.txt,sibling.txt,txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+empty.mp4,empty.mp4,,0,false,inode/x-empty,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+empty.txt,empty.txt,,0,false,inode/x-empty,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+lies/text-named.mp4,text-named.mp4,txt,26,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+lies/video-named.txt,video-named.txt,mp4,76,true,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,,,,,,,,,false,,,,,,,,,,,,,,,,ISO BMFF parse failed: moov box missing
+links/notes-link,notes-link,symlink,0,false,,false,false,false,false,false,{{SYMLINK_MTIME}},../notes.txt?a=1&b=<2>,,,,,,,,,,,,,,,,,,,,,,,,,,,
+media/Clip.MTS,Clip.MTS,mts,80,true,application/octet-stream,true,true,false,true,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+media/audio-only.mp4,audio-only.mp4,mp4,32,false,video/mp4,true,true,false,true,false,2024-05-01T10:22:03Z,,go-mp4,mp4,,,,,,,,,false,,,,,,,,,,,,,,,,ISO BMFF parse failed: moov box missing
+media/song.m4a,song.m4a,m4a,36,false,audio/x-m4a,true,true,false,false,false,2024-05-01T10:22:03Z,,go-mp4,m4a,,,,,,,,,false,,,,,,,,,,,,,,,,ISO BMFF parse failed: moov box missing
+media/tape.dat,tape.dat,dat,60,false,application/octet-stream,true,true,false,true,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+name with spaces.txt,name with spaces.txt,txt,7,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 "new
 line.txt","new
-line.txt",txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-notes.txt,notes.txt,txt,17,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-"quote""name.txt","quote""name.txt",txt,6,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-size/at-threshold.bin,at-threshold.bin,bin,64,true,application/octet-stream,true,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-size/below-threshold.bin,below-threshold.bin,bin,63,false,application/octet-stream,true,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-sub/arxgo-registry.csv,arxgo-registry.csv,txt,28,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
-unicode-файл-é.txt,unicode-файл-é.txt,txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,
+line.txt",txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+notes.txt,notes.txt,txt,17,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"quote""name.txt","quote""name.txt",txt,6,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+size/at-threshold.bin,at-threshold.bin,bin,64,true,application/octet-stream,true,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+size/below-threshold.bin,below-threshold.bin,bin,63,false,application/octet-stream,true,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+sub/arxgo-registry.csv,arxgo-registry.csv,txt,28,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+unicode-файл-é.txt,unicode-файл-é.txt,txt,8,false,text/plain,false,false,false,false,false,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,

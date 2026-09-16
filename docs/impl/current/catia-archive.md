@@ -147,8 +147,10 @@ owned text sidecars after each commit and for earlier moved files that still lac
 - **Registry** (`report.CatiaHeader`, `CatiaRow`, `WriteCatiaCSV`, `LoadCatiaCSV`,
   `MergeCatiaRows`). `arxgo-catia.csv` in both roots: payload columns 1-10, then `text_rel_path`
   (last `text_done` for that `rel_path`, empty when none), `catia_kind`, `catia_format`,
-  `catia_release`, `catia_components`, `mtime`; columns 11-16 empty in every row are omitted and
-  readers accept any canonical-order subset. Rows replay CATIA runs only (`splitEvents`, shared
+  `catia_release`, `catia_components`, `mtime`; every column is always written and readers accept
+  any canonical-order subset from earlier builds
+  ([0052](../records/0052-registry-stabilize-registry-columns.md)). Rows replay CATIA runs only
+  (`splitEvents`, shared
   with video) with the video status rules; the summary comes from the `described` record, so
   regeneration never re-reads CATIA files; `mtime`, name, size and MIME are completed from the file
   registry; URLs follow the video rules with the CATIA archive as mirror. A corrupt registry stops

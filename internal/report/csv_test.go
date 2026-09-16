@@ -128,7 +128,7 @@ func TestFileRegistryHeaderOrder(t *testing.T) {
 		"rel_path", "file_name", "file_type", "file_size", "is_large", "file_mime",
 		"is_binary", "is_media", "is_picture", "is_video", "is_catia",
 	}
-	if got := RegistryHeader[:FileRegistryKeep]; !reflect.DeepEqual(got, want) {
+	if got := RegistryHeader[:FileRegistryRequired]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required header = %q, want %q", got, want)
 	}
 }
@@ -154,9 +154,6 @@ func TestRegistryRoundTripFlagsAndMetadata(t *testing.T) {
 		IsBinary: true, IsCatia: true, IsLarge: true, Metadata: meta,
 	}
 	if err := w.Write(row); err != nil || w.Close() != nil {
-		t.Fatal(err)
-	}
-	if err := DropEmptyCSVColumns(path, FileRegistryKeep); err != nil {
 		t.Fatal(err)
 	}
 	got, err := LoadRegistry(path)
