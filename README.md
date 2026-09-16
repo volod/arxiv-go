@@ -7,8 +7,8 @@ extract their accessible text into searchable Markdown sidecars. Runs can recove
 interruption. Every CSV it writes keeps the same full set of columns from run to run, so a
 spreadsheet, database or search index loads it with one schema. The file registry keeps a row for
 every moved file with its current `location` and is rewritten only when the archive really
-changed. Cloud publishing is not
-available in current builds.
+changed; a rescan opens only new or changed files (`--redetect` reads every file again). Cloud
+publishing is not available in current builds.
 
 ## Quick start
 

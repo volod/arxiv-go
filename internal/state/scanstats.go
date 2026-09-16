@@ -45,6 +45,8 @@ type ScanStats struct {
 	// Skipped counts entries without a row by reason (unreadable, special).
 	Skipped map[string]int64 `json:"skipped,omitempty"`
 
+	// Reused counts the present rows taken from the base registry without detection.
+	Reused int64 `json:"reused"`
 	// Preserved counts the rows of payload files split moved out of the archive; no other
 	// statistic counts them.
 	Preserved CountBytes `json:"preserved,omitzero"`
@@ -156,7 +158,8 @@ type ScanSummary struct {
 	Large    CountBytes       `json:"large"`
 	TopMIME  []MIMEBytes      `json:"top_mime"`
 	Skipped  map[string]int64 `json:"skipped,omitempty"`
-	// Preserved and Registry: see ScanStats.
+	// Reused, Preserved and Registry: see ScanStats.
+	Reused    int64      `json:"reused"`
 	Preserved CountBytes `json:"preserved"`
 	Registry  string     `json:"registry,omitempty"`
 	ElapsedS  float64    `json:"elapsed_s"`
@@ -171,6 +174,6 @@ func (s *ScanStats) Summary(elapsedS float64) *ScanSummary {
 		Files: s.Files, Dirs: s.Dirs, Symlinks: s.Symlinks, Bytes: s.Bytes,
 		Binary: s.Binary, Media: s.Media, Picture: s.Picture, Video: s.Video, Catia: s.Catia, Large: s.Large,
 		TopMIME: s.TopMIMEs(TopMIMECount), Skipped: maps.Clone(s.Skipped),
-		Preserved: s.Preserved, Registry: s.Registry, ElapsedS: elapsedS,
+		Reused: s.Reused, Preserved: s.Preserved, Registry: s.Registry, ElapsedS: elapsedS,
 	}
 }

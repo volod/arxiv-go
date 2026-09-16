@@ -33,7 +33,7 @@ const (
 // preparePreserved resolves a row for every moved file after the resume cursor that --exclude does
 // not cover, from the first source that has one: the stamped base registry, detection of the mirror
 // copy, any base registry, then the replayed payload registry.
-func (r *scanRun) preparePreserved(ctx context.Context, view *archiveView) error {
+func (r *scanRun) preparePreserved(ctx context.Context, view *archiveView, base *registryBase) error {
 	rels := make([]string, 0, len(view.moved))
 	for rel := range view.moved {
 		if scanner.Compare(scanner.KeyOf(rel), r.start) > 0 && !r.excludedRel(rel) {
@@ -45,7 +45,10 @@ func (r *scanRun) preparePreserved(ctx context.Context, view *archiveView) error
 		return nil
 	}
 	slices.SortFunc(rels, func(a, b string) int { return scanner.Compare(scanner.KeyOf(a), scanner.KeyOf(b)) })
-	base := loadRegistryBase(r.s, r.cfg)
+	var baseRows map[string]report.RegistryRow
+	if base != nil {
+		baseRows = base.rowsFor(r.s, func(rel string) bool { _, ok := view.moved[rel]; return ok })
+	}
 	rows := make([]preservedRow, len(rels))
 	pending := make(chan int)
 	var wg sync.WaitGroup
@@ -53,7 +56,7 @@ func (r *scanRun) preparePreserved(ctx context.Context, view *archiveView) error
 		wg.Go(func() {
 			for i := range pending {
 				rows[i].key = scanner.KeyOf(rels[i])
-				rows[i].row, _ = r.preservedFromBase(base, rels[i], view.moved[rels[i]], true)
+				rows[i].row, _ = r.preservedFromBase(base, baseRows, rels[i], view.moved[rels[i]], true)
 				if rows[i].row.RelPath == "" && ctx.Err() == nil {
 					rows[i].row, _ = r.preservedFromMirror(ctx, rels[i], view.moved[rels[i]])
 				}
@@ -74,7 +77,7 @@ func (r *scanRun) preparePreserved(ctx context.Context, view *archiveView) error
 			continue
 		}
 		rel, m := rels[i], view.moved[rels[i]]
-		if row, ok := r.preservedFromBase(base, rel, m, false); ok {
+		if row, ok := r.preservedFromBase(base, baseRows, rel, m, false); ok {
 			r.s.Log.Warn("moved file keeps its row from the existing registry; its mirror copy could not be read",
 				"warning", warnRowKept, "rel_path", rel, "mirror", m.mirror)
 			rows[i].row = row
@@ -105,19 +108,16 @@ func (r *scanRun) excludedRel(rel string) bool {
 	return scanner.Reserved(rel)
 }
 
-// preservedFromBase takes the base row of rel; stamped limits it to a stamped base.
-func (r *scanRun) preservedFromBase(base *registryBase, rel string, m movedFile, stamped bool) (report.RegistryRow, bool) {
-	if base == nil || (stamped && !base.stamped) {
+// preservedFromBase takes the base row of rel; reusable limits it to a reusable base.
+func (r *scanRun) preservedFromBase(base *registryBase, rows map[string]report.RegistryRow, rel string, m movedFile, reusable bool) (report.RegistryRow, bool) {
+	if base == nil || (reusable && !base.reusable) {
 		return report.RegistryRow{}, false
 	}
-	row, ok := base.rows[rel]
+	row, ok := rows[rel]
 	if !ok {
 		return report.RegistryRow{}, false
 	}
-	row.IsLarge = r.detect.LargeThreshold > 0 && row.FileSize >= r.detect.LargeThreshold
-	row.IsCatia = scanner.IsCatiaName(row.FileName)
-	row.Location = locationOf(m.kind)
-	return row, true
+	return r.baseRow(row, locationOf(m.kind)), true
 }
 
 // preservedFromMirror detects the mirror copy, which has the moved file's content, name, size and

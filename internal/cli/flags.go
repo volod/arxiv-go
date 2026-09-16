@@ -21,6 +21,7 @@ type settings struct {
 	registry, metadata                       string
 	exclude                                  []string
 	followSymlinks                           bool
+	redetect                                 bool
 	transfer, verify, descriptions, previews string
 	baseURL, videoExtensions                 string
 	createDirs, overwrite, registryUpdate    bool
@@ -138,7 +139,7 @@ func stringField(s *settings, name string) *string {
 func boolField(s *settings, name string) *bool {
 	fields := map[string]*bool{
 		"dry-run": &s.dryRun, "new-run": &s.newRun, "force-unlock": &s.forceUnlock,
-		"follow-symlinks": &s.followSymlinks, "create-dirs": &s.createDirs,
+		"follow-symlinks": &s.followSymlinks, "redetect": &s.redetect, "create-dirs": &s.createDirs,
 		"overwrite": &s.overwrite, "registry-update": &s.registryUpdate,
 		"video": &s.video, "catia": &s.catia, "catia-text": &s.catiaText,
 	}

@@ -26,38 +26,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Archive registry -- `archive-registry`
-
-#### reuse-registry-detection
-
-Every scan and every split opens and parses each file again even when a registry of the same tree
-was just written, so a rerun on a large archive spends its time re-reading unchanged content.
-
-- Serves: `archive-registry` -- [Incremental update](../openspec/stage-1-core/registry.md#incremental-update)
-- Agent status: CLEAR
-- Dependencies: [Preserved archive registry](records/0053-registry-preserve-archive-registry.md).
-- User-visible outcome: A scan or split after an earlier registry of the archive opens only new or
-  changed files, and its registry is byte-identical to one written with `--redetect`.
-- Scope boundary: The reuse rule (stamp match, detection settings, entry kind and link text, size,
-  mtime second, modification before the base scan start), `is_large`/`is_catia` recomputation,
-  `--redetect`, the `reused` statistic, `registry_base` in the checkpoint with restart on a changed
-  base, and one metadata collection per split run. No content hashing for reuse, no change to
-  detection rules.
-- Data and artifact paths: `internal/archive/scan.go`, `internal/archive/scan_pipeline.go`,
-  `internal/archive/resume.go`, `internal/archive/split_description.go`, `internal/state/`,
-  `internal/cli/`, `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
-- Execution path: A counting detector injected into the scan pipeline over scan-scan, scan-add-split,
-  a same-size change with its mtime set inside and before the base scan start second, a future
-  mtime, a changed `--metadata` and version, `--large-threshold` change, and a resumed scan whose
-  base was replaced between processes.
-- Acceptance gates: A second scan of an unchanged tree opens no file for detection and writes only
-  the stamp; after every fixture change the registry equals the `--redetect` registry byte for byte;
-  a same-size change not earlier than the base scan start second, a future mtime and a changed
-  detection setting are detected; a changed base restarts a resumed scan; split opens no file for
-  metadata its scan registered; `make ci` passes.
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
 ### CATIA archive -- `catia-archive`
 
 #### record-source-location-in-metadata
@@ -117,7 +85,9 @@ Review registry schema stability and the metadata a detached reader sees before 
 - Agent status: CLEAR
 - Task kind: checkpoint
 - Dependencies: [Registry full schema](records/0052-registry-stabilize-registry-columns.md);
-  [Preserved archive registry](records/0053-registry-preserve-archive-registry.md); `reuse-registry-detection`; `record-source-location-in-metadata`; `implement-catia-text-index`.
+  [Preserved archive registry](records/0053-registry-preserve-archive-registry.md);
+  [Registry detection reuse](records/0054-registry-reuse-registry-detection.md);
+  `record-source-location-in-metadata`; `implement-catia-text-index`.
 - User-visible outcome: Registry schemas and metadata documents are coherent across commands and
   payloads, and stage 3 can start without reopening them.
 - Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact

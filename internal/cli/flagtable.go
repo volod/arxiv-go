@@ -34,6 +34,7 @@ var flagTable = []flagDef{
 	{name: "exclude", ops: scanSplitOps, group: groupScan, arg: "GLOB", usage: "Relative-path glob excluded from traversal (repeatable; ** for any depth)", bind: func(fs *flag.FlagSet, s *settings, name, usage string) {
 		fs.Var(&listValue{target: &s.exclude}, name, usage)
 	}},
+	{name: "redetect", ops: scanSplitOps, group: groupScan, usage: "Detect every present file instead of reusing unchanged rows of the previous registry", bind: boolean(false)},
 	{name: "follow-symlinks", ops: scanSplitOps, group: groupScan, usage: "Reserved; symlinks are recorded but never followed by scan", bind: boolean(false)},
 
 	// Split flags.

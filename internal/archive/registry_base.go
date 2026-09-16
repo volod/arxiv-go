@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/report"
@@ -19,36 +21,87 @@ import (
 	"github.com/volod/arxiv-go/internal/state"
 )
 
-// registryBase is the file registry at the scan's target path, read before the scan replaces it.
+// registryBase is the file registry at the scan's target path, opened before the scan replaces it.
+// Its rows are read on demand: by rel_path for preserved rows, and as a stream in walk order next
+// to the walk for present entries.
 type registryBase struct {
-	rows map[string]report.RegistryRow
-	// stamped: the registry stamp names this path with this size and SHA-256 and the run detects
-	// with the stamp's settings, so its rows are the values detection would write.
+	path string
+	f    *os.File
+	size int64
+	id   state.FileID
+	// stamped: the registry stamp names this path with this size and SHA-256, so the file is the
+	// base of docs/openspec/stage-1-core/registry.md#incremental-update.
 	stamped bool
+	// reusable: stamped, detected with the run's settings and --redetect not given, so its rows are
+	// the values detection would write for an unchanged file.
+	reusable bool
+	// scanStarted is the stamp's scan_started_at: only files last modified before it are reused.
+	scanStarted time.Time
 }
 
-// loadRegistryBase reads the registry at c.Registry and checks it against the archive's stamp. A
-// missing or unreadable registry is no base.
-func loadRegistryBase(s *Session, c ScanConfig) *registryBase {
-	data, err := os.ReadFile(c.Registry)
+// openRegistryBase opens the registry at c.Registry, hashes it and checks it against the archive's
+// stamp. A missing or unreadable registry is no base (nil).
+func openRegistryBase(s *Session, c ScanConfig) *registryBase {
+	f, err := os.Open(c.Registry)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			s.Log.Warn("existing file registry unreadable; not reusing its rows", "registry", c.Registry, "error", err)
 		}
 		return nil
 	}
-	rows, err := report.ReadRegistry(bytes.NewReader(data))
+	h := sha256.New()
+	n, err := io.Copy(h, f)
 	if err != nil {
-		s.Log.Warn("existing file registry cannot be parsed; not reusing its rows", "registry", c.Registry, "error", err)
+		_ = f.Close()
+		s.Log.Warn("existing file registry unreadable; not reusing its rows", "registry", c.Registry, "error", err)
 		return nil
 	}
-	b := &registryBase{rows: report.RegistryByPath(rows)}
+	b := &registryBase{path: c.Registry, f: f, size: n, id: state.FileID{Size: n, SHA256: hex.EncodeToString(h.Sum(nil))}}
 	if st, ok := state.ReadRegistryStamp(s.cfg.Archive); ok {
-		sum := sha256.Sum256(data)
-		b.stamped = sameFilePath(st.Registry, c.Registry) && st.Size == int64(len(data)) &&
-			st.SHA256 == hex.EncodeToString(sum[:]) && st.Detect.Equal(detectSettings(s, c))
+		b.stamped = sameFilePath(st.Registry, c.Registry) && st.Size == b.id.Size && st.SHA256 == b.id.SHA256
+		b.reusable = b.stamped && !c.Redetect && st.Detect.Equal(detectSettings(s, c))
+		b.scanStarted = st.ScanStartedAt.UTC().Truncate(time.Second)
 	}
 	return b
+}
+
+// baseID is the identity a checkpoint records for the base: nil without a stamped base.
+func (b *registryBase) baseID() *state.FileID {
+	if b == nil || !b.stamped {
+		return nil
+	}
+	id := b.id
+	return &id
+}
+
+// reader streams the base rows from the start of the file.
+func (b *registryBase) reader() (*report.RegistryReader, error) {
+	return report.NewRegistryReader(bufio.NewReaderSize(io.NewSectionReader(b.f, 0, b.size), 1<<20))
+}
+
+// rowsFor reads the base rows whose rel_path want selects. A registry that cannot be parsed yields
+// none, with a warning.
+func (b *registryBase) rowsFor(s *Session, want func(rel string) bool) map[string]report.RegistryRow {
+	out := map[string]report.RegistryRow{}
+	rr, err := b.reader()
+	for err == nil {
+		var row report.RegistryRow
+		if row, err = rr.Next(); err == nil && want(row.RelPath) {
+			out[row.RelPath] = row
+		}
+	}
+	if err != io.EOF {
+		s.Log.Warn("existing file registry cannot be parsed; not reusing its rows", "registry", b.path, "error", err)
+		return map[string]report.RegistryRow{}
+	}
+	return out
+}
+
+func (b *registryBase) close() error {
+	if b == nil {
+		return nil
+	}
+	return b.f.Close()
 }
 
 func sameFilePath(a, b string) bool { return filepath.Clean(a) == filepath.Clean(b) }

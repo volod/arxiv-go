@@ -72,6 +72,9 @@ type ScanSettings struct {
 	// VideoExtensions are extra extensions (lower case, with a leading dot) that mark a file with
 	// an ambiguous signature as video.
 	VideoExtensions []string
+	// Redetect detects every present file instead of reusing unchanged base registry rows. Omitted
+	// from options.json when false, so runs of earlier builds keep their definition.
+	Redetect bool `json:",omitempty"`
 }
 
 // ScanOptions configures the scan operation.
@@ -157,7 +160,7 @@ func buildCommon(op string, s *settings, fsys rootFS, v *validator) (Common, boo
 }
 
 func buildScan(s *settings, archive string, fsys rootFS, v *validator) ScanSettings {
-	sc := ScanSettings{LargeThreshold: s.largeThreshold, Metadata: s.metadata, Exclude: s.exclude}
+	sc := ScanSettings{LargeThreshold: s.largeThreshold, Metadata: s.metadata, Exclude: s.exclude, Redetect: s.redetect}
 	if sc.LargeThreshold <= 0 {
 		v.addf("--large-threshold must be positive")
 	}

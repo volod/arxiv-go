@@ -10,7 +10,8 @@ file-registry column order were added in
 [0043](../records/0043-catia-implement-catia-classification.md). Every registry keeps its full header
 since [0052](../records/0052-registry-stabilize-registry-columns.md); the preserved archive view,
 `location`, the registry stamp and unchanged-file rule since
-[0053](../records/0053-registry-preserve-archive-registry.md).
+[0053](../records/0053-registry-preserve-archive-registry.md); reuse of unchanged rows and
+`--redetect` since [0054](../records/0054-registry-reuse-registry-detection.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -254,5 +255,45 @@ modification time. Deleting the registry and stamp rebuilt it byte-identically. 
 added one row. Both restores set `location` back to `archive`, and the scans after them left the
 registry untouched.
 
-Still open: rows of unchanged present files are detected again on every scan; reuse of the base
-registry is `reuse-registry-detection`.
+## Incremental update
+
+([0054](../records/0054-registry-reuse-registry-detection.md);
+[spec](../../openspec/stage-1-core/registry.md#incremental-update).) Every scan still walks the
+whole tree, but it opens a file for detection only when its row in the previous registry cannot be
+reused.
+
+- **Base** (`registry_base.go`): each archive scan opens the registry at the target path, hashes
+  it and compares it with `.arxgo/registry.json`. The file is the base when the stamp names it with
+  that size and SHA-256. Its rows are reusable when the stamp's version, `--metadata` mode and
+  effective video extension list also equal the run's and `--redetect` is not given. The file stays
+  open during the scan and is closed before the new registry is placed.
+- **Rule** (`scan_reuse.go`): the base is read row by row in walk order next to the walker, so memory
+  does not grow with the registry. A present regular file takes its base row when the row has
+  `location` `archive`, is not a symlink row, and has the same `file_size` and `mtime` (to the
+  second), and the file's mtime truncated to the second is earlier than the stamp's
+  `scan_started_at`. Such a file is never opened: no signature read, no ISO BMFF parse, no
+  ffprobe. `is_large` and `is_catia` are recomputed. A symlink always has its link text read and
+  counts as reused when the text and mtime match. A future mtime, a change in the base scan start
+  second, a changed size, a changed setting and a file at the path of a moved file are detected. A
+  base row out of walk order or unparseable ends reuse for the rest of the scan with a warning.
+- **Limit**: a same-size change that keeps the old modification time is not seen; `arxgo scan
+  --redetect` (or `split --redetect`) detects every present file and every mirror copy and rewrites
+  the rows. Permissions are not checked either: a file that became unreadable keeps its row until
+  a detection (routed as `AUD-reuse-registry-detection-1`).
+- **Resume**: a fresh scan stores `registry_base` (`{size, sha256}` of a stamped base) together
+  with a reset cursor, offsets and statistics. A resumed scan whose base now has another identity
+  (deleted, edited, replaced) logs `base registry changed since the checkpoint; scanning again from
+  the start` and restarts, keeping the first process's `started_at`.
+- **Statistics**: `reused` counts present rows taken from the base, in the `scan summary` line, the
+  checkpoint and the report.
+- **Split** (`split.go`): after its scan, split reads the scan's registry once. Preview planning,
+  `arxgo-videos.csv`, `arxgo-catia.csv` and the description writer take `file_mime` and media values
+  from those rows. A description writer that read the registry during recovery before the scan gets
+  the scan's rows. Split still probes a video whose row has no usable media values when it plans
+  previews.
+- `report.RegistryReader` streams a registry; `ReadRegistry` uses it.
+
+Evidence through the built binary on 20,000 random files and 3 generated clips (openat traced):
+the second scan opened no archive file and reported `reused` 20003. A split after adding a clip
+opened only that clip. The scan after the split opened nothing and left the registry
+byte-identical, and `--redetect` wrote the same bytes after opening every file.

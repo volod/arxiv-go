@@ -38,6 +38,8 @@ type ScanConfig struct {
 	// Preflight runs the scan free-space preflight before traversal (the scan operation). Split
 	// and restore run their own preflight after the scan.
 	Preflight bool
+	// Redetect detects every present file instead of reusing unchanged rows of the base registry.
+	Redetect bool
 	// Workers is the number of concurrent detections; zero picks a default. Window bounds the
 	// entries between the walker and the writer; zero picks a default.
 	Workers int
@@ -45,6 +47,9 @@ type ScanConfig struct {
 
 	// mirror marks restore's scan of a mirror root: no archive view, no preserved rows, no stamp.
 	mirror bool
+
+	// detectFile replaces scanner.Detect; a test hook that counts the files opened for detection.
+	detectFile func(path string, size int64, opts scanner.DetectOptions) (scanner.FileType, error)
 
 	// afterEntry is a test hook called after each written entry with the count written by this
 	// process. An error simulates a crash: the scan stops without making buffered output durable.
@@ -91,33 +96,36 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 		}
 	}
 	var view *archiveView
+	var base *registryBase
 	if !c.mirror {
 		var err error
 		if view, err = loadArchiveView(s.cfg.Archive); err != nil {
 			return nil, err
 		}
 		c.SkipPaths = append(slices.Clone(c.SkipPaths), view.owned...)
+		base = openRegistryBase(s, c)
 	}
-	run, err := openScan(s, c, cp)
+	run, err := openScan(s, c, cp, base)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, base.close())
 	}
+	// The base is closed before placement: Windows cannot replace a file that is still open.
 	if err := s.Phase(PhaseScan, Totals{}); err != nil {
-		_ = run.close()
-		return nil, err
+		return nil, errors.Join(err, run.close(), base.close())
 	}
 	if view != nil {
-		if err := run.preparePreserved(ctx, view); err != nil {
-			return nil, errors.Join(err, run.close())
+		if err := run.preparePreserved(ctx, view, base); err != nil {
+			return nil, errors.Join(err, run.close(), base.close())
 		}
 	}
+	run.reuse = newBaseStream(run, base)
 	if err := run.pipeline(ctx); err != nil {
 		if run.healthy {
 			err = errors.Join(err, run.sync())
 		}
-		return nil, errors.Join(err, run.close())
+		return nil, errors.Join(err, run.close(), base.close())
 	}
-	if err := errors.Join(run.sync(), run.close()); err != nil {
+	if err := errors.Join(run.sync(), run.close(), base.close()); err != nil {
 		return nil, err
 	}
 	if !s.cfg.DryRun {
@@ -160,6 +168,7 @@ type scanRun struct {
 	detect    scanner.DetectOptions
 	globs     []scanner.Glob  // compiled --exclude, applied to preserved rows
 	preserved *preservedQueue // preserved rows after the resume cursor; nil for a mirror scan
+	reuse     *baseStream     // rows of a reusable base registry; nil detects every file
 	reg       *report.RegistryWriter
 	cand      *candidateWriter
 	stats     *state.ScanStats
@@ -170,7 +179,7 @@ type scanRun struct {
 
 // openScan opens the outputs: after the checkpointed offsets when the run resumes with intact part
 // files, otherwise from scratch with the header.
-func openScan(s *Session, c ScanConfig, cp state.Checkpoint) (*scanRun, error) {
+func openScan(s *Session, c ScanConfig, cp state.Checkpoint, base *registryBase) (*scanRun, error) {
 	r := &scanRun{
 		s: s, cfg: c, part: fsops.PartPath(c.Registry), healthy: true,
 		detect: scanner.NewDetectOptions(c.LargeThreshold, c.VideoExtensions),
@@ -183,7 +192,12 @@ func openScan(s *Session, c ScanConfig, cp state.Checkpoint) (*scanRun, error) {
 		r.globs = append(r.globs, g)
 	}
 	candPath := s.Run.File(state.CandidatesFile)
-	if cp.Scan != nil && cp.RegistryOffset > 0 && !s.cfg.DryRun {
+	baseID := base.baseID()
+	if cp.Scan != nil && cp.RegistryOffset > 0 && !s.cfg.DryRun && !state.SameFileID(cp.RegistryBase, baseID) {
+		// Rows written so far may come from the earlier base; only a scan from the start writes
+		// the registry the new base yields.
+		s.Log.Warn("base registry changed since the checkpoint; scanning again from the start", "registry", c.Registry)
+	} else if cp.Scan != nil && cp.RegistryOffset > 0 && !s.cfg.DryRun {
 		err := r.resume(candPath, cp)
 		if err == nil {
 			return r, nil
@@ -207,6 +221,12 @@ func openScan(s *Session, c ScanConfig, cp state.Checkpoint) (*scanRun, error) {
 	if cp.Scan != nil && !cp.Scan.StartedAt.IsZero() {
 		r.stats.StartedAt = cp.Scan.StartedAt // the scan of an earlier process of this run
 	}
+	// A checkpoint written before the first sync must not pair this scan's base with the cursor
+	// and offsets of an earlier scan.
+	stats := r.stats.Clone()
+	s.Update(func(cp *state.Checkpoint) {
+		cp.RegistryBase, cp.ScanCursor, cp.RegistryOffset, cp.CandidatesOffset, cp.Scan = baseID, nil, 0, 0, stats
+	})
 	s.Stats.Files.Store(0)
 	s.Stats.Bytes.Store(0)
 	return r, nil
@@ -291,7 +311,7 @@ func (s *Session) summarizeScan(st *state.ScanStats) {
 		"bytes", FormatBytes(sum.Bytes), "binary", flag(sum.Binary), "media", flag(sum.Media),
 		"picture", flag(sum.Picture), "video", flag(sum.Video), "catia", flag(sum.Catia), "large", flag(sum.Large),
 		"skipped", st.SkippedTotal(), "skipped_unreadable", st.Skipped[scanner.ReasonUnreadable],
-		"skipped_special", st.Skipped[scanner.ReasonSpecial], "preserved", flag(sum.Preserved),
+		"skipped_special", st.Skipped[scanner.ReasonSpecial], "reused", sum.Reused, "preserved", flag(sum.Preserved),
 		"registry", sum.Registry, "top_mime", strings.Join(top, " "),
 		"elapsed", FormatDuration(secondsDuration(sum.ElapsedS)))
 	s.SetScanSummary(sum)

@@ -16,7 +16,7 @@ linked here in the same change.
 | [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options and run the lock/checkpoint session |
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery (including a run that a new run replaces), disk-space preflight | Shipped; session used by scan, split and restore |
 | [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
-| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped; default scan fills ISO BMFF media columns; every registry keeps its full header ([0052](records/0052-registry-stabilize-registry-columns.md)); moved files keep rows with `location`, owned artifacts have none, unchanged registries stay untouched ([0053](records/0053-registry-preserve-archive-registry.md)); detection reuse remains |
+| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped; default scan fills ISO BMFF media columns; every registry keeps its full header ([0052](records/0052-registry-stabilize-registry-columns.md)); moved files keep rows with `location`, owned artifacts have none, unchanged registries stay untouched ([0053](records/0053-registry-preserve-archive-registry.md)); unchanged files are not opened again, `--redetect` forces detection ([0054](records/0054-registry-reuse-registry-detection.md)) |
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, video descriptions and `arxgo-videos.csv` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, description and registry policies; crash recovery; the stage-1 end-to-end proof | Shipped; stage-1 checkpoint, generated-archive proof and operator archive-copy trial accepted |
 | [Media previews](current/media-previews.md) | ffmpeg runner, planning, sample and PNG encoding, split/restore WAL integration, registry/description links, release bundles | Shipped; stage-2 checkpoint accepted after repairs, including a split/restore round trip on real archive footage |
@@ -25,6 +25,8 @@ linked here in the same change.
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; default `--metadata file` fills ISO BMFF `media_*` columns for MP4, MOV, M4A, M4V and 3GP
 without ffprobe; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).
+A rescan or split opens only files that are new or changed since the last registry
+([0054](records/0054-registry-reuse-registry-detection.md)).
 `split` moves videos transactionally, writes video descriptions, optionally generates sample clips and
 PNG frames with FFmpeg, and regenerates `arxgo-videos.csv` in both roots.
 `restore` returns videos from the video archive and can delete their recorded previews. `make dist`

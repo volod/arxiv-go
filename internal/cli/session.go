@@ -110,7 +110,7 @@ func recovererFor(op string, payload archive.PayloadKind, raw json.RawMessage) (
 func scanConfig(root string, sc ScanSettings, probePath string, preflight bool) archive.ScanConfig {
 	return archive.ScanConfig{
 		Root: root, Registry: sc.Registry, Metadata: sc.Metadata, FFprobePath: probePath, LargeThreshold: int64(sc.LargeThreshold),
-		VideoExtensions: sc.VideoExtensions, Exclude: sc.Exclude, Preflight: preflight,
+		VideoExtensions: sc.VideoExtensions, Exclude: sc.Exclude, Preflight: preflight, Redetect: sc.Redetect,
 	}
 }
 

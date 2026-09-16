@@ -20,8 +20,9 @@ type scanItem struct {
 	ft    scanner.FileType
 	media *media.MediaInfo
 	link  string
-	err   error         // detection or readlink error
-	done  chan struct{} // closed when detection finished; nil when the entry needs none
+	base  *report.RegistryRow // base registry row that may be reused instead of detection
+	err   error               // detection or readlink error
+	done  chan struct{}       // closed when detection finished; nil when the entry needs none
 }
 
 // pipeline walks the root in order, detects file types on a bounded worker pool and writes rows in
@@ -57,11 +58,15 @@ func (r *scanRun) pipeline(ctx context.Context) error {
 	}, func(e scanner.Entry) error {
 		it := &scanItem{e: e}
 		if e.Err == nil && (e.Kind == scanner.KindFile || e.Kind == scanner.KindSymlink) {
-			it.done = make(chan struct{})
-			select {
-			case jobs <- it:
-			case <-wctx.Done():
-				return context.Cause(wctx)
+			it.base, _ = r.reuse.at(e)
+			// A reused regular file is never opened; a symlink's link text is always read.
+			if it.base == nil || e.Kind == scanner.KindSymlink {
+				it.done = make(chan struct{})
+				select {
+				case jobs <- it:
+				case <-wctx.Done():
+					return context.Cause(wctx)
+				}
 			}
 		}
 		select {
@@ -103,7 +108,11 @@ func (r *scanRun) inspect(ctx context.Context, it *scanItem) {
 	}
 	switch it.e.Kind {
 	case scanner.KindFile:
-		it.ft, it.err = scanner.Detect(it.e.Path, it.e.Info.Size(), r.detect)
+		detect := scanner.Detect
+		if r.cfg.detectFile != nil {
+			detect = r.cfg.detectFile
+		}
+		it.ft, it.err = detect(it.e.Path, it.e.Info.Size(), r.detect)
 		if it.err == nil && it.ft.IsMedia && !it.ft.IsPicture {
 			it.media = r.readMedia(ctx, it.e.Path, it.ft.MIME)
 		}
@@ -169,6 +178,9 @@ func (r *scanRun) write(it *scanItem) error {
 		}
 		meta := report.FileMetadata(e.Info.ModTime())
 		meta.LinkTarget = it.link
+		if it.base != nil && it.err == nil && it.link == it.base.Metadata.LinkTarget {
+			st.Reused++
+		}
 		st.Symlinks++
 		r.s.Stats.Files.Add(1)
 		return r.reg.Write(report.RegistryRow{RelPath: e.Rel, FileName: path.Base(e.Rel), FileType: "symlink", Metadata: meta})
@@ -177,7 +189,15 @@ func (r *scanRun) write(it *scanItem) error {
 		r.skip(e.Rel, scanner.ReasonUnreadable, it.err.Error())
 		return nil
 	}
-	row := r.fileRow(it)
+	var row report.RegistryRow
+	ft := it.ft
+	if it.base != nil {
+		row, st.Reused = r.baseRow(*it.base, report.LocationArchive), st.Reused+1
+		ft = rowFileType(row)
+	} else {
+		row = r.fileRow(it)
+		ft.IsVideo = row.IsVideo
+	}
 	st.AddFile(row.FileSize, row.FileMIME, state.FileFlags{Binary: row.IsBinary, Media: row.IsMedia, Picture: row.IsPicture,
 		Video: row.IsVideo, Catia: row.IsCatia, Large: row.IsLarge})
 	r.s.Stats.Files.Add(1)
@@ -185,8 +205,6 @@ func (r *scanRun) write(it *scanItem) error {
 	if err := r.reg.Write(row); err != nil {
 		return err
 	}
-	ft := it.ft
-	ft.IsVideo = row.IsVideo
 	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
 		return nil
 	}

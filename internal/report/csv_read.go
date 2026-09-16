@@ -24,31 +24,67 @@ func LoadRegistry(path string) ([]RegistryRow, error) {
 // ReadRegistry parses a file registry from r. Metadata columns missing from a registry written by
 // an earlier build that omitted them are treated as empty; a missing location is LocationArchive.
 func ReadRegistry(r io.Reader) ([]RegistryRow, error) {
-	cr := csv.NewReader(r)
-	records, err := cr.ReadAll()
+	rr, err := NewRegistryReader(r)
 	if err != nil {
 		return nil, err
 	}
-	if len(records) == 0 {
+	out := []RegistryRow{} // non-nil: LoadRegistry returns nil only for a missing file
+	for {
+		row, err := rr.Next()
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+}
+
+// RegistryReader streams the rows of a file registry in file order, so a scan can follow an earlier
+// registry alongside its walk without holding every row.
+type RegistryReader struct {
+	cr     *csv.Reader
+	header []string
+	keep   int
+	line   int
+}
+
+// NewRegistryReader reads and checks the header of the file registry in r.
+func NewRegistryReader(r io.Reader) (*RegistryReader, error) {
+	cr := csv.NewReader(r)
+	cr.FieldsPerRecord = -1
+	cr.ReuseRecord = true
+	header, err := cr.Read()
+	if err == io.EOF {
 		return nil, fmt.Errorf("file registry: empty file")
 	}
-	header := records[0]
+	if err != nil {
+		return nil, err
+	}
+	header = append([]string(nil), header...)
 	keep, err := registryColumns(header)
 	if err != nil {
 		return nil, fmt.Errorf("file registry: %w", err)
 	}
-	out := make([]RegistryRow, 0, len(records)-1)
-	for i, rec := range records[1:] {
-		if len(rec) != len(header) {
-			return nil, fmt.Errorf("file registry: row %d: got %d fields, want %d", i+2, len(rec), len(header))
-		}
-		row, err := parseRegistryRow(rec, header, keep)
-		if err != nil {
-			return nil, fmt.Errorf("file registry: row %d: %w", i+2, err)
-		}
-		out = append(out, row)
+	return &RegistryReader{cr: cr, header: header, keep: keep, line: 1}, nil
+}
+
+// Next returns the next row, or io.EOF after the last one.
+func (r *RegistryReader) Next() (RegistryRow, error) {
+	rec, err := r.cr.Read()
+	if err != nil {
+		return RegistryRow{}, err
 	}
-	return out, nil
+	r.line++
+	if len(rec) != len(r.header) {
+		return RegistryRow{}, fmt.Errorf("file registry: row %d: got %d fields, want %d", r.line, len(rec), len(r.header))
+	}
+	row, err := parseRegistryRow(rec, r.header, r.keep)
+	if err != nil {
+		return RegistryRow{}, fmt.Errorf("file registry: row %d: %w", r.line, err)
+	}
+	return row, nil
 }
 
 // registryColumns checks a file-registry header and returns the index of its first metadata column:

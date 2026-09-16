@@ -199,6 +199,8 @@ and preserved rows use the later sources. A base row of a present entry is reuse
 - the stamp's detection settings equal the run's: arxgo version, `--metadata` mode and the effective
   video extension list;
 - `--redetect` is not given;
+- the base row's `location` is `archive` (a file present at the path of a moved file is detected,
+  because a preserved row may have been reconstructed);
 - the entry kind is the same (regular file or symlink), and a symlink's link text is unchanged;
 - `file_size` is equal and `mtime` is equal at second precision;
 - the file's modification time, truncated to the second, is earlier than the stamp's

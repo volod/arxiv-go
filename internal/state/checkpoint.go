@@ -71,9 +71,26 @@ type Checkpoint struct {
 	WALOffset        int64    `json:"wal_offset"`
 	Counters         Counters `json:"counters"`
 	ElapsedS         float64  `json:"elapsed_s"`
+	// RegistryBase identifies the base registry the scan reuses rows from; nil without a base. A
+	// resumed scan whose base no longer matches starts again from the beginning.
+	RegistryBase *FileID `json:"registry_base,omitempty"`
 	// Scan holds the scan statistics matching ScanCursor and the offsets; nil before the scan.
 	Scan      *ScanStats `json:"scan,omitempty"`
 	WrittenAt time.Time  `json:"written_at"`
+}
+
+// FileID identifies the content of a file by its size and SHA-256.
+type FileID struct {
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// SameFileID reports whether a and b identify the same content; two nil identities are the same.
+func SameFileID(a, b *FileID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // ErrNoCheckpoint reports that a run has not written a checkpoint yet.

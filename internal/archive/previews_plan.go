@@ -29,9 +29,8 @@ func planSplitPreviews(ctx context.Context, s *Session, c SplitConfig, idx *prev
 	if !c.Preview.Enabled() {
 		return nil, 0, nil
 	}
-	fileRows, err := report.LoadRegistry(c.Scan.Registry)
-	if err != nil {
-		return nil, 0, err
+	if c.scanRowsErr != nil {
+		return nil, 0, c.scanRowsErr
 	}
 	known := map[string]*media.MediaInfo{}
 	sources := map[string]string{} // video -> current file to probe
@@ -44,13 +43,13 @@ func planSplitPreviews(ctx context.Context, s *Session, c SplitConfig, idx *prev
 		}
 	}
 	mimes := map[string]string{}
-	for _, row := range fileRows {
+	for _, row := range c.scanRows {
 		mimes[row.RelPath] = row.FileMIME
 		if row.Metadata.Media != nil {
 			known[row.RelPath] = row.Metadata.Media
 		}
 	}
-	err = ReadCandidates(s.Run.File(state.CandidatesFile), func(v Candidate) error {
+	err := ReadCandidates(s.Run.File(state.CandidatesFile), func(v Candidate) error {
 		if _, ok := sources[v.RelPath]; !ok && scanner.LocalRelPath(v.RelPath) {
 			sources[v.RelPath] = filepath.Join(s.cfg.Archive, filepath.FromSlash(v.RelPath))
 		}

@@ -92,6 +92,15 @@ without `location` is read as if every file were in the archive. Restore's retir
 `arxgo-videos.restored-<run-id>.csv` and `arxgo-catia.restored-<run-id>.csv`, are arxgo files and
 have no row.
 
+A scan or split after an earlier registry does not read unchanged files again. A file keeps its
+row without being opened when its size and modification time (to the second) match its row and it
+was last modified before the previous scan started; everything else is detected. The first scan
+after an upgrade, or after changing `--metadata` or `--video-extensions`, detects every file.
+`--large-threshold` changes only `is_large`, so it needs no detection. The `scan summary` line and
+the run report count the rows taken over as `reused`. A tool that rewrites a file but keeps its
+size and modification time is not noticed: run once with `--redetect` to detect every file again.
+The registry it writes is the one a scan without the flag would write for an unchanged archive.
+
 ## Move videos to a video archive
 
 ```powershell
