@@ -173,6 +173,7 @@ extension in its name belongs to the file it describes
 
 The set of columns a registry carries still depends on the archive's current content, because a
 column empty in every row is dropped: the same tree yields a 28-column file registry from
-`scan --metadata media` and a 12-column one from a `scan` after its videos moved out.
-[Column stability](../../openspec/stage-1-core/registry.md#column-stability) specifies the
-`--registry-columns` flag that fixes this; it is open work.
+`scan --metadata media` and a 12-column one from a `scan` after its videos moved out. A scan after
+`split` also drops the moved files' rows, lists descriptions and sidecars, and every scan detects
+every file again. [Registry stability](../../openspec/stage-1-core/registry.md#registry-stability)
+specifies the full schema, the preserved archive view and incremental updates; it is open work.

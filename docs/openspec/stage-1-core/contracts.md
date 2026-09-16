@@ -4,8 +4,9 @@ Owners: `archive-registry` (file registry), `video-split` (video registry and de
 `catia-archive` (CATIA registry, description and text sidecar),
 `crash-safety` (run lock, run options, WAL, checkpoint, run report). A change to a JSON format
 increments its version field; a CSV schema change is identified by its required columns.
-Both require a spec amendment. Metadata columns after the required columns may be omitted
-when they are empty in every row.
+Both require a spec amendment. Every CSV is written with all of its columns on every run
+([full schema](registry.md#full-schema)); readers also accept files from earlier builds that omitted
+optional columns empty in every row.
 
 All text outputs are UTF-8 without BOM, `\n` line endings on every platform, paths relative to the
 owning root with `/` separators. Exception: a Linux file name that is not valid UTF-8 is written to
@@ -16,9 +17,11 @@ needed). Booleans are `true`/`false`. Sizes are bytes as base-10 integers. Times
 
 ## File registry CSV
 
-`<archive>/arxgo-registry.csv` (or `--registry`). One row per traversed entry except directories and
-skipped entries (special files and entries that cannot be read). Symlink rows have `file_type`
-`symlink`, size 0, an empty `file_mime` and all flags `false`. Column order is fixed:
+`<archive>/arxgo-registry.csv` (or `--registry`). One row per traversed entry except directories,
+skipped entries (special files and entries that cannot be read) and owned arxgo artifacts, plus one
+preserved row per payload file split moved out ([archive view](registry.md#archive-view)). Symlink
+rows have `file_type` `symlink`, size 0, an empty `file_mime` and all flags `false`. Column order is
+fixed:
 
 | # | Column | Example | Notes |
 | --- | --- | --- | --- |
@@ -33,11 +36,12 @@ skipped entries (special files and entries that cannot be read). Symlink rows ha
 | 9 | `is_picture` | `false` | |
 | 10 | `is_video` | `true` | |
 | 11 | `is_catia` | `false` | [CATIA classification](../stage-4-catia/catia.md#classification) |
-| 12 onward | [Flat metadata columns](#flat-metadata-columns) | | Modification time and optional media details |
+| 12 | `location` | `archive` | `archive`, `video-archive` or `catia-archive`: where the file is now |
+| 13 onward | [Flat metadata columns](#flat-metadata-columns) | | Modification time and optional media details |
 
 Columns read from general to specific: what the file is (path, name, type), how big it is, how
-detection saw it, then the payload flags that decide what split moves. `is_large` implements
-"highlighting files larger than a specified size" as an explicit column.
+detection saw it, then the payload flags that decide what split moves, then where the file lives.
+`is_large` implements "highlighting files larger than a specified size" as an explicit column.
 
 ## Flat metadata columns
 
@@ -55,17 +59,36 @@ it; it is empty for regular files. `media_*` values are filled when ISO BMFF met
 (default `--metadata file` for MP4, MOV, M4A, M4V and 3GP) or when `--metadata media` ran ffprobe.
 Numeric zero values and unknown values are empty; `media_has_audio` is `true` or `false` when media
 metadata exists. `media_duration_s`, dimensions, codecs and rational `media_frame_rate` expose the
-information rendered in a video's `video:` description line as separate CSV fields. A written
-registry omits a metadata column that is empty in every row (for example `link_target` when there
-are no symlinks, or all `media_*` columns when the tree has no audio or video). Readers treat a
-missing metadata column as empty. The remaining names stay in this order. The scan part file keeps
-the full header until the scan completes, so resume offsets stay valid. Tag columns that appear
-hold the selected container text tags; other container tags are not collected.
+information rendered in a video's `video:` description line as separate CSV fields. Every column is
+written, also when it is empty in every row. Readers treat a metadata column missing from an older
+file as empty. Tag columns hold the selected container text tags; other container tags are not
+collected.
+
+## Registry stamp
+
+`<archive>/.arxgo/registry.json` identifies the last file registry arxgo wrote or found unchanged
+for this archive, so the next scan can reuse its rows
+([incremental update](registry.md#incremental-update)). One JSON object and a newline, written
+atomically:
+
+```json
+{"v":1,"registry":"/data/archive/arxgo-registry.csv","size":29012345,
+ "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+ "run_id":"20260913T101500Z-1a2b3c4d","op":"split","scan_started_at":"2026-09-13T10:15:02Z",
+ "detect":{"version":"v1.0.0","metadata":"file","video_extensions":["3g2","3gp","asf"]}}
+```
+
+`registry` is the absolute registry path; `size` and `sha256` describe the file as renamed into
+place, or as rewritten by split's `location` update or by restore; `scan_started_at` is the start of
+the scan phase of the run's first process, to the second; `detect.video_extensions` is the effective
+list (built-in plus `--video-extensions`), lower-cased, sorted and unique. A stamp that cannot be
+decoded, has another `v` or names another path is ignored, and the next registry write replaces it.
 
 ## Candidate list
 
 `candidates.jsonl` in the run directory: one JSON object per line for every payload candidate
-registry row (`is_video=true` in video mode, `is_catia=true` in CATIA mode), in walk order. It is
+registry row with `location` `archive` (`is_video=true` in video mode, `is_catia=true` in CATIA
+mode), in walk order. It is
 run state for split and restore, not an operator output.
 
 ```json
@@ -92,7 +115,7 @@ run state for split and restore, not an operator output.
 | 8 | `transfer` | `rename` or `copy` |
 | 9 | `run_id` | Run that last changed the row |
 | 10 | `file_mime` | |
-| 11 | `previews` | Stage 2: `;`-separated recorded preview paths relative to the archive; empty when none |
+| 11 | `previews` | Stage 2: `;`-separated recorded preview paths relative to the archive; empty when none, always written |
 | 12 onward | [Flat metadata columns](#flat-metadata-columns) | Same layout as the file registry |
 
 Columns 1-10 are the payload registry columns shared with the [CATIA registry](#catia-registry-csv):
@@ -102,7 +125,7 @@ evidence.
 `rel_path` names the video in both roots. For a moved row without a base URL, `url` points into
 the video archive; after restore it points into the main archive. Skipped or conflict rows use the
 main archive path when they have no explicit URL. Readers accept the required columns plus any
-subset of the metadata columns in the canonical order.
+subset of the metadata columns in the canonical order, as written by earlier builds.
 
 Rows are sorted by `rel_path` walk order key. The file is regenerated from the existing file and
 the WAL of every run, written via `.arxgo-part` and rename. Runs are replayed one after another in
@@ -129,7 +152,7 @@ any CATIA split run; restore updates `status`.
 
 The `catia_*` values come from the `catia` object of the transaction's `described` WAL record
 ([WAL record](#wal-record)), so regenerating the registry never re-reads CATIA files. Columns 11-16
-may be omitted when empty in every row. Replay, sort, atomic write and
+are always written; readers accept files from earlier builds that omitted them. Replay, sort, atomic write and
 `moved`/`restored`/`conflict`/`skipped` rules are those of the video registry, applied to CATIA runs.
 Video split does not rewrite this file; CATIA split does not rewrite `arxgo-videos.csv`.
 
@@ -317,9 +340,11 @@ without it (written by an earlier build) counts as `false`.
 
 `phase` is `start` until the operation enters its first phase. `scan_cursor` is omitted when
 empty. During and after a scan the checkpoint also holds `candidates_offset` (durable length of
-`candidates.jsonl`, omitted when zero) and `scan`: the scan statistics matching the cursor and
+`candidates.jsonl`, omitted when zero), `registry_base` (`{"size","sha256"}` of the base registry
+the scan reuses, omitted without a base) and `scan`: the scan statistics matching the cursor and
 offsets (`complete`, `files`, `dirs`, `symlinks`, `bytes`, `binary`/`media`/`picture`/`video`/`catia`/`large`
-as `{"count","bytes"}`, `largest_video`, `mime` per type and `skipped` per reason). `catia` is omitted
+as `{"count","bytes"}`, `largest_video`, `mime` per type, `skipped` per reason, `reused`, and
+`preserved` as `{"count","bytes"}`). `catia` is omitted
 when zero. `video_bytes` (bytes of handled videos), the per-root `*_bytes_written`/`*_bytes_freed`
 counters, the split preview counters `previews_done`/`previews_failed`, and the CATIA counters
 `catia_done`/`catia_skipped`/`catia_failed`, `catia_bytes`, `catia_archive_bytes_written`/
@@ -343,7 +368,8 @@ the `catia_*` counters and never the `videos_*` ones. `elapsed_s` accumulates ac
 
 Runs that scanned add `scan`: `files`, `dirs`, `symlinks`, `bytes`, the flag totals
 (`binary`, `media`, `picture`, `video`, `catia`, `large`; `catia` omitted when zero),
-`top_mime` (up to 10 `{"mime","count","bytes"}` by bytes), `skipped` by reason and `elapsed_s`.
+`top_mime` (up to 10 `{"mime","count","bytes"}` by bytes), `skipped` by reason, `reused`,
+`preserved` (`{"count","bytes"}`), `registry` (`written` or `unchanged`) and `elapsed_s`.
 
 After a resumed run the item counters (`videos_done`, `catia_done`, `previews_done`, `texts_done`)
 are cumulative for the whole run, because they are re-derived from the run's own WAL. The byte

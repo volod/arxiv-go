@@ -59,7 +59,7 @@ Reuse the [stage-1 split pipeline](../stage-1-core/split-restore.md#split): vali
 scan, preflight, one WAL transaction per candidate, payload registry, unlock. Do not fork a second
 executor. Differences when the payload is CATIA:
 
-1. Candidates are `is_catia=true` rows. Videos stay in the main archive.
+1. Candidates are present `is_catia=true` rows. Videos stay in the main archive.
 2. Destination is `<catia-archive>/<rel_path>`; parent directories follow the video rules.
 3. After `placed`, run the [metadata pass](catia.md#accessible-metadata) on the destination and write
    the [CATIA description](../stage-1-core/contracts.md#catia-description) `<archive>/<rel_path>.md`
@@ -68,13 +68,14 @@ executor. Differences when the payload is CATIA:
 4. No preview planning. With `--catia-text`, [text sidecars](#text-sidecars) are generated after
    `commit`.
 5. Write [`arxgo-catia.csv`](../stage-1-core/contracts.md#catia-registry-csv) into the archive and
-   the CATIA archive. Do not rewrite `arxgo-videos.csv`.
+   the CATIA archive, and the file registry with the `location` of the moved files. Do not rewrite
+   `arxgo-videos.csv`.
 
 Destination conflicts, description conflicts, source-changed retry, transfer modes, `--verify`,
 `--base-url` and the case-fold guard are the video rules applied to CATIA candidates. Progress,
 checkpoint and report use the `catia_*` counters ([checkpoint](../stage-1-core/contracts.md#checkpoint));
 log lines name the payload. A rerun after success finds no CATIA candidates,
-generates only missing text sidecars, and exits 0 after regenerating `arxgo-catia.csv`.
+generates only missing text sidecars, leaves unchanged registries untouched, and exits 0.
 
 ## Text sidecars
 
@@ -93,10 +94,9 @@ Text extraction follows the stage-2 preview model, so it can be added to an alre
 - A failure counts in `texts_failed` (never `videos_failed`), is listed in the report and yields exit
   code 6; the CATIA file stays moved. Cancellation leaves the event unfinished and exits 130.
 - Without `--catia-text`, split neither creates nor removes sidecars.
-- A sidecar keeps its file-registry row. The scan hides recorded preview paths because a preview
-  clip is a video and would become a candidate of the next split; a text sidecar is Markdown and
-  can never be a CATIA candidate, so hiding it would only drop a real archive file from the
-  operator's inventory.
+- A sidecar has no file-registry row, like a description or a preview: it is an owned artifact of
+  the moved CATIA file, listed in `text_rel_path`, and the file registry keeps describing the
+  archive as it was before the split ([archive view](../stage-1-core/registry.md#archive-view)).
 
 ## Restore
 
@@ -107,7 +107,8 @@ with a warning, as for video.
 
 - `--create-dirs`, `--overwrite`, `--transfer`, `--verify` and mirror directory cleanup are
   unchanged.
-- `--registry-update` marks rows in both `arxgo-catia.csv` copies (archive and CATIA archive) `restored`. When no `moved` rows
+- `--registry-update` marks rows in both `arxgo-catia.csv` copies (archive and CATIA archive) `restored`
+  and sets `location` `archive` on their file-registry rows. When no `moved` rows
   remain and `--descriptions delete` was used, both copies are renamed to
   `arxgo-catia.restored-<run-id>.csv`. Restore never creates a CATIA registry and never rewrites
   `arxgo-videos.csv`.

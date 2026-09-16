@@ -16,6 +16,7 @@ operator must be able to rerun the same command to continue.
 <archive>/.arxgo/
 |-- lock                         JSON: run id, pid, host, start time, operation, peer root
 |-- current -> runs/<run-id>     text file holding the active run id (no symlink on Windows)
+|-- registry.json                stamp of the last file registry (see contracts)
 `-- runs/<run-id>/
     |-- options.json             validated options that define the run
     |-- checkpoint.json          last durable checkpoint

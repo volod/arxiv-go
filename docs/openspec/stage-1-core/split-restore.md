@@ -16,8 +16,10 @@ there and where it went.
 
 1. Validate options and discover required tools ([CLI](cli.md#validation)).
 2. Take the lock on both roots and recover any incomplete run ([integrity](integrity.md#recovery)).
-3. Scan the archive ([registry](registry.md)); `is_video=true` rows become candidates. The registry
-   is written as in `scan`.
+3. Scan the archive ([registry](registry.md)); present `is_video=true` rows become candidates. The
+   registry is written as in `scan`, reusing an earlier registry of the tree
+   ([incremental update](registry.md#incremental-update)), and its rows supply the metadata of the
+   descriptions and the video registry.
 4. Preflight free space and print the plan ([integrity](integrity.md#preflight)). A shortfall exits
    4, also with `--dry-run`; otherwise `--dry-run` stops here with exit 0.
 5. For each candidate in walk order, run one transaction:
@@ -35,7 +37,8 @@ there and where it went.
    - copy path only: remove the source after the description is durable;
    - commit.
 6. Write `arxgo-videos.csv` into the archive root, and an identical copy into
-   the video archive root so each root is self-describing.
+   the video archive root so each root is self-describing. Write the file registry again with the
+   `location` of the moved videos ([archive view](registry.md#archive-view)).
 7. Release the lock and log the final statistics.
 
 ### Rules
@@ -53,10 +56,11 @@ there and where it went.
 - **Source changed during the run.** Size or mtime differs from the WAL `begin` record at copy
   completion: discard the part file, abort the transaction, retry once, then skip with a warning.
 - **Previews are not candidates.** Stage 2 preview clips are videos inside the archive; the scan
-  excludes every preview path recorded by the WAL preview events of any run, and preview part files
-  are reserved paths.
-- **Idempotency.** A rerun after success scans, finds no video candidates (only descriptions), and exits 0
-  after regenerating the video registry.
+  excludes every preview path recorded by the WAL preview events of any run, together with owned
+  descriptions ([archive view](registry.md#archive-view)), and preview part files are reserved
+  paths.
+- **Idempotency.** A rerun after success scans, finds no video candidates (moved videos keep
+  preserved rows, which are never candidates), leaves every registry untouched, and exits 0.
 - **Links.** The description always contains the relative filesystem path from the description to the video when
   both roots are on the same filesystem namespace, the absolute video path, and, when `--base-url`
   is given, `base-url + "/" + url-escaped rel_path` segments.
@@ -100,7 +104,8 @@ directories that no longer exist.
    - commit.
 6. With `--registry-update`, rows in both `arxgo-videos.csv` copies get `status=restored` (the
    registry replays the transactions of every run, see [contracts](contracts.md#video-registry-csv),
-   so restores of an interrupted earlier run count too). When no
+   so restores of an interrupted earlier run count too), and the file registry rows of the restored
+   videos get `location` `archive` ([archive view](registry.md#archive-view)). When no
    `moved` rows remain and `--descriptions delete` was used, the registries are renamed to
    `arxgo-videos.restored-<run-id>.csv` rather than deleted. Restore never creates a registry.
 7. With `--transfer auto`, the video-archive directories that held restored videos (restored by

@@ -33,22 +33,89 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 A registry's header depends on what the archive currently holds, so the same tree yields different
 schemas from one command to the next and a downstream loader breaks.
 
-- Serves: `archive-registry` -- [Column stability](../openspec/stage-1-core/registry.md#column-stability)
+- Serves: `archive-registry` -- [Full schema](../openspec/stage-1-core/registry.md#full-schema)
 - Agent status: CLEAR
 - Dependencies: [Stage-4 checkpoint](records/0051-catia-review-stage-4-catia.md).
-- User-visible outcome: `--registry-columns full` writes every canonical column of every registry
-  on every run, so a spreadsheet, database or search index sees one stable schema.
-- Scope boundary: The flag, its validation and plumbing into the three CSV writers, and the
-  `previews` / `text_rel_path` asymmetry between the payload registries. No column order, value or
-  row change; no new columns.
-- Data and artifact paths: `internal/report/csv_compact.go`, `internal/report/videos.go`,
-  `internal/report/catia_registry.go`, `internal/cli/`.
-- Execution path: Table tests over the three writers in both modes; a CLI test for the invalid
-  value; a scan-then-split fixture comparing headers.
-- Acceptance gates: In `full` mode a scan before and after a split of the same tree writes
-  byte-identical headers, and a payload registry has the same header with and without
-  `--verify hash`; `compact` reproduces the current output byte for byte; an invalid mode exits 2;
-  `make ci` passes.
+- User-visible outcome: Every CSV arxgo writes (file, video and CATIA registry) carries its full
+  contract header on every run of every command, so a spreadsheet, database or search index sees
+  one stable schema.
+- Scope boundary: Remove empty-column compaction from the three writers; readers keep accepting
+  files from earlier builds that omitted optional columns; update golden files and the manuals. No
+  option, no new column, no change to column order, cell values or rows.
+- Data and artifact paths: `internal/report/csv_compact.go`, `internal/report/csv.go`,
+  `internal/report/csv_read.go`, `internal/report/videos.go`, `internal/report/catia_registry.go`,
+  `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
+- Execution path: Table tests over the three writers with rows that leave every optional column
+  empty; reader tests over compacted files; a scan-split-scan fixture comparing headers.
+- Acceptance gates: An empty archive, a video tree, the same tree after `split` and a CATIA tree
+  write byte-identical file-registry headers; a payload registry has the same header with and
+  without `--verify hash`, previews and `--catia-text`; a compacted registry from an earlier build
+  is read with missing columns empty; `make ci` passes.
+- Documentation target: `docs/impl/current/archive-registry.md`
+- Review checkpoint: `review-registry-and-metadata`.
+
+#### preserve-archive-registry
+
+After `split` moves payload files out and writes descriptions and sidecars, the next scan writes a
+registry that has lost the moved files and lists arxgo's own artifacts, so the inventory of the
+original archive is gone and every run rewrites the file.
+
+- Serves: `archive-registry` -- [Archive view](../openspec/stage-1-core/registry.md#archive-view)
+- Agent status: CLEAR
+- Dependencies: `stabilize-registry-columns`.
+- User-visible outcome: The file registry keeps a row for every moved file with its `location`,
+  never lists descriptions, sidecars or previews, gains exactly the rows of newly added files, and
+  is left untouched when nothing changed; `scan` and `split` write the same registry.
+- Scope boundary: The `location` column and its reader default; replay of both payload histories
+  during scan; owned-artifact exclusion; preserved-row sources (base row, mirror detection, any
+  base row, payload reconstruction) with their warnings; candidates from present rows only;
+  split's post-execute and restore's `--registry-update` `location` rewrite; the registry stamp;
+  the unchanged-file rule for all three CSVs; `preserved` and `registry` statistics. No detection
+  reuse for present files, no `--redetect`, no write to a mirror root, no registry of a mirror.
+- Data and artifact paths: `internal/report/csv.go`, `internal/report/csv_read.go`,
+  `internal/archive/scan.go`, `internal/archive/scan_pipeline.go`, `internal/archive/history.go`,
+  `internal/archive/finish.go`, `internal/archive/restore_report.go`, `internal/state/`.
+- Execution path: Generated fixture archive run through scan, video split with previews, CATIA
+  split with `--catia-text`, scan, file additions, restore with `--registry-update`, and scan;
+  variants with the registry and stamp deleted, a mirror unreadable, a payload registry deleted,
+  a file put back by hand at a moved path, and an `--exclude` covering a moved path.
+- Acceptance gates: A scan after a completed split leaves every registry byte-identical with an
+  unchanged modification time; split's registry keeps every pre-split row with the same values and
+  only moved rows' `location` changed; no description, sidecar or preview has a row; adding a video
+  or CATIA file adds exactly its row; deleting registry and stamp with mirrors present rebuilds a
+  byte-identical registry; an unreadable mirror yields reconstructed rows and a warning; a deleted
+  payload registry changes nothing; restore then scan leaves the registry untouched; preserved rows
+  never enter `candidates.jsonl`; `make ci` passes.
+- Documentation target: `docs/impl/current/archive-registry.md`
+- Review checkpoint: `review-registry-and-metadata`.
+
+#### reuse-registry-detection
+
+Every scan and every split opens and parses each file again even when a registry of the same tree
+was just written, so a rerun on a large archive spends its time re-reading unchanged content.
+
+- Serves: `archive-registry` -- [Incremental update](../openspec/stage-1-core/registry.md#incremental-update)
+- Agent status: CLEAR
+- Dependencies: `preserve-archive-registry`.
+- User-visible outcome: A scan or split after an earlier registry of the archive opens only new or
+  changed files, and its registry is byte-identical to one written with `--redetect`.
+- Scope boundary: The reuse rule (stamp match, detection settings, entry kind and link text, size,
+  mtime second, modification before the base scan start), `is_large`/`is_catia` recomputation,
+  `--redetect`, the `reused` statistic, `registry_base` in the checkpoint with restart on a changed
+  base, and one metadata collection per split run. No content hashing for reuse, no change to
+  detection rules.
+- Data and artifact paths: `internal/archive/scan.go`, `internal/archive/scan_pipeline.go`,
+  `internal/archive/resume.go`, `internal/archive/split_description.go`, `internal/state/`,
+  `internal/cli/`, `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
+- Execution path: A counting detector injected into the scan pipeline over scan-scan, scan-add-split,
+  a same-size change with its mtime set inside and before the base scan start second, a future
+  mtime, a changed `--metadata` and version, `--large-threshold` change, and a resumed scan whose
+  base was replaced between processes.
+- Acceptance gates: A second scan of an unchanged tree opens no file for detection and writes only
+  the stamp; after every fixture change the registry equals the `--redetect` registry byte for byte;
+  a same-size change not earlier than the base scan start second, a future mtime and a changed
+  detection setting are detected; a changed base restarts a resumed scan; split opens no file for
+  metadata its scan registered; `make ci` passes.
 - Documentation target: `docs/impl/current/archive-registry.md`
 - Review checkpoint: `review-registry-and-metadata`.
 
@@ -110,14 +177,14 @@ Review registry schema stability and the metadata a detached reader sees before 
 - Serves: `catia-archive` -- [Development integrity](../openspec/spec.md#development-integrity)
 - Agent status: CLEAR
 - Task kind: checkpoint
-- Dependencies: `stabilize-registry-columns`; `record-source-location-in-metadata`;
-  `implement-catia-text-index`.
+- Dependencies: `stabilize-registry-columns`; `preserve-archive-registry`;
+  `reuse-registry-detection`; `record-source-location-in-metadata`; `implement-catia-text-index`.
 - User-visible outcome: Registry schemas and metadata documents are coherent across commands and
   payloads, and stage 3 can start without reopening them.
-- Scope boundary: Column mode plumbing, payload registry symmetry, description and sidecar field
-  order and escaping, index correctness against the run history, cap accounting. No speculative
+- Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact
+  exclusion, the reuse rule and stamp lifecycle, description and sidecar field order and escaping, index correctness against the run history, cap accounting. No speculative
   refactor.
-- Data and artifact paths: The records of the three tasks above, `internal/report/`,
+- Data and artifact paths: The records of the five tasks above, `internal/report/`,
   `internal/archive/`.
 - Execution path: Invariant-to-evidence table, targeted tests, routed notes.
 - Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`

@@ -109,6 +109,7 @@ Used by `scan`, and by `split` for its scan phase.
 | `--video-extensions LIST` | none | Extra comma-separated extensions treated as video when signature detection is inconclusive (`application/octet-stream`), added to the built-in list |
 | `--exclude GLOB` | none, repeatable | Relative-path glob (`path.Match` per segment, `**` for any depth) anchored at the archive root and excluded from traversal with its subtree; see [traversal](registry.md#traversal) |
 | `--follow-symlinks` | `false` | Reserved; symlinks are recorded but never followed by scan |
+| `--redetect` | `false` | Detect every present file instead of reusing unchanged rows of the previous registry; moved files keep their rows ([incremental update](registry.md#incremental-update)) |
 
 ## Split flags
 
@@ -147,7 +148,7 @@ external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.
 | `--previews POLICY` | `keep` | Stage 2. `delete` or `keep` preview files generated for restored videos; `delete` with `--catia` exits 2 |
 | `--create-dirs` | `false` | Recreate a missing parent directory in the archive; default skips the file with a warning |
 | `--overwrite` | `false` | Replace an existing, different destination file instead of skipping it |
-| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` or, with `--catia`, `arxgo-catia.csv` |
+| `--registry-update` | `true` | Mark restored rows in `arxgo-videos.csv` or, with `--catia`, `arxgo-catia.csv`, and set their `location` in the stamped file registry |
 
 ## Validation
 
