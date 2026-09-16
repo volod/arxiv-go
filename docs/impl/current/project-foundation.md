@@ -1,0 +1,99 @@
+# Project Foundation
+
+Accepted work: [0001 Repository and agent harness](../records/0001-foundation-bootstrap-repository-and-agent-harness.md);
+[0003 CLI contract](../records/0003-foundation-implement-cli-contract.md);
+[0004 Environment file and setup](../records/0004-foundation-add-env-file-and-setup.md);
+[0008 Repository layout](../records/0008-foundation-refactor-repository-layout.md);
+[0017 Centralize test layout](../records/0017-foundation-centralize-test-layout.md);
+[0024 Build artifact names](../records/0024-foundation-simplify-build-artifact-names.md);
+[0031 Operator documentation](../records/0031-foundation-document-operator-use.md).
+
+## Identity
+
+- Module `github.com/volod/arxiv-go`, Go 1.27. Dependencies: `github.com/joho/godotenv` v1.5.1,
+  `golang.org/x/sys` v0.48.0 ([crash safety](crash-safety.md)) and
+  `github.com/gabriel-vasile/mimetype` v1.4.15 ([archive registry](archive-registry.md)).
+- Binary `arxgo` built from `cmd/arxgo/main.go`, which only calls `internal/cli.Run`.
+- `internal/cli` implements the full [CLI contract](../../openspec/stage-1-core/cli.md). Operations
+  start a run session (lock, run directory, checkpoint, log, report); `scan` then runs the
+  [registry scan](archive-registry.md#scan-operation-internalarchive); `split` runs the
+  [video transactions, descriptions and video registry](video-split.md) or
+  [CATIA split and text sidecars](catia-archive.md); `restore` runs
+  [video restore](video-restore.md). The version string is the
+  Semantic Versioning `VERSION` file (currently `0.1.0`), stamped by make with `-ldflags -X`
+  ([versioning](../../guide/development.md#versioning),
+  [0038](../records/0038-foundation-version-from-semver-file.md)).
+- `internal/media` is described in [media metadata](media-metadata.md); `internal/scanner` and
+  `internal/report` are described in [archive registry](archive-registry.md) and
+  [video split](video-split.md); restore is described in [video restore](video-restore.md);
+  `internal/fsops`, `internal/state` and `internal/archive` are
+  described in [crash safety](crash-safety.md).
+
+## CLI
+
+- One shared flag table (`flagtable.go`) drives one `flag.FlagSet` per operation, the environment
+  overrides (`ARXGO_<NAME>`, command line wins, empty ignored, `--exclude` split on the path list
+  separator) and `arxgo help [op]` / `arxgo <op> --help`.
+- Validation produces typed `ScanOptions`, `SplitOptions` and `RestoreOptions` (`Common` plus
+  per-operation fields). It checks enums, sizes (`ParseSize`: B/KB/.../TB and KiB/.../TiB),
+  positive durations and counts, `--base-url` (absolute http(s), no credentials, query or
+  fragment), `--video-extensions`, `--exclude` globs and `--registry`. All errors are reported
+  together and exit 2.
+- Root checks are read-only. Roots must be existing directories. A missing split mirror root (video
+  or, with `--catia`, CATIA archive) with an existing parent sets `SplitOptions.CreateMirror`. The
+  archive, the selected mirror root and the other payload's root when set must be pairwise neither
+  equal nor nested after `Abs`, `EvalSymlinks` and, on Windows, case folding
+  ([CATIA split](catia-archive.md#catia-split-internalcli-internalarchive-internalreport-internalstate)).
+- Split preview flags (`--sample*`, `--image*`, `--preview-max-items`) and restore `--previews`
+  are active. Cloud publishing flags (`--publish*`, `--gdrive-*`, `--share`),
+  `--follow-symlinks=true` and the `publish` operation exit 2 with
+  `option not available in this build`. This applies to the command line and the environment.
+- After validation, options that need an external tool (`--metadata media` or active previews) run
+  [tool discovery](media-metadata.md#cli-integration-internalcli) before the session; a missing
+  tool exits 3 with download links.
+- Optional environment file: `.env` next to the executable (symlinks resolved; `bin/.env` after
+  `make setup`), parsed with `godotenv` without touching the process environment. Precedence:
+  command line, process environment (non-empty), file, default. Invalid variable names or syntax
+  exit 2 naming the file, but `help`, `version` and `--help` still work. Errors about values name
+  `ARXGO_X (from <path>)`. Unknown `ARXGO_*` keys log a warning. Values are never logged.
+  `TestEnvExampleListsEveryFlag` keeps `.env.example` in step with the flag table.
+- `NewLogger` builds a `slog` text or JSON console handler at `--log-level`. `Run` cancels the
+  operation context on SIGINT/SIGTERM and restores default handling for a second signal. A
+  canceled run that did not finish exits 130.
+- Domain packages cannot import `cli`. Operation tasks pass narrow config types mapped from these
+  options (see the record's audit notes).
+
+## Build and quality
+
+- Root `Makefile` is the developer entry point (`make help`); recipes live in `make/*.mk`.
+  `make build` writes static Linux amd64 `bin/arxgo`; `make build-all` reuses that recipe and
+  also writes static Windows amd64 `bin/arxgo.exe` (`CGO_ENABLED=0`). It provides tests, vet, gofmt
+  check, coverage report and `make ci`; see the
+  [development guide](../../guide/development.md#make-targets).
+- Root-level [`test/`](../../../test/README.md) holds integration tests, test-only helpers and
+  static mock or golden data. Package tests requiring private hooks stay next to their code.
+- `.github/workflows/ci.yml` runs `make ci` on Ubuntu, the only CI gate (`actions/checkout@v7`,
+  `actions/setup-go@v7`, cache keyed on `go.mod`). `make ci` includes the Windows cross-build and
+  `make vet-windows`. `.github/workflows/windows.yml` (manual `workflow_dispatch`: vet, tests and a
+  static build on Windows) is step W1 of the deferred
+  [Windows verification scenario](../../guide/windows-verification.md).
+- `HOST_EXE` selects the runnable example in `make setup` lazily, so `make ffmpeg` works without Go.
+  `make build` and `make build-all` create `bin/` if needed.
+- `make setup` runs `build-all`, `ffmpeg` and `env` (copy `.env.example` to `bin/.env` with mode 0600
+  unless it exists) and prints configure/run instructions; it fails early with guidance when Go is
+  not on `PATH`. `make clean` keeps `bin/.env`.
+
+## Planning tooling
+
+`tools/plancheck` (backed by `internal/devtools/planning`, never linked into `arxgo`) implements:
+
+- `make lint-spec-plan`: registry rows parse with valid statuses and record groups; plan groups
+  follow registry order per lane; tasks carry every required field and a valid status; `Serves`
+  matches the group; dependencies resolve to open tasks or existing records; no cycles; planned
+  capabilities have open tasks and shipped ones do not; record names use known groups, name their
+  task id, are indexed, and are not still planned.
+- `make lint-doc-links`: relative links and GitHub-style heading anchors resolve in documentation
+  Markdown files; hidden, build and `testdata` directories are skipped (goldens are product
+  output, not docs); fenced code is ignored.
+- `make plan-status`: open agent/human task counts, the next eligible agent task in plan order,
+  other tasks eligible in parallel, and human tasks that can be acted on.

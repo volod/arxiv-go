@@ -1,0 +1,139 @@
+# Media metadata
+
+Owner: `media-metadata`. Consumers: registry media columns, video registry, video descriptions,
+stage-2 preview planning.
+
+## Operator problem
+
+A document-only archive must still describe the videos that left it: duration, resolution, codecs
+and whether sound is present. That information must be readable without the video archive being
+online, and collecting it must not require installing anything for the common MP4/MOV case.
+
+## Metadata modes
+
+| `--metadata` | Sources | External tool |
+| --- | --- | --- |
+| `file` (default) | `os.Lstat` plus ISO BMFF container/stream fields for MP4, MOV, M4A, M4V and 3GP | none |
+| `media` | `file` fields + ffprobe for other audio/video and ISO parse failures | `ffprobe` required at startup |
+
+## Normalized media fields
+
+Both parsers produce the same Go struct, projected to [flat CSV columns](contracts.md#flat-metadata-columns):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `container` | string | `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`, `avi`, ... |
+| `duration_s` | float | Presented duration in seconds, 3 decimals. ISO BMFF uses the movie header, which honors edit lists; only fragmented files or a missing movie duration use the longest video or audio track |
+| `bit_rate` | int | bits/s, container level when known |
+| `width`, `height` | int | First video stream, display dimensions after rotation |
+| `rotation` | int | Clockwise degrees a player applies for display (`0`, `90`, `180`, `270`): the ISO BMFF track matrix, or ffprobe display-matrix side data negated (it counts counter-clockwise), or the legacy `rotate` tag. An iPhone portrait video is `90` |
+| `frame_rate` | string | Rational, e.g. `30000/1001` |
+| `video_codec` | string | e.g. `h264`, `hevc`, `av1`, `mpeg4` |
+| `audio_codec` | string | Empty when no audio |
+| `has_audio` | bool | |
+| `video_streams`, `audio_streams`, `subtitle_streams` | int | |
+| `creation_time` | string | RFC 3339 when present |
+| `tags` | object | Selected container text tags: `title`, `comment`, `encoder`, `artist`, `album`, `date`, `genre`, `composer`, `grouping`, `description`, `copyright`; values truncated to 256 bytes and projected to their own CSV columns. Other tags are ignored |
+| `source` | string | `go-mp4` or `ffprobe` |
+| `error` | string | Present instead of stream fields when parsing failed |
+
+## ISO BMFF parser
+
+- Applies to files whose detected MIME is `video/mp4`, `video/quicktime`, `video/3gpp`,
+  `video/3gpp2`, `video/x-m4v`, `audio/mp4` or `audio/x-m4a`.
+- Uses `github.com/abema/go-mp4` `ReadBoxStructure`/`Probe` over an `io.ReadSeeker`; it reads only
+  box headers and `moov` payloads, never media data, so cost is independent of file size.
+- Handles `moov` at the end of the file, fragmented MP4 (`moof`, duration from `mehd` or summed
+  fragments), and `udta`/`meta` `ilst` tags.
+- A track's kind comes from the `hdlr` box directly inside its `mdia` (`vide`, `soun`, ...); the
+  data handler that QuickTime movies also carry inside `minf` (`dhlr`) is ignored.
+- Codec names map from sample entry four-character codes (`avc1`/`avc3` -> `h264`, `hvc1`/`hev1`
+  -> `hevc`, `av01` -> `av1`, `mp4a` -> `aac`, ...); unknown codes are reported verbatim.
+- A parse error produces `error` and does not fail the scan. When `ffprobe` is available the file
+  falls back to ffprobe before reporting the error.
+
+## ffprobe parser
+
+- Applies to detected audio/video files the ISO BMFF parser does not handle, and ISO parse failures,
+  when `--metadata media` is set. Pictures do not run through ffprobe.
+- Command (argument vector, no shell):
+  `ffprobe -v error -hide_banner -print_format json -show_format -show_streams -- <path>`.
+- Runs with a per-file timeout (default 60 s) through `exec.CommandContext`; stdout is limited to
+  16 MiB; stderr is captured to the log at `debug` level.
+- The JSON is decoded into typed structs and normalized into the fields above; unknown fields are
+  ignored.
+
+## Tool discovery
+
+Shared with stage 2 (`ffmpeg`).
+
+1. Candidate directories, in order: the directory of `os.Executable()` (symlinks resolved), then
+   each `PATH` entry. Empty and relative `PATH` entries are ignored, so the current directory never
+   supplies a tool; a directory listed twice is tried once. Each candidate
+   `<dir>/<executable name>` must be an executable regular file (`exec.LookPath`).
+2. Executable name: `ffprobe`/`ffmpeg` on Linux, `ffprobe.exe`/`ffmpeg.exe` on Windows.
+3. A candidate is accepted when `<tool> -version` exits 0 within 10 s and prints a non-empty first
+   line; the path and first line are logged at `info` (`ffprobe version 7.1 ...`). A candidate
+   that exits non-zero, times out (the process is killed) or prints nothing is logged at `warn` and
+   the next candidate is tried; when none is accepted the tool is missing. Output beyond 64 KiB is
+   discarded.
+4. Requirements are computed from the validated options:
+   - `--metadata media` -> `ffprobe` (checked at startup even if the archive turns out to contain
+     only MP4 files, so a run never fails halfway);
+   - stage 2 `--sample` or `--image` other than `none` -> `ffmpeg` and `ffprobe` (enforced once
+     those flags are available);
+   - `--metadata file` and `restore` need no tool, and discovery does not run.
+5. Discovery runs after option validation (so usage errors still exit 2) and before the run lock,
+   the video archive root creation or any other write, also for `--dry-run`. When a required tool
+   is missing, `arxgo` logs one `error` line per tool (`required tool not found tool=ffprobe
+   unavailable="--metadata media"`), prints the download guidance below to stderr, and exits 3.
+   An interrupt during discovery exits 130. The validated tool paths are passed to the operation
+   and are not part of `options.json`, so a resumed run may find the tool elsewhere.
+
+Download guidance by platform:
+
+| `GOOS/GOARCH` | Link printed |
+| --- | --- |
+| `linux/amd64` | `https://johnvansickle.com/ffmpeg/` (static builds) and `https://ffmpeg.org/download.html#build-linux` |
+| `windows/amd64` | `https://www.gyan.dev/ffmpeg/builds/` and `https://github.com/BtbN/FFmpeg-Builds/releases` |
+| other | `https://ffmpeg.org/download.html` |
+
+The guidance names the platform, lists its links and states the expected location:
+
+```text
+Download ffmpeg for linux/amd64 (it includes ffprobe):
+  https://johnvansickle.com/ffmpeg/
+  https://ffmpeg.org/download.html#build-linux
+Then place ffprobe next to arxgo or add it to PATH.
+```
+
+On Windows the names are `ffprobe.exe` and `arxgo.exe`. The executable location, search path,
+platform, timeout, candidate check (`exec.LookPath`) and `-version` probe are injectable for tests.
+
+## Acceptance
+
+- Test helpers build minimal ISO BMFF files in memory (ftyp + moov with one video and one audio
+  track, audio-only, QuickTime handler boxes, fragmented, `moov` at end, corrupt box size) and the parser returns the
+  expected fields or a non-fatal `error`.
+- ffprobe normalization is tested against committed JSON documents captured from ffprobe output
+  (text fixtures, no media). A live ffprobe test runs only locally when the tool is found and is
+  skipped with a logged reason otherwise, including on GitHub CI.
+- Discovery tests cover: tool next to executable wins over PATH; tool only on PATH; missing tool
+  exits 3 with the correct platform link before any write; `-version` failure or timeout treated
+  as missing; `--metadata file` runs no discovery.
+- Discovery tests are pure Go. They run no shell script, build no helper program and install no
+  fake `ffprobe`/`ffmpeg` executable, so no test creates or needs a platform-specific fake tool.
+  Two layers cover discovery:
+  - Discovery logic (candidate order, next-to-executable precedence, symlink resolution, fallback
+    after a rejected candidate, requirements, exit 3 guidance, interrupt) is tested with an
+    in-memory candidate check and `-version` probe keyed by candidate path. The probe returns a
+    version line or an error, or blocks until its context ends. No process starts.
+  - The real probe (`exec.CommandContext`, non-zero exit, empty or blank first line, 64 KiB cap,
+    timeout kill with `WaitDelay`, a child that keeps stdout open) runs the test binary itself
+    as the child. The test starts `os.Executable()` with `-version` and an environment variable
+    that names the behavior. `TestMain` acts out that behavior before test flags are parsed. The
+    real candidate check is tested on generated entries: a directory is rejected everywhere, and
+    a file without the executable bit is rejected on Linux.
+  - The same tests run unchanged on Linux and Windows. Only the executable-bit case is
+    platform-specific. `.exe` naming stays a pure `Candidates` test with `GOOS` set to `windows`.
+    Stage-2 runner tests reuse the helper-process pattern.

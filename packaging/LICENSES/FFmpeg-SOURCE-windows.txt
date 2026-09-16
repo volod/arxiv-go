@@ -1,0 +1,11 @@
+FFmpeg and ffprobe in this Windows bundle are FFmpeg 9.0.1 GPL v3 builds.
+The GPL v3 licence text is in GPL-3.0.txt. arxgo has a separate MIT licence
+in arxgo-MIT.txt; it starts FFmpeg as an external process.
+
+Build provenance: gyan.dev ffmpeg-9.0.1-essentials_build.zip, from the
+GyanD/codexffmpeg 9.0.1 release. Its README names FFmpeg source commit
+bf1b838f2a.
+Build release and recipe: https://github.com/GyanD/codexffmpeg/releases/tag/9.0.1
+FFmpeg 9.0.1 corresponding source: https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz
+The exact archive and executable SHA-256 pins are in packaging/ffmpeg.lock in
+the arxgo source repository: https://github.com/volod/arxiv-go
