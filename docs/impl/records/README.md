@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0056`.
+Next unused sequence: `0058`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -65,3 +65,4 @@ Next unused sequence: `0056`.
 | [0054 Registry detection reuse](0054-registry-reuse-registry-detection.md) | Stamped base registry streamed in walk order; unchanged present files reuse their rows without being opened; `is_large`/`is_catia` recomputed; `--redetect`; `reused` statistic; `registry_base` in the checkpoint with restart on a changed base; split reads its scan rows once for previews, descriptions and payload registries | Accepted; `make ci` and `make test-integration` pass on Linux; traced real-binary run opens only new files; Windows cross-compiled |
 | [0055 Self-locating metadata](0055-catia-record-source-location-in-metadata.md) | `archive:` second line of video and CATIA descriptions and of text sidecars; sidecar identity block copied from the owned description (WAL-recorded path, then naming order); identity counted against the 1 MiB cap first; preflight sidecar estimate + 4 KiB; manual recipes simplified | Accepted; `make ci` and `make test-integration` pass on Linux; real-binary split/restore checked; Windows cross-compiled |
 | [0056 CATIA text index](0056-catia-implement-catia-text-index.md) | `arxgo catia-index`: one Markdown document of every moved CATIA file from the WAL-recorded owned description and sidecar, walk order, `Missing text` with reasons, `--strings`, `--out`, deterministic `history_at`; reserved `arxgo-catia-text.md` excluded from scans; read-only with lock inspection | Accepted; `make ci` and `make test-integration` pass on Linux; real binary on 2000 generated files; Windows cross-compiled |
+| [0057 Registry and metadata checkpoint](0057-catia-review-registry-and-metadata.md) | Review of registry schemas, archive view, reuse and stamp, descriptions, sidecars, index and cap accounting on a disposable copy of the operator archive; four defects repaired (detection of restored files, `moved_at` session clock, rune-aware value quoting, `file_size` of empty files); twelve notes dispositioned, three routed; registry and text index prepared for the operator approval | Accepted: `proceed-with-nonblocking-notes`; `make ci` and `make test-integration` pass on Linux, real-archive round trip byte-identical; Windows cross-compiled and vetted |

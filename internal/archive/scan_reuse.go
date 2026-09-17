@@ -18,10 +18,13 @@ type baseStream struct {
 	row     report.RegistryRow // next unconsumed row; valid while key != nil
 	key     scanner.Key
 	started time.Time // base scan start, truncated to the second
+	// restored maps the files the run history records as restored last to that restore's commit
+	// time (archiveView.restored).
+	restored map[string]time.Time
 }
 
 // newBaseStream returns nil when base has no reusable rows.
-func newBaseStream(r *scanRun, base *registryBase) *baseStream {
+func newBaseStream(r *scanRun, base *registryBase, view *archiveView) *baseStream {
 	if base == nil || !base.reusable {
 		return nil
 	}
@@ -31,6 +34,9 @@ func newBaseStream(r *scanRun, base *registryBase) *baseStream {
 		return nil
 	}
 	b := &baseStream{r: r, rr: rr, started: base.scanStarted}
+	if view != nil {
+		b.restored = view.restored
+	}
 	b.advance()
 	return b
 }
@@ -57,9 +63,10 @@ func (b *baseStream) advance() {
 }
 
 // at returns the base row of a present entry with key k when one can be reused so far: the same
-// entry kind, location archive, and a modification time equal to the row's and earlier than the
-// base scan start, both to the second. A regular file also needs the same size; a symlink still
-// needs its link text compared (reusedLink). Entries are asked in walk order.
+// entry kind, location archive, not returned by a restore since the base scan started, and a
+// modification time equal to the row's and earlier than the base scan start, both to the second. A
+// regular file also needs the same size; a symlink still needs its link text compared. Entries are
+// asked in walk order.
 func (b *baseStream) at(e scanner.Entry) (*report.RegistryRow, bool) {
 	if b == nil {
 		return nil, false
@@ -75,6 +82,7 @@ func (b *baseStream) at(e scanner.Entry) (*report.RegistryRow, bool) {
 	mtime := e.Info.ModTime().UTC().Truncate(time.Second)
 	switch {
 	case row.Location != report.LocationArchive, // a preserved row may have been reconstructed
+		b.restoredSinceBase(e.Rel), // restore set the location back without detection
 		row.Metadata.MTime != report.FileMetadata(e.Info.ModTime()).MTime,
 		!mtime.Before(b.started),
 		isSymlinkRow(row) != (e.Kind == scanner.KindSymlink),
@@ -82,6 +90,15 @@ func (b *baseStream) at(e scanner.Entry) (*report.RegistryRow, bool) {
 		return nil, false
 	}
 	return &row, true
+}
+
+// restoredSinceBase reports whether a restore that committed not earlier than the base scan start,
+// to the second, returned rel. Restore sets the location of its row back to archive without
+// detection, and that row may have been kept or reconstructed while the mirror was unreadable, so
+// the first scan after the restore detects the file once.
+func (b *baseStream) restoredSinceBase(rel string) bool {
+	t, ok := b.restored[rel]
+	return ok && !t.UTC().Truncate(time.Second).Before(b.started)
 }
 
 // isSymlinkRow reports whether a registry row describes a symlink: file_type symlink with no MIME. A

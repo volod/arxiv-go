@@ -7,7 +7,9 @@ extract their accessible text into searchable Markdown sidecars. Runs can recove
 interruption. Every CSV it writes keeps the same full set of columns from run to run, so a
 spreadsheet, database or search index loads it with one schema. The file registry keeps a row for
 every moved file with its current `location` and is rewritten only when the archive really
-changed; a rescan opens only new or changed files (`--redetect` reads every file again). Cloud
+changed; a rescan opens only new or changed files and, once, the files a restore returned
+(`--redetect` reads every file again). The registries, descriptions, text sidecars and CATIA text
+index were verified against the run history on a disposable copy of a real archive. Cloud
 publishing is not available in current builds.
 
 ## Quick start

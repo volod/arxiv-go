@@ -9,11 +9,14 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0049 replaced restore sidecar cleanup](../records/0049-catia-repair-replaced-restore-sidecar-cleanup.md);
 [0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md);
 [0055 self-locating metadata](../records/0055-catia-record-source-location-in-metadata.md);
-[0056 CATIA text index](../records/0056-catia-implement-catia-text-index.md).
+[0056 CATIA text index](../records/0056-catia-implement-catia-text-index.md);
+[0057 registry and metadata checkpoint](../records/0057-catia-review-registry-and-metadata.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
-sidecars, `catia-index` and CATIA restore ship and are proven through the built binary on a generated archive; the
-capability stays planned until the stage-4 checkpoint is accepted.
+sidecars, `catia-index` and CATIA restore ship and are proven through the built binary on a generated archive and
+on a disposable copy of the operator archive. Every agent task and both checkpoints are accepted; the
+capability stays planned until the operator approval `approve-stage-4-on-operator-catia-copy` is
+recorded.
 
 ## Classification (`internal/catia`, `internal/scanner`)
 
@@ -215,6 +218,11 @@ A description or sidecar copied into a search index still says which archive and
   lines are kept in order while they fit; the first that does not fit drops it, every later identity
   line and all blocks, and sets `truncated: true`. Blocks then fill the remainder as before, so the
   identity block reduces the room for components and strings.
+- **Values** (`report.quoteValue`). A value is quoted when it holds a quote, a backslash or a line
+  break, or starts or ends with a white-space character. The edges are decoded as runes: before
+  [0057](../records/0057-catia-review-registry-and-metadata.md) the last byte of a two-byte letter
+  such as U+0445 read as U+0085 and quoted the value. `file_size` is written for an empty file too
+  (`0 (0 B)`), and `moved_at` follows the session clock of the run that writes the description.
 
 ## CATIA text index (`internal/archive`, `internal/report`, `internal/cli`)
 
@@ -358,10 +366,10 @@ directory taken before and after the sequence was unchanged.
 
 It repaired two defects in this area and routed the rest:
 
-- Owned text sidecars keep their file-registry row. `split --catia` added them to the scan's skip
-  paths, reusing the rule that hides preview clips because a preview is a video and would become a
-  candidate; a sidecar is Markdown and never a candidate, so on the archive copy a second
-  `split --catia` wrote 4031 registry rows where `scan` wrote 6286.
+- Owned text sidecars kept their file-registry row. The archive view of
+  [0053](../records/0053-registry-preserve-archive-registry.md) later reversed this: descriptions,
+  previews and text sidecars are owned artifacts without a row, and the registry keeps the moved
+  files' rows instead.
 - `--verify hash` records the SHA-256 on the same-device rename path, so `arxgo-catia.csv` carries
   the hash its descriptions already had.
 
@@ -377,3 +385,19 @@ Descriptions and sidecars now name their archive and sidecars repeat the descrip
 assembles the sidecars into one document
 ([text index](#catia-text-index-internalarchive-internalreport-internalcli)); the manuals keep a
 shell recipe that copies the sidecars out one document per file.
+
+## Registry and metadata checkpoint
+
+The checkpoint ([0057](../records/0057-catia-review-registry-and-metadata.md)) ran the built binary
+over the same archive copy twice (before and after its repairs): scans, a CATIA split with
+`--catia-text` killed and resumed, `catia-index` with and without `--strings`, a video split with
+previews interrupted and resumed, a registry rebuild, a killed and resumed CATIA restore, the video
+restore and a file-manifest comparison. On the written files, every CATIA description, text sidecar
+and index section agreed with `arxgo-catia.csv` and the run history (2255 of 2255 each; identity
+lines byte-identical, blocks equal), every video description with `arxgo-videos.csv` (149 of 149),
+and none of the 4957 descriptions, sidecars and previews had a file-registry row. The largest
+sidecar identity header was 1.9 KB against the 4 KiB preflight reserve. It repaired detection of
+restored files ([archive registry](archive-registry.md#incremental-update)), the session clock of
+`moved_at`, value quoting at multi-byte edges and `file_size` of empty files, and prepared the file
+registry and the CATIA text index of that run as review input for the operator approval, kept
+outside the repository.

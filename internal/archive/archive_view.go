@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"maps"
 	"path/filepath"
 	"time"
 
@@ -16,8 +17,10 @@ import (
 type archiveView struct {
 	archive string
 	moved   map[string]movedFile // rel_path -> the move that holds it out of the archive
-	owned   []string             // OS paths of owned artifacts, excluded from traversal
-	history map[PayloadKind][]runHistory
+	// restored maps rel_path to the commit time of the restore that returned a moved file last.
+	restored map[string]time.Time
+	owned    []string // OS paths of owned artifacts, excluded from traversal
+	history  map[PayloadKind][]runHistory
 }
 
 // movedFile is a payload file whose replayed status is moved.
@@ -34,17 +37,17 @@ var viewPayloads = []PayloadKind{PayloadVideo, PayloadCatia}
 // loadArchiveView replays the WAL of every split and restore run of archive. It reads no payload
 // registry, so an edited or deleted arxgo-videos.csv or arxgo-catia.csv changes nothing.
 func loadArchiveView(archive string) (*archiveView, error) {
-	v := &archiveView{archive: archive, moved: map[string]movedFile{}, history: map[PayloadKind][]runHistory{}}
+	v := &archiveView{archive: archive, moved: map[string]movedFile{}, restored: map[string]time.Time{},
+		history: map[PayloadKind][]runHistory{}}
 	for _, kind := range viewPayloads {
 		history, err := readHistory(archive, kind)
 		if err != nil {
 			return nil, err
 		}
 		v.history[kind] = history
-		moved, _ := replayMoves(kind, history)
-		for rel, m := range moved {
-			v.moved[rel] = m
-		}
+		moved, restored := replayMoves(kind, history)
+		maps.Copy(v.moved, moved)
+		maps.Copy(v.restored, restored)
 		v.owned = append(v.owned, ownedDescriptions(archive, history)...)
 		idx, err := sidecarIndex(kind, archive, history)
 		if err != nil {
@@ -66,10 +69,11 @@ func sidecarIndex(kind PayloadKind, archive string, history []runHistory) (*even
 
 // replayMoves replays the runs of one payload in start order, with the payload registry rules: a
 // committed split makes a file moved (an abort never undoes that), a committed restore takes it
-// back. It returns the files still moved and the files whose last event was a restore.
-func replayMoves(kind PayloadKind, history []runHistory) (map[string]movedFile, map[string]struct{}) {
+// back. It returns the files still moved and, for the files whose last event was a restore, the
+// time that restore committed.
+func replayMoves(kind PayloadKind, history []runHistory) (map[string]movedFile, map[string]time.Time) {
 	moved := map[string]movedFile{}
-	restored := map[string]struct{}{}
+	restored := map[string]time.Time{}
 	for _, run := range history {
 		split, back := splitEvents(run)
 		for rel, a := range split {
@@ -78,14 +82,33 @@ func replayMoves(kind PayloadKind, history []runHistory) (map[string]movedFile, 
 				delete(restored, rel)
 			}
 		}
+		if len(back) == 0 {
+			continue
+		}
+		committed := restoreCommitTimes(run)
 		for rel := range back {
 			if _, ok := moved[rel]; ok {
 				delete(moved, rel)
-				restored[rel] = struct{}{}
+				restored[rel] = committed[rel]
 			}
 		}
 	}
 	return moved, restored
+}
+
+// restoreCommitTimes maps each rel_path a restore run committed to the time of its commit record.
+func restoreCommitTimes(run runHistory) map[string]time.Time {
+	begins := map[string]string{} // txid -> rel_path
+	out := map[string]time.Time{}
+	for _, rec := range run.records {
+		switch {
+		case rec.Step == state.StepBegin && rec.Op == opRestore:
+			begins[rec.TxID] = rec.RelPath
+		case rec.Step == state.StepCommit && begins[rec.TxID] != "":
+			out[begins[rec.TxID]] = rec.TS
+		}
+	}
+	return out
 }
 
 // ownedDescriptions lists the descriptions the history records as written and not removed since.

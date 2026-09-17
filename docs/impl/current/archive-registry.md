@@ -11,7 +11,9 @@ file-registry column order were added in
 since [0052](../records/0052-registry-stabilize-registry-columns.md); the preserved archive view,
 `location`, the registry stamp and unchanged-file rule since
 [0053](../records/0053-registry-preserve-archive-registry.md); reuse of unchanged rows and
-`--redetect` since [0054](../records/0054-registry-reuse-registry-detection.md).
+`--redetect` since [0054](../records/0054-registry-reuse-registry-detection.md); detection of
+restored files and the real-archive review of schema, view and reuse in
+[0057](../records/0057-catia-review-registry-and-metadata.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -276,10 +278,19 @@ reused.
   counts as reused when the text and mtime match. A future mtime, a change in the base scan start
   second, a changed size, a changed setting and a file at the path of a moved file are detected. A
   base row out of walk order or unparseable ends reuse for the rest of the scan with a warning.
+- **Restored files** (`archiveView.restored`, `baseStream.restoredSinceBase`): the view keeps the
+  commit time of the restore that last returned each moved file (`restoreCommitTimes`). A present
+  file whose restore committed at or after the base scan start, to the second, is detected, because
+  `restore --registry-update` set its row back to `archive` without detection and that row may have
+  been kept or reconstructed while a mirror was unreadable. The first scan after a restore opens the
+  restored files once and the next reuses them
+  ([0057](../records/0057-catia-review-registry-and-metadata.md)).
 - **Limit**: a same-size change that keeps the old modification time is not seen; `arxgo scan
   --redetect` (or `split --redetect`) detects every present file and every mirror copy and rewrites
   the rows. Permissions are not checked either: a file that became unreadable keeps its row until
-  a detection (routed as `AUD-reuse-registry-detection-1`).
+  a detection. A reused row keeps its `media_error`, while the `media metadata unavailable` warning
+  belongs to the scan that detected the file. Both are accepted limits
+  ([0057](../records/0057-catia-review-registry-and-metadata.md#audit-handoff)).
 - **Resume**: a fresh scan stores `registry_base` (`{size, sha256}` of a stamped base) together
   with a reset cursor, offsets and statistics. A resumed scan whose base now has another identity
   (deleted, edited, replaced) logs `base registry changed since the checkpoint; scanning again from
@@ -292,6 +303,21 @@ reused.
   the scan's rows. Split still probes a video whose row has no usable media values when it plans
   previews.
 - `report.RegistryReader` streams a registry; `ReadRegistry` uses it.
+
+Evidence on a disposable copy of the operator archive (4031 files, 66.8 GiB), through the built
+binary with `--metadata media` ([0057](../records/0057-catia-review-registry-and-metadata.md)):
+an unchanged rescan opened no file; the scans after a killed and resumed CATIA split and an
+interrupted video split with previews opened no file in the archive or either mirror and left the
+registry untouched, with only `location` changed on the moved rows; a rebuild without registry and
+stamp and every `--redetect` were byte-identical; after both restores the first scan opened exactly
+the restored files, and once two added files were removed again the registry equalled the first
+scan's byte for byte.
+
+**History cost.** Every archive scan replays the WAL of every split and restore run. Measured
+([0057](../records/0057-catia-review-registry-and-metadata.md#audit-handoff)): about 2 us and 0.7 KB of
+memory per WAL record, linearly; one split and restore of both payloads of that archive (31,849
+records) loads in 78 ms and 45 MB, 50 such histories in 3.1 s and 1.2 GB. Routed to
+`review-stage-3-cloud` as `AUD-review-registry-and-metadata-1`.
 
 Evidence through the built binary on 20,000 random files and 3 generated clips (openat traced):
 the second scan opened no archive file and reported `reused` 20003. A split after adding a clip

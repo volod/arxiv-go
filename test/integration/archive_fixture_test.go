@@ -43,7 +43,7 @@ const customVideoExt = "bik"
 func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	t.Helper()
 	g := &genArchive{root: root, videos: map[string]bool{}}
-	projects := []string{"projects/2024", "projects/2025/q1", "projects/видео", "old/deep/er/tapes", "with space/a,b"}
+	projects := []string{"projects/2024", "projects/2025/q1", "projects/fixture-\u00e9\u0436", "old/deep/er/tapes", "with space/a,b"}
 	n := 0
 	for _, dir := range projects {
 		for i := 0; i < 6; i++ {

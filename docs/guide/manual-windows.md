@@ -100,6 +100,11 @@ after an upgrade, or after changing `--metadata` or `--video-extensions`, detect
 the run report count the rows taken over as `reused`. A tool that rewrites a file but keeps its
 size and modification time is not noticed: run once with `--redetect` to detect every file again.
 The registry it writes is the one a scan without the flag would write for an unchanged archive.
+Neither is a file whose permissions changed so that it can no longer be read: it keeps its row until
+`--redetect` reports it as skipped. A reused row keeps its `media_error`, but the `media metadata
+unavailable` warning is logged only by the scan that detected the file. Files that a restore
+returned since the previous scan are detected once by the next scan, because restore puts their
+rows back without reading them.
 
 ## Move videos to a video archive
 
@@ -236,7 +241,10 @@ model; the harvested `strings:` blocks usually make the document tens of times l
 sidecar is missing are listed at the end under `## Missing text` with a reason (`not_recorded`:
 split never wrote one, rerun `split --catia --catia-text`; `missing`, `foreign`: the recorded file
 was deleted or replaced). The command only reads: it starts no run, and a rerun over an unchanged
-archive writes the same bytes. It exits 5 while another arxgo run holds the archive lock.
+archive writes the same bytes. The header's `history_at` is the time of the newest recorded CATIA
+split or restore step, not the time the document was written, so deleting a sidecar changes the
+`Missing text` section and the counts but not `history_at`. It exits 5 while another arxgo run holds
+the archive lock.
 
 For a search index that wants one document per file, copy the sidecars instead: each already names
 its archive and repeats its description's fields. Copy them outside the archive so the next scan

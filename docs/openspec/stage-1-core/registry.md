@@ -201,6 +201,10 @@ and preserved rows use the later sources. A base row of a present entry is reuse
 - `--redetect` is not given;
 - the base row's `location` is `archive` (a file present at the path of a moved file is detected,
   because a preserved row may have been reconstructed);
+- no restore that committed at or after the base scan start, to the second, returned the file.
+  `restore --registry-update` sets `location` back to `archive` without detection, and the row it
+  changes may have been kept or reconstructed while a mirror was unreadable, so the first scan after
+  a restore detects the restored files once;
 - the entry kind is the same (regular file or symlink), and a symlink's link text is unchanged;
 - `file_size` is equal and `mtime` is equal at second precision;
 - the file's modification time, truncated to the second, is earlier than the stamp's
@@ -237,8 +241,10 @@ registry nor the stamp.
   byte-identical; the next split moves it and changes only its `location`.
 - Deleting the registry and the stamp and scanning with the mirrors present writes a byte-identical
   registry; with a mirror unreadable and no base, the moved rows are reconstructed with a warning.
-- `restore --registry-update` sets `location` `archive`; a scan after it leaves the registry
-  untouched. A file put back at a moved path by hand becomes a present row.
+- `restore --registry-update` sets `location` `archive`; a scan after it detects the restored files
+  once and leaves the registry untouched, and when a scan had reconstructed a moved row while its
+  mirror was unreadable, it corrects that row. A file put back at a moved path by hand becomes a
+  present row.
 - A second scan of an unchanged tree opens no file for detection; after each change above, the
   registry is byte-identical to one written with `--redetect`; a same-size change whose modification
   second is not earlier than the base scan start, a changed detection setting and a base changed

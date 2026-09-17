@@ -118,7 +118,7 @@ func Scan(ctx context.Context, s *Session, c ScanConfig) (*state.ScanStats, erro
 			return nil, errors.Join(err, run.close(), base.close())
 		}
 	}
-	run.reuse = newBaseStream(run, base)
+	run.reuse = newBaseStream(run, base, view)
 	if err := run.pipeline(ctx); err != nil {
 		if run.healthy {
 			err = errors.Join(err, run.sync())

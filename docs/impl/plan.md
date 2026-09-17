@@ -26,33 +26,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### CATIA archive -- `catia-archive`
-
-#### review-registry-and-metadata
-
-Review registry schema stability and the metadata a detached reader sees before cloud work starts.
-
-- Serves: `catia-archive` -- [Development integrity](../openspec/spec.md#development-integrity)
-- Agent status: CLEAR
-- Task kind: checkpoint
-- Dependencies: [Registry full schema](records/0052-registry-stabilize-registry-columns.md);
-  [Preserved archive registry](records/0053-registry-preserve-archive-registry.md);
-  [Registry detection reuse](records/0054-registry-reuse-registry-detection.md);
-  [Self-locating metadata](records/0055-catia-record-source-location-in-metadata.md);
-  [CATIA text index](records/0056-catia-implement-catia-text-index.md).
-- User-visible outcome: Registry schemas and metadata documents are coherent across commands and
-  payloads, and stage 3 can start without reopening them.
-- Scope boundary: Full-schema writers, preserved rows against the run history, owned-artifact
-  exclusion, the reuse rule and stamp lifecycle, description and sidecar field order and escaping, index correctness against the run history, cap accounting. No speculative
-  refactor.
-- Data and artifact paths: The records of the five dependencies above, `internal/report/`,
-  `internal/archive/`.
-- Execution path: Invariant-to-evidence table, targeted tests, routed notes.
-- Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
-  passes.
-- Documentation target: `docs/impl/current.md`
-- Review checkpoint: none; this is the bounded checkpoint.
-
 ### Cloud publishing -- `cloud-publishing`
 
 #### research-cloud-target-apis
@@ -161,9 +134,12 @@ Review cloud publishing security, resume and link invariants.
 - Task kind: checkpoint
 - Dependencies: `prove-cloud-targets-on-test-accounts`.
 - User-visible outcome: Stage 3 is coherent, secrets are contained and the binary remains static.
-- Scope boundary: Publish WAL/recovery, secret redaction, token cache permissions, binary size and
-  `CGO_ENABLED=0` build, link rewrite consistency. No speculative refactor.
-- Data and artifact paths: Stage-3 records, `internal/cloud/`.
+- Scope boundary: Publish WAL/recovery and its cost in the archive view's history replay, secret
+  redaction, token cache permissions, binary size and `CGO_ENABLED=0` build, link rewrite
+  consistency. No speculative refactor.
+- Data and artifact paths: Stage-3 records, the note routed by the
+  [registry and metadata checkpoint](records/0057-catia-review-registry-and-metadata.md#audit-handoff),
+  `internal/cloud/`, `internal/archive/history.go`.
 - Execution path: Invariant-to-evidence table, targeted tests, routed notes.
 - Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
   passes.
@@ -178,11 +154,15 @@ Review cloud publishing security, resume and link invariants.
 
 - Serves: `catia-archive` -- [Success criteria](../openspec/spec.md#success-criteria)
 - Human status: HUMAN-GATED
-- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md).
+- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md);
+  [Registry and metadata checkpoint](records/0057-catia-review-registry-and-metadata.md).
 - Requested input or decision: Run `split --catia --catia-text`, interrupt, resume and
   `restore --catia` on a disposable copy of the experimental CATIA tree; review descriptions,
   sidecars (usefulness of `strings:`, and whether user ids or workstation paths are acceptable in
-  them), logs and timings; accept, or file defects. Records keep aggregate counts only.
+  them), logs and timings; accept, or file defects. The checkpoint prepared the file registry and
+  the CATIA text index of such a run, with and without `--strings`, outside the repository, and
+  routed two questions (directory modification times, workstation paths in `strings:`). Records keep
+  aggregate counts only.
 - Unblocks: Production use of stage 4. Stage-3 development does not wait for this decision.
 
 ### Cloud publishing -- `cloud-publishing`

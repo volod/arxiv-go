@@ -69,7 +69,8 @@ collected.
 `<archive>/.arxgo/registry.json` identifies the last file registry arxgo wrote or found unchanged
 for this archive, so the next scan can reuse its rows
 ([incremental update](registry.md#incremental-update)). One JSON object and a newline, written
-atomically:
+atomically and indented by two spaces like `options.json`, `checkpoint.json` and `report.json`
+(shown compact here):
 
 ```json
 {"v":1,"registry":"/data/archive/arxgo-registry.csv","size":29012345,
@@ -183,7 +184,7 @@ url: https://storage.example.com/video/projects/2024/interview.mp4
 | --- | --- | --- |
 | `arxgo` | `rel_path` of the video, relative to the archive root | always, first line |
 | `archive` | absolute path of the archive root the description was written in (native form; on Windows the backslashes make it quoted, for example `"D:\\archive"`) | always, second line |
-| `file_size` | bytes, then the binary-unit size in parentheses | always |
+| `file_size` | bytes, then the binary-unit size in parentheses (`0 (0 B)` for an empty file) | always |
 | `file_mime` | detected MIME type | when detected |
 | `sha256` | SHA-256 of the video | `--verify hash` |
 | `created` | container creation time | when media metadata exists and the file has one |
@@ -195,8 +196,9 @@ url: https://storage.example.com/video/projects/2024/interview.mp4
 
 Rules: the first line `arxgo: <rel_path>` marks a file as an arxgo description for that video; restore,
 recovery and description-name collision checks read only that line, from the first 64 KiB. A value is
-double-quoted, with `\"`, `\\`, `\n` and `\r` escapes, when it has leading or trailing space, a quote,
-a backslash or a line break. Times are RFC 3339 UTC. The file is written atomically. Preview files
+double-quoted, with `\"`, `\\`, `\n` and `\r` escapes, when it has leading or trailing space (a
+Unicode white-space character of the UTF-8 decoded value), a quote, a backslash or a line break.
+Times are RFC 3339 UTC. The file is written atomically. Preview files
 (PNG frames and sample clips) are written next to the description, so their `- ` lines directly after the
 fields link relatively, frames as images and samples as links, URL-escaped per segment; arxgo rewrites only those lines and removes them when no
 preview remains.
