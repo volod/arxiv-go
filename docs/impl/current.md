@@ -20,7 +20,7 @@ linked here in the same change.
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, video descriptions and `arxgo-videos.csv` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, description and registry policies; crash recovery; the stage-1 end-to-end proof | Shipped; stage-1 checkpoint, generated-archive proof and operator archive-copy trial accepted |
 | [Media previews](current/media-previews.md) | ffmpeg runner, planning, sample and PNG encoding, split/restore WAL integration, registry/description links, release bundles | Shipped; stage-2 checkpoint accepted after repairs, including a split/restore round trip on real archive footage |
-| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars; `archive:` in descriptions and sidecars, sidecar identity block; `restore --catia` with owned description and text sidecar cleanup; read-only `catia-index` document with reserved `arxgo-catia-text.md` | Agent work complete; classification, payload executor, extraction, CATIA split, text sidecars, text index, CATIA restore, the stage-4 proof, the stage-4 checkpoint and the registry-and-metadata checkpoint ([0057](records/0057-catia-review-registry-and-metadata.md)) accepted; operator approval on an archive copy remains |
+| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars with product properties and drawing notes; `archive:` in descriptions and sidecars, sidecar identity block; `restore --catia` with owned description and text sidecar cleanup; read-only `catia-index` document with reserved `arxgo-catia-text.md` | Shipped; classification, payload executor, extraction, CATIA split, text sidecars, text index, CATIA restore, the stage-4 proof, the stage-4 checkpoint, the registry-and-metadata checkpoint ([0057](records/0057-catia-review-registry-and-metadata.md)) and notes and properties ([0058](records/0058-catia-extract-catia-notes-and-properties.md)) accepted; operator approval on an archive copy accepted ([0059](records/0059-catia-approve-stage-4-on-operator-catia-copy.md)) |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; default `--metadata file` fills ISO BMFF `media_*` columns for MP4, MOV, M4A, M4V and 3GP
@@ -61,5 +61,10 @@ built binary over that archive copy again, found registries, descriptions, sidec
 consistent with the run history, repaired detection of restored files, description value quoting,
 `moved_at` clock and empty-file `file_size`, and prepared the registry and text index as review
 input for the operator approval ([0057](records/0057-catia-review-registry-and-metadata.md)).
-`catia-archive` stays planned until that approval is recorded; stage 3 cloud publishing may start.
+Sidecars and the index now carry V5 product properties, the material and plain-text drawing notes
+instead of harvested printable strings, and `catia-index` has no `--strings` option
+([0058](records/0058-catia-extract-catia-notes-and-properties.md)).
+The operator approved stage 4 for production use after a trial on a copy of the CATIA tree
+([0059](records/0059-catia-approve-stage-4-on-operator-catia-copy.md)); `catia-archive` is shipped
+and stage 3 cloud publishing is next.
 The next work is reported by `make plan-status`.

@@ -67,7 +67,7 @@ func buildEdgeCaseTree(t *testing.T, root string) {
 		"comma,name.txt":              []byte("comma\n"),
 		`quote"name.txt`:              []byte("quote\n"),
 		"new\nline.txt":               []byte("newline\n"),
-		"unicode-файл-é.txt":          []byte("unicode\n"),
+		"unicode-Ж-é.txt":             []byte("unicode\n"),
 		" leading-space.txt":          []byte("leading space\n"),
 		"lies/video-named.txt":        video,
 		"lies/text-named.mp4":         []byte("this is text, not a video\n"),

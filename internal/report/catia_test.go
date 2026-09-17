@@ -56,12 +56,19 @@ func TestRenderCatiaText(t *testing.T) {
 			Format:     catia.FormatV5,
 			Release:    "V5R30 SP5",
 			BuildLevel: "2026-01-01.00.00",
+			Product: catia.Product{PartNumber: "FIXTURE-100", Revision: "B", Definition: "fixture assembly",
+				Nomenclature: " spaced ", Source: "made", Description: "invented \"quoted\" description", Material: "fixture alloy"},
 			Components: []string{"fixture-part.CATPart", "fixture-sub.CATProduct"},
-			Strings:    []string{"fixture assembly note"},
+			Notes:      []string{"1. Invented first requirement.\n2. Invented second requirement.", "fixture note"},
 		},
 	}
 	got := string(RenderCatiaText(in))
-	want := "arxgo-text: cad/fixture-product.CATProduct\nfile_name: fixture-product.CATProduct\nextracted_at: 2026-09-15T12:05:01Z\ntruncated: false\nproperties:\n- release: V5R30 SP5\n- build_level: 2026-01-01.00.00\ncomponents:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\nstrings:\n- fixture assembly note\n"
+	want := "arxgo-text: cad/fixture-product.CATProduct\nfile_name: fixture-product.CATProduct\nextracted_at: 2026-09-15T12:05:01Z\ntruncated: false\n" +
+		"properties:\n- release: V5R30 SP5\n- build_level: 2026-01-01.00.00\n- part_number: FIXTURE-100\n- revision: B\n" +
+		"- definition: fixture assembly\n- nomenclature: \" spaced \"\n- source: made\n- description: \"invented \\\"quoted\\\" description\"\n" +
+		"- material: fixture alloy\n" +
+		"components:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\n" +
+		"notes:\n- \"1. Invented first requirement.\\n2. Invented second requirement.\"\n- fixture note\n"
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}

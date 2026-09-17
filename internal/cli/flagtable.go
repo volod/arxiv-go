@@ -75,7 +75,6 @@ var flagTable = []flagDef{
 
 	// CATIA text index flags.
 	{name: "out", ops: indexOnly, group: groupIndex, arg: "PATH", usage: "Index output path (default <archive>/arxgo-catia-text.md)", bind: str("")},
-	{name: "strings", ops: indexOnly, group: groupIndex, usage: "Include the harvested strings: blocks of the text sidecars", bind: boolean(false)},
 }
 
 // splitList splits an environment value for a repeatable flag on the platform path list

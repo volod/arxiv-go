@@ -4,38 +4,133 @@
 `--catia`, CATIA files to a separate CATIA archive), and restores them. Try the workflow on a disposable copy of representative data before using it on an
 irreplaceable archive.
 
-## Unpack and configure the Windows bundle
+## Install arxgo
 
-Download the `arxgo-<version>-windows-amd64.zip` bundle for Windows amd64. It contains
-`arxgo.exe`, `ffmpeg.exe`, `ffprobe.exe`, `.env.example`, this manual, `LICENSES/` and
-`SHA256SUMS`. The tools are already beside `arxgo.exe`; no separate installation or Go
-toolchain is needed. The bundle never contains a configured `.env` file.
-`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence,
-`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 9.0.1 source link, and
-`LICENSES/arxgo-MIT.txt` covers arxgo itself.
+There are two ways to get `arxgo.exe` on a Windows amd64 host. A release bundle is ready to run and
+needs nothing else installed. A source build needs Go and Git, and is the way to get changes that
+are not released yet or to build on a host that cannot reach the releases.
 
-In PowerShell, open the directory containing the downloaded ZIP, then extract and inspect it:
+### Download a release bundle
+
+Every release `v<version>` publishes three files on https://github.com/volod/arxiv-go/releases:
+
+- `arxgo-<version>-windows-amd64.zip`, the Windows bundle;
+- `arxgo-<version>-linux-amd64.tar.gz`, the Linux bundle;
+- `SHA256SUMS`, the checksums of both bundles.
+
+The Windows bundle contains `arxgo.exe`, `ffmpeg.exe`, `ffprobe.exe`, `.env.example`, this manual,
+`LICENSES/` and its own `SHA256SUMS`. The tools are already beside `arxgo.exe`; no separate
+installation or Go toolchain is needed. The bundle never contains a configured `.env` file.
+`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence, `LICENSES/FFmpeg-SOURCE.txt` gives build
+provenance and the FFmpeg 9.0.1 source link, and `LICENSES/arxgo-MIT.txt` covers arxgo itself.
+
+In PowerShell, open the directory to download into, then download the bundle and the release
+checksums and check the download:
 
 ```powershell
-$bundle = (Get-Item .\arxgo-*-windows-amd64.zip).FullName
-Expand-Archive -LiteralPath $bundle -DestinationPath .\arxgo-windows
-Set-Location .\arxgo-windows
-Get-Content .\SHA256SUMS
-Get-FileHash .\arxgo.exe -Algorithm SHA256
+$Version = '0.2.0'   # the release to install
+$Base = "https://github.com/volod/arxiv-go/releases/download/v$Version"
+$Zip = "arxgo-$Version-windows-amd64.zip"
+$ProgressPreference = 'SilentlyContinue'   # much faster downloads in Windows PowerShell 5.1
+Invoke-WebRequest "$Base/$Zip" -OutFile $Zip
+Invoke-WebRequest "$Base/SHA256SUMS" -OutFile SHA256SUMS
+$Expected = ((Select-String -Path .\SHA256SUMS -SimpleMatch $Zip).Line -split '\s+')[0]
+if ((Get-FileHash $Zip -Algorithm SHA256).Hash -ne $Expected) { throw "checksum mismatch: $Zip" }
+```
+
+If the repository requires signing in, download the same two files from the releases page in a
+browser, or with the GitHub CLI:
+`gh release download "v$Version" -R volod/arxiv-go -p $Zip -p SHA256SUMS`.
+
+Extract the bundle into its own directory, check its files and run it:
+
+```powershell
+Expand-Archive -LiteralPath $Zip -DestinationPath "arxgo-$Version"
+Set-Location "arxgo-$Version"
+Get-Content .\SHA256SUMS | ForEach-Object {
+  $Hash, $Name = $_ -split '\s+', 2
+  if ((Get-FileHash -LiteralPath $Name -Algorithm SHA256).Hash -ne $Hash) { throw "checksum mismatch: $Name" }
+}
 .\arxgo.exe version
 .\arxgo.exe help
 ```
 
-Compare the displayed SHA-256 hash with the `arxgo.exe` entry in `SHA256SUMS`, and check the
-other bundled files the same way before use. For saved settings, copy the template and edit
-only the values you need:
+If Windows blocks the executables of a ZIP downloaded with a browser, run
+`Get-ChildItem -Recurse | Unblock-File` in the extracted directory. To move to a newer release,
+extract it into a new directory and copy your `.env` there.
+
+### Build from source
+
+Build on the target host, or build the Windows bundle on a Linux host (`make dist` in the Linux
+manual) and continue with the extract step above. The Windows build needs Go 1.27 or newer and
+Git; no C compiler, because the executable is static (`CGO_ENABLED=0`). It needs network access to
+go.dev, GitHub and the Go module proxy.
+
+Install Go and Git with winget, or download the Go installer
+(`go<version>.windows-amd64.msi`) from https://go.dev/dl/ and Git from https://git-scm.com/:
+
+```powershell
+winget install --id GoLang.Go -e
+winget install --id Git.Git -e
+```
+
+Open a new PowerShell window so `PATH` includes both, then check them:
+
+```powershell
+go version
+git --version
+```
+
+Get the source and build `bin\arxgo.exe` with the version from the `VERSION` file:
+
+```powershell
+git clone https://github.com/volod/arxiv-go.git
+Set-Location .\arxiv-go
+$Version = (Get-Content .\VERSION -Raw).Trim()
+$env:CGO_ENABLED = '0'
+go build -trimpath -ldflags "-s -w -X github.com/volod/arxiv-go/internal/cli.version=$Version" -o bin\arxgo.exe .\cmd\arxgo
+.\bin\arxgo.exe version
+Copy-Item .\.env.example .\bin\.env
+```
+
+If the repository requires signing in, Git for Windows asks for GitHub credentials on the first
+clone.
+
+`ffmpeg.exe` and `ffprobe.exe` belong beside `arxgo.exe` for media metadata and previews. Copy
+them from a Windows release bundle into `bin\`, or download the pinned FFmpeg build that
+`packaging\ffmpeg.lock` names and check it against the pinned checksums:
+
+```powershell
+$Lock = Get-Content .\packaging\ffmpeg.lock -Raw | ConvertFrom-StringData
+$ProgressPreference = 'SilentlyContinue'
+$FFmpegZip = Join-Path $env:TEMP 'arxgo-ffmpeg.zip'
+$Unpacked = Join-Path $env:TEMP 'arxgo-ffmpeg'
+Invoke-WebRequest $Lock.windows_amd64_url -OutFile $FFmpegZip
+if ((Get-FileHash $FFmpegZip -Algorithm SHA256).Hash -ne $Lock.windows_amd64_archive_sha256) { throw 'FFmpeg archive checksum mismatch' }
+Expand-Archive -LiteralPath $FFmpegZip -DestinationPath $Unpacked -Force
+foreach ($Tool in 'ffmpeg', 'ffprobe') {
+  $Exe = Join-Path (Join-Path $Unpacked $Lock.windows_amd64_archive_dir) "$Tool.exe"
+  if ((Get-FileHash $Exe -Algorithm SHA256).Hash -ne $Lock["windows_amd64_$($Tool)_sha256"]) { throw "$Tool.exe checksum mismatch" }
+  Copy-Item $Exe .\bin\
+}
+Remove-Item $FFmpegZip, $Unpacked -Recurse
+```
+
+`bin\` now holds what a bundle holds, so run `.\bin\arxgo.exe` or `Set-Location .\bin` and use the
+examples below. To update a source build, run `git pull` in `arxiv-go`, repeat the `go build`
+command, and compare `bin\.env` with `.env.example` for new settings.
+
+## Configure
+
+For saved settings, copy the template beside the executable and edit only the values you need (the
+source build above already copied it to `bin\.env`):
 
 ```powershell
 Copy-Item .\.env.example .\.env
 notepad .\.env
 ```
 
-The bundled `.env.example` explains every setting. For example, put
+The `.env.example` file explains every setting. For example, put
 `ARXGO_ARCHIVE='D:\archive'` and `ARXGO_VIDEO_ARCHIVE='E:\video'` in `.env` if you do not want
 to repeat the roots. Keep `.env` private and out of the archive being processed. `arxgo.exe`
 reads it from the executable directory; flags override process variables, which override
@@ -49,8 +144,9 @@ Use absolute paths to separate roots. `D:\archive` and `E:\video`, or `D:\archiv
 missing video root if its parent already exists; the main archive must exist. A network share
 must be accessible under the account running arxgo.
 
-The examples below run from the extracted bundle directory. If you move the executable, keep
-`ffmpeg.exe` and `ffprobe.exe` beside it so preview and media options continue to work.
+The examples below run from the directory that holds `arxgo.exe`: the extracted bundle, or `bin\`
+of a source build. If you move the executable, keep `ffmpeg.exe` and `ffprobe.exe` beside it so
+preview and media options continue to work.
 
 ## Catalog the archive
 
@@ -197,9 +293,13 @@ archive with `--catia`. It is a separate run from the video split; one run moves
 summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind, format,
 release, number of referenced documents). It never lists names or other text from inside the file.
 `--catia-text` writes a second owned file `cad\bracket.CATPart.text.md` whose first line is
-`arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable strings.
-Those strings can include authoring user ids and workstation paths; leave the flag unset unless that
-is wanted. Both files name the archive on their second line (`archive: "D:\\archive"`, quoted
+`arxgo-text: cad/bracket.CATPart`. It holds the properties CATIA stores for a part or product
+(`part_number`, `revision`, `definition`, `nomenclature`, `source`, `description`, `material`), the
+names of the referenced documents, and `notes:`: the plain text of every text written on a drawing
+or in a 3D annotation, including the captions and signatures of a title block. Numbers, single
+letters and placeholders such as `XXX` are left out, and nothing is taken from the binary data
+around them. Properties and notes can name people; leave the flag unset unless that is wanted. Both
+files name the archive on their second line (`archive: "D:\\archive"`, quoted
 because of the backslash), and the sidecar repeats the description's identity fields (`file_name`,
 `file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url`) and names it
 (`description: cad/bracket.CATPart.md`), so either file still says what it is about when copied out
@@ -207,7 +307,24 @@ of the archive. Files written by earlier releases are not rewritten and lack the
 `<rel_path>.text.md` already holds a file that is not this sidecar, the owned file is
 `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the CATIA file moved
 and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing and writes only
-missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video archive and
+missing sidecars. `--catia-text` without `--catia` exits 2. Sidecars written by earlier releases
+hold a `strings:` block of harvested fragments instead of `notes:`, and a rerun keeps them. To
+rewrite them, delete those owned sidecars and split again; the split moves nothing and extracts the
+text from the files in the CATIA archive:
+
+```powershell
+$Archive = 'D:\archive'
+Get-ChildItem -LiteralPath $Archive -Recurse -Filter *.text.md |
+  Where-Object { $_.FullName -notmatch '\\\.arxgo\\' } | ForEach-Object {
+    $lines = @(Get-Content -LiteralPath $_.FullName -Encoding utf8)
+    if ($lines.Count -gt 0 -and $lines[0].StartsWith('arxgo-text: ') -and $lines -ccontains 'strings:') {
+      Remove-Item -LiteralPath $_.FullName
+    }
+  }
+.\arxgo.exe split --catia --catia-text --archive $Archive --catia-archive 'F:\catia'
+```
+
+Videos, the video archive and
 `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first ten columns as
 `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`, `catia_release`,
 `catia_components` and `mtime`, all written on every run. Transfer modes, `--verify`, `--base-url`,
@@ -230,14 +347,15 @@ Run it while the descriptions and sidecars are still in the archive, that is bef
 
 ```powershell
 .\arxgo.exe catia-index --archive 'D:\archive'
-.\arxgo.exe catia-index --archive 'D:\archive' --strings --out 'D:\catia-index-with-strings.md'
+.\arxgo.exe catia-index --archive 'D:\archive' --out 'D:\catia-index.md'
 ```
 
 The document (default `D:\archive\arxgo-catia-text.md`, which `scan` never registers) has a header
 with the archive, the CATIA archive and counts, then one `## <rel_path>` section per moved CATIA
 file: the description's fields (`catia:` summary, size, hash, `moved_to`), the sidecar path,
-`properties:` and `components:`. Without `--strings` it is the form worth giving to a language
-model; the harvested `strings:` blocks usually make the document tens of times larger. Files whose
+`properties:`, `components:` and `notes:`, copied from the sidecar. It is compact enough to give to
+a language model. A `strings:` block of an earlier sidecar is not copied; rewrite such sidecars as
+shown above to get their notes. Title-block captions repeat in every drawing's notes. Files whose
 sidecar is missing are listed at the end under `## Missing text` with a reason (`not_recorded`:
 split never wrote one, rerun `split --catia --catia-text`; `missing`, `foreign`: the recorded file
 was deleted or replaced). The command only reads: it starts no run, and a rerun over an unchanged

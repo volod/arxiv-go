@@ -88,7 +88,7 @@ func TestRenderCatiaTextIdentityMatchesDescription(t *testing.T) {
 }
 
 func TestRenderCatiaTextOversizedIdentity(t *testing.T) {
-	info := catia.Info{Format: catia.FormatV5, Release: "V5R30", BuildLevel: "b", Components: []string{"a.CATPart"}, Strings: []string{"note"}}
+	info := catia.Info{Format: catia.FormatV5, Release: "V5R30", BuildLevel: "b", Components: []string{"a.CATPart"}, Notes: []string{"note"}}
 	at := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
 	for name, id := range map[string]TextIdentity{
 		"first field":  {FileSize: strings.Repeat("9", catiaTextCap)},
@@ -106,7 +106,7 @@ func TestRenderCatiaTextOversizedIdentity(t *testing.T) {
 				!strings.Contains(got, "\nextracted_at: 2026-09-15T12:00:00Z\ntruncated: true\n") || !strings.HasSuffix(got, "truncated: true\n") {
 				t.Fatalf("header:\n%.400s\n...\n%s", got, got[max(0, len(got)-200):])
 			}
-			for _, block := range []string{"properties:", "components:", "strings:"} {
+			for _, block := range []string{"properties:", "components:", "notes:"} {
 				if strings.Contains(got, "\n"+block+"\n") {
 					t.Errorf("block %s written after the identity block overflowed", block)
 				}

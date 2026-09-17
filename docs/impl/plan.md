@@ -148,23 +148,6 @@ Review cloud publishing security, resume and link invariants.
 
 ## Human-Assisted Tasks
 
-### CATIA archive -- `catia-archive`
-
-#### approve-stage-4-on-operator-catia-copy
-
-- Serves: `catia-archive` -- [Success criteria](../openspec/spec.md#success-criteria)
-- Human status: HUMAN-GATED
-- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md);
-  [Registry and metadata checkpoint](records/0057-catia-review-registry-and-metadata.md).
-- Requested input or decision: Run `split --catia --catia-text`, interrupt, resume and
-  `restore --catia` on a disposable copy of the experimental CATIA tree; review descriptions,
-  sidecars (usefulness of `strings:`, and whether user ids or workstation paths are acceptable in
-  them), logs and timings; accept, or file defects. The checkpoint prepared the file registry and
-  the CATIA text index of such a run, with and without `--strings`, outside the repository, and
-  routed two questions (directory modification times, workstation paths in `strings:`). Records keep
-  aggregate counts only.
-- Unblocks: Production use of stage 4. Stage-3 development does not wait for this decision.
-
 ### Cloud publishing -- `cloud-publishing`
 
 #### provide-google-drive-test-account

@@ -42,7 +42,7 @@ func (g *genArchive) addCatia(t *testing.T, rng *rand.Rand) {
 	t.Helper()
 	c := &genCatia{files: map[string]string{}}
 	g.catia = c
-	dirs := []string{"", "cad/2024", "cad/сборка/узел", "with space/cad, parts", "old/deep/er/cad"}
+	dirs := []string{"", "cad/2024", "cad/fixture-dir-Р/Ж", "with space/cad, parts", "old/deep/er/cad"}
 	kinds := []struct{ ext, kind string }{
 		{".CATPart", "CATPart"}, {".CATProduct", "CATProduct"}, {".CATDrawing", "CATDrawing"},
 		{".cgr", "cgr"}, {".3dxml", "3dxml"}, {".catpart", "CATPart"}, {".CGR", "cgr"},
@@ -86,7 +86,8 @@ func (g *genArchive) addCatia(t *testing.T, rng *rand.Rand) {
 }
 
 // v5Bytes is a synthetic V5 document: magic, a LastSaveVersion property, a component window naming
-// the file itself and two invented components, then seeded random payload.
+// the file itself and two invented components, a root product run with an invented description,
+// an invented RTF note, then seeded random payload.
 func v5Bytes(self string, release, sp int, rng *rand.Rand, payload int) []byte {
 	var b bytes.Buffer
 	b.WriteString("V5_CFV2\x00")
@@ -104,9 +105,23 @@ func v5Bytes(self string, release, sp int, rng *rand.Rand, payload int) []byte {
 		b.WriteString("\x01;\x01\x04File\x00C:\\cad\\" + name + "Z\"")
 	}
 	b.WriteString("\x08FINJPL invented assembly note")
+	for _, s := range []string{"ASMPRODUCT", "INVENTED-PN", "_DescriptionRef", inventedDescription, "_BagRepsList"} {
+		b.WriteByte(byte(len(s) + 1)) // V5 dictionary string, short form
+		b.WriteString(s)
+	}
+	note := `{{\fonttbl{\f1 InventedFont;}}{\ql ` + inventedNote + `}}`
+	b.WriteByte(0) // long form
+	b.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(note))))
+	b.WriteString(note)
 	b.Write(randomBytes(rng, payload))
 	return b.Bytes()
 }
+
+// The invented description and note every generated V5 document carries.
+const (
+	inventedDescription = "invented product description"
+	inventedNote        = "Invented note on a generated drawing."
+)
 
 func xml3DXML(n int) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?><Model_3dxml><Header><SchemaVersion>4.%d</SchemaVersion>`+
@@ -190,8 +205,13 @@ func checkCatiaSplitOutputs(t *testing.T, g *genArchive, catia string, before ma
 			t.Errorf("%s: description %v (%v)", rel, description, err)
 		}
 		sidecar := readFile(t, filepath.Join(g.root, filepath.FromSlash(wantSidecar)))
-		if !bytes.HasPrefix(sidecar, []byte("arxgo-text: "+rel+"\n")) {
+		if !bytes.HasPrefix(sidecar, []byte("arxgo-text: "+rel+"\n")) || bytes.Contains(sidecar, []byte("\nstrings:\n")) {
 			t.Errorf("%s: sidecar starts %q", rel, sidecar[:min(len(sidecar), 80)])
+		}
+		v5 := strings.HasPrefix(description["catia"], kind+" | V5_CFV2 | ")
+		text := "\n- description: " + inventedDescription + "\n"
+		if v5 != bytes.Contains(sidecar, []byte(text)) || v5 != bytes.HasSuffix(sidecar, []byte("\nnotes:\n- "+inventedNote+"\n")) {
+			t.Errorf("%s: V5 %v, but description and notes in the sidecar differ:\n%s", rel, v5, sidecar)
 		}
 	}
 	for rel, body := range map[string]string{c.foreignMD: "operator notes about a part\n", c.foreignTx: "operator text notes\n"} {

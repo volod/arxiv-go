@@ -108,7 +108,7 @@ func RenderCatiaText(in CatiaTextInput) []byte {
 	}
 	writeBlock("properties:", catiaPropertyLines(in.Info))
 	writeBlock("components:", listLines(in.Info.Components))
-	writeBlock("strings:", listLines(in.Info.Strings))
+	writeBlock("notes:", listLines(in.Info.Notes))
 	var out strings.Builder
 	writeBuilder(&out, head)
 	writeBuilder(&out, identity.String())
@@ -151,9 +151,17 @@ func optionalFieldLine(key, value string) string {
 }
 
 func catiaPropertyLines(info catia.Info) []string {
+	p := info.Product
 	pairs := [][2]string{
 		{"release", v5ReleaseProp(info)},
 		{"build_level", info.BuildLevel},
+		{"part_number", p.PartNumber},
+		{"revision", p.Revision},
+		{"definition", p.Definition},
+		{"nomenclature", p.Nomenclature},
+		{"source", p.Source},
+		{"description", p.Description},
+		{"material", p.Material},
 		{"schema_version", info.SchemaVersion},
 		{"title", info.Title},
 		{"author", info.Author},

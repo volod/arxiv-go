@@ -15,10 +15,10 @@ import (
 )
 
 // buildIndex writes the CATIA text index of archive to out and returns the document and the log.
-func buildIndex(t *testing.T, archive, out string, withStrings bool) (string, *recorder) {
+func buildIndex(t *testing.T, archive, out string) (string, *recorder) {
 	t.Helper()
 	rec := &recorder{}
-	cfg := CatiaIndexConfig{Archive: archive, Out: out, Strings: withStrings,
+	cfg := CatiaIndexConfig{Archive: archive, Out: out,
 		Lock: state.LockOptions{Host: "index-test", PID: 900, Alive: func(int) bool { return false }}}
 	if st := CatiaIndex(context.Background(), cfg, slog.New(rec)); st != StatusCompleted {
 		t.Fatalf("CatiaIndex = %v; log %v", st, rec.records)
@@ -48,24 +48,6 @@ func sectionOf(t *testing.T, doc, rel string) string {
 	return body
 }
 
-// withoutStrings drops every strings: block (the title and its items) from an index.
-func withoutStrings(doc string) string {
-	var b strings.Builder
-	inStrings := false
-	for _, line := range strings.SplitAfter(doc, "\n") {
-		switch {
-		case line == "strings:\n":
-			inStrings = true
-			continue
-		case inStrings && strings.HasPrefix(line, "- "):
-			continue
-		}
-		inStrings = false
-		b.WriteString(line)
-	}
-	return b.String()
-}
-
 func movedRows(t *testing.T, root string) int {
 	t.Helper()
 	n := 0
@@ -90,9 +72,9 @@ func TestCatiaIndexCoversMovedFilesAndListsMissingText(t *testing.T) {
 	runs, _ := state.ListRunIDs(r.archive)
 
 	out := filepath.Join(r.archive, scanner.CatiaIndexName)
-	doc, rec := buildIndex(t, r.archive, out, false)
+	doc, rec := buildIndex(t, r.archive, out)
 
-	want := []string{"cad/deep/fixture.CATPart", "cad/deep/чертеж-fixture.CATDrawing", "cad/view.3dxml", "fixture-product.CATProduct"}
+	want := []string{"cad/deep/fixture.CATPart", "cad/deep/Р-fixture.CATDrawing", "cad/view.3dxml", "fixture-product.CATProduct"}
 	if got := indexSections(doc); strings.Join(got, "|") != strings.Join(want, "|") || len(got) != movedRows(t, r.archive) || len(got) != len(files) {
 		t.Fatalf("sections %q, want walk order %q and %d moved rows", got, want, movedRows(t, r.archive))
 	}
@@ -116,9 +98,15 @@ func TestCatiaIndexCoversMovedFilesAndListsMissingText(t *testing.T) {
 	}
 	if !strings.HasPrefix(product, "file_name: fixture-product.CATProduct\n") ||
 		!strings.Contains(product, "\ndescription: fixture-product.CATProduct.md\ntext: fixture-product.CATProduct.text.md\ntruncated: false\n") ||
-		!strings.Contains(product, "\nproperties:\n- release: V5R30 SP5\ncomponents:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\n") ||
-		strings.Contains(product, "strings:") || strings.Contains(product, "moved_at:") || strings.Contains(product, "extracted_at:") {
+		!strings.HasSuffix(product, "\nproperties:\n- release: V5R30 SP5\n- part_number: FIXTURE-PRODUCT\n- revision: B\n"+
+			"- description: invented assembly\ncomponents:\n- fixture-part.CATPart\n- fixture-sub.CATProduct\n"+
+			"notes:\n- \"Invented requirement one.\\nInvented requirement two.\"\n") ||
+		strings.Contains(product, "moved_at:") || strings.Contains(product, "extracted_at:") {
 		t.Fatalf("product section:\n%s", product)
+	}
+	sidecar := string(mustRead(t, textSidecar(r.archive, "fixture-product.CATProduct")))
+	if _, blocks, _ := strings.Cut(sidecar, "\ntruncated: false\n"); !strings.HasSuffix(product, "\ntruncated: false\n"+blocks) {
+		t.Fatalf("index blocks differ from the sidecar:\n%s\nsidecar:\n%s", product, sidecar)
 	}
 	if deep := sectionOf(t, doc, "cad/deep/fixture.CATPart"); !strings.Contains(deep, "\ndescription: cad/deep/fixture.CATPart.arxgo.md\n") {
 		t.Fatalf("fallback description not read:\n%s", deep)
@@ -132,18 +120,9 @@ func TestCatiaIndexCoversMovedFilesAndListsMissingText(t *testing.T) {
 		t.Fatalf("index started a run or left a lock: %v -> %v", runs, after)
 	}
 
-	again, _ := buildIndex(t, r.archive, out, false)
+	again, _ := buildIndex(t, r.archive, out)
 	if again != doc {
 		t.Fatal("rerun is not byte-identical")
-	}
-	withStrings, _ := buildIndex(t, r.archive, filepath.Join(filepath.Dir(r.archive), "with-strings.md"), true)
-	if withStrings == doc || !strings.Contains(withStrings, "\nstrings:\n- ") || withoutStrings(withStrings) != doc {
-		t.Fatalf("--strings must differ only by strings: blocks:\n%s", withStrings)
-	}
-	product = sectionOf(t, withStrings, "fixture-product.CATProduct")
-	sidecar := string(mustRead(t, textSidecar(r.archive, "fixture-product.CATProduct")))
-	if _, strs, _ := strings.Cut(sidecar, "\nstrings:\n"); !strings.HasSuffix(product, "\nstrings:\n"+strs) {
-		t.Fatalf("strings block differs from the sidecar:\n%s", product)
 	}
 
 	cfg, c = catiaTextConfig(r, "auto")
@@ -162,7 +141,7 @@ func TestCatiaIndexCoversMovedFilesAndListsMissingText(t *testing.T) {
 			t.Fatal("the reserved index is a file registry row")
 		}
 	}
-	if doc, _ = buildIndex(t, r.archive, out, false); strings.Contains(doc, "Missing text") || !strings.Contains(doc, "\nmissing_text: 0\n") {
+	if doc, _ = buildIndex(t, r.archive, out); strings.Contains(doc, "Missing text") || !strings.Contains(doc, "\nmissing_text: 0\n") {
 		t.Fatalf("index after catch-up:\n%s", doc)
 	}
 }
@@ -182,15 +161,15 @@ func TestCatiaIndexReadsRecordedOwnershipNotNames(t *testing.T) {
 	if err := os.WriteFile(textSidecar(r.archive, "cad/view.3dxml"), []byte("arxgo-text: other.3dxml\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(filepath.Join(r.archive, "cad", "deep", "чертеж-fixture.CATDrawing.md")); err != nil {
+	if err := os.Remove(filepath.Join(r.archive, "cad", "deep", "Р-fixture.CATDrawing.md")); err != nil {
 		t.Fatal(err)
 	}
-	doc, rec := buildIndex(t, r.archive, filepath.Join(t.TempDir(), "index.md"), false)
+	doc, rec := buildIndex(t, r.archive, filepath.Join(t.TempDir(), "index.md"))
 	if s := sectionOf(t, doc, "fixture-product.CATProduct"); !strings.Contains(s, "\ntext: fixture-product.CATProduct.arxgo.text.md\n") ||
 		strings.Contains(doc, "operator notes") {
 		t.Fatalf("fallback sidecar name:\n%s", s)
 	}
-	drawing := sectionOf(t, doc, "cad/deep/чертеж-fixture.CATDrawing")
+	drawing := sectionOf(t, doc, "cad/deep/Р-fixture.CATDrawing")
 	if !strings.Contains(drawing, "\ncatia: CATDrawing | V5_CFV2 | unknown | 0 components\n") || strings.Contains(drawing, "description:") {
 		t.Fatalf("identity from sidecar:\n%s", drawing)
 	}
@@ -205,14 +184,14 @@ func TestCatiaIndexReadsRecordedOwnershipNotNames(t *testing.T) {
 func TestCatiaIndexWithoutTextOrAfterRestore(t *testing.T) {
 	r, _ := catiaFixture(t)
 	out := filepath.Join(t.TempDir(), "index.md")
-	if doc, _ := buildIndex(t, r.archive, out, true); doc != "# arxgo CATIA text index\n\narchive: "+r.archive+"\nfiles: 0\ncomponents: 0\nmissing_text: 0\n" {
+	if doc, _ := buildIndex(t, r.archive, out); doc != "# arxgo CATIA text index\n\narchive: "+r.archive+"\nfiles: 0\ncomponents: 0\nmissing_text: 0\n" {
 		t.Fatalf("index without history:\n%s", doc)
 	}
 	cfg, c := catiaSplitConfig(r, "auto")
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
 		t.Fatalf("split = %+v", res)
 	}
-	doc, _ := buildIndex(t, r.archive, out, false)
+	doc, _ := buildIndex(t, r.archive, out)
 	if !strings.Contains(doc, "\nfiles: 4\ncomponents: 0\nmissing_text: 4\n") || strings.Count(doc, "\n- not_recorded: ") != 4 {
 		t.Fatalf("index without --catia-text:\n%s", doc)
 	}
@@ -220,7 +199,7 @@ func TestCatiaIndexWithoutTextOrAfterRestore(t *testing.T) {
 	if res := runRestore(t, rcfg, rc); res.Status != StatusCompleted {
 		t.Fatalf("restore = %+v", res)
 	}
-	if doc, _ = buildIndex(t, r.archive, out, false); !strings.Contains(doc, "\nfiles: 0\n") || len(indexSections(doc)) != 0 {
+	if doc, _ = buildIndex(t, r.archive, out); !strings.Contains(doc, "\nfiles: 0\n") || len(indexSections(doc)) != 0 {
 		t.Fatalf("index after restore:\n%s", doc)
 	}
 }

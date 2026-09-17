@@ -2,6 +2,7 @@ package catia
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -92,6 +93,10 @@ func parseComponents(window []byte, self string) []string {
 	}
 	sortByte(out)
 	return out
+}
+
+func sortByte(s []string) {
+	sort.Strings(s)
 }
 
 func componentName(raw, self string) (string, bool) {

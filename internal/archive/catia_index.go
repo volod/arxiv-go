@@ -21,7 +21,6 @@ import (
 type CatiaIndexConfig struct {
 	Archive string // absolute archive root
 	Out     string // absolute output path
-	Strings bool   // include the strings: blocks
 	Lock    state.LockOptions
 }
 
@@ -68,7 +67,7 @@ func CatiaIndex(ctx context.Context, cfg CatiaIndexConfig, log *slog.Logger) Sta
 		log.Warn("CATIA files without text sidecar listed under Missing text", "missing_text", h.MissingText)
 	}
 	log.Info("wrote CATIA text index", "out", cfg.Out, "files", h.Files, "components", h.Components,
-		"missing_text", h.MissingText, "strings", cfg.Strings)
+		"missing_text", h.MissingText)
 	return StatusCompleted
 }
 
@@ -112,8 +111,8 @@ func readCatiaIndex(ctx context.Context, cfg CatiaIndexConfig, log *slog.Logger)
 	return idx, nil
 }
 
-// indexSection reads the section of one moved file without its strings, and the Missing text
-// reason when it has no readable owned sidecar.
+// indexSection reads the section of one moved file without its notes, and the Missing text reason
+// when it has no readable owned sidecar.
 func indexSection(archive string, row report.CatiaRow, texts *eventIndex, log *slog.Logger) (report.CatiaIndexSection, string) {
 	rel := row.RelPath
 	s := report.CatiaIndexSection{RelPath: rel}
@@ -145,7 +144,7 @@ func indexSection(archive string, row report.CatiaRow, texts *eventIndex, log *s
 }
 
 // readIndexText reads the owned sidecar of rel at path, or the Missing text reason it cannot be used.
-func readIndexText(path, rel string, withStrings bool) (report.CatiaText, string) {
+func readIndexText(path, rel string, withNotes bool) (report.CatiaText, string) {
 	fi, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -155,7 +154,7 @@ func readIndexText(path, rel string, withStrings bool) (report.CatiaText, string
 	case !fi.Mode().IsRegular():
 		return report.CatiaText{}, report.MissingForeign
 	}
-	text, err := report.ReadCatiaText(path, rel, withStrings)
+	text, err := report.ReadCatiaText(path, rel, withNotes)
 	switch {
 	case errors.Is(err, report.ErrNotDescription):
 		return report.CatiaText{}, report.MissingForeign
@@ -165,7 +164,8 @@ func readIndexText(path, rel string, withStrings bool) (report.CatiaText, string
 	return text, ""
 }
 
-// write streams the document. With strings, each sidecar is read again for its strings: block only.
+// write streams the document. Each sidecar is read again for its notes: block only, so memory holds
+// identities and component lists, not notes.
 func (idx *catiaIndex) write(ctx context.Context, w io.Writer, cfg CatiaIndexConfig, log *slog.Logger) error {
 	if err := report.WriteCatiaIndexHeader(w, idx.header); err != nil {
 		return err
@@ -174,12 +174,12 @@ func (idx *catiaIndex) write(ctx context.Context, w io.Writer, cfg CatiaIndexCon
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if cfg.Strings && s.Text != "" {
+		if s.Text != "" {
 			text, reason := readIndexText(filepath.Join(cfg.Archive, filepath.FromSlash(s.Text)), s.RelPath, true)
 			if reason != "" {
-				log.Warn("CATIA text sidecar changed while indexing; strings omitted", "rel_path", s.RelPath, "reason", reason)
+				log.Warn("CATIA text sidecar changed while indexing; notes omitted", "rel_path", s.RelPath, "reason", reason)
 			}
-			s.Strings = text.Strings
+			s.Notes = text.Notes
 		}
 		if err := report.WriteCatiaIndexSection(w, s); err != nil {
 			return err

@@ -47,14 +47,13 @@ func TestCatiaIndexCommandAfterTextSplit(t *testing.T) {
 		!bytes.Contains(doc, []byte("\ntext: cad/fixture-part.CATPart.text.md\n")) {
 		t.Fatalf("index: %s %v", doc, err)
 	}
-	custom := filepath.Join(t.TempDir(), "with-strings.md")
-	e = testEnv(&out, &errOut, mapLookup(map[string]string{"ARXGO_OUT": custom, "ARXGO_STRINGS": "true"}))
+	custom := filepath.Join(t.TempDir(), "custom.md")
+	e = testEnv(&out, &errOut, mapLookup(map[string]string{"ARXGO_OUT": custom}))
 	if code := run(context.Background(), []string{"catia-index", "--archive", arc}, e); code != ExitOK {
 		t.Fatalf("catia-index from environment exit %d: %s", code, errOut.String())
 	}
-	withStrings, err := os.ReadFile(custom)
-	if err != nil || !bytes.Contains(withStrings, []byte("\nstrings:\n- V5_CFV2\n- invented part body\n")) {
-		t.Fatalf("index with strings: %s %v", withStrings, err)
+	if got, err := os.ReadFile(custom); err != nil || !bytes.Equal(got, doc) || bytes.Contains(got, []byte("strings:")) {
+		t.Fatalf("index at ARXGO_OUT: %s %v", got, err)
 	}
 	if !strings.Contains(errOut.String(), "wrote CATIA text index") {
 		t.Fatalf("log: %s", errOut.String())
@@ -99,7 +98,8 @@ func TestCatiaIndexUsageErrors(t *testing.T) {
 		{"run flag", []string{"catia-index", "--archive", arc, "--dry-run"}, "flag provided but not defined: --dry-run"},
 		{"mirror flag", []string{"catia-index", "--archive", arc, "--catia-archive", video}, "flag provided but not defined: --catia-archive"},
 		{"positional", []string{"catia-index", "--archive", arc, "extra"}, `unexpected argument "extra"`},
-		{"index flag on split", []string{"split", "--archive", arc, "--video-archive", video, "--strings"}, "flag provided but not defined: --strings"},
+		{"removed strings option", []string{"catia-index", "--archive", arc, "--strings"}, "flag provided but not defined: --strings"},
+		{"index flag on split", []string{"split", "--archive", arc, "--video-archive", video, "--out", foreign}, "flag provided but not defined: --out"},
 	}
 	for _, tc := range cases {
 		var out, errOut bytes.Buffer
@@ -124,12 +124,12 @@ func TestCatiaIndexHelp(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errOut.String())
 	}
 	help := out.String()
-	for _, want := range []string{"Usage: arxgo catia-index --archive PATH", "--out PATH", "env ARXGO_OUT", "--strings", "--log-level"} {
+	for _, want := range []string{"Usage: arxgo catia-index --archive PATH", "--out PATH", "env ARXGO_OUT", "notes", "--log-level"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help lacks %q:\n%s", want, help)
 		}
 	}
-	for _, unwanted := range []string{"--dry-run", "--min-free", "--catia-archive", "--checkpoint-every"} {
+	for _, unwanted := range []string{"--dry-run", "--min-free", "--catia-archive", "--checkpoint-every", "--strings"} {
 		if strings.Contains(help, unwanted) {
 			t.Errorf("help lists %s:\n%s", unwanted, help)
 		}

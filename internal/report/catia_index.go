@@ -17,15 +17,16 @@ const catiaTextLineLimit = catiaTextCap + 1
 // CatiaText is the part of an owned text sidecar the index repeats. Block items keep the escaped
 // text after "- " exactly as the sidecar holds it.
 type CatiaText struct {
-	Fields                          Description // header fields, the marker included
-	Properties, Components, Strings []string
+	Fields                        Description // header fields, the marker included
+	Properties, Components, Notes []string
 }
 
 // ReadCatiaText parses the owned sidecar of relPath at path. A file whose first line is not
-// "arxgo-text: <relPath>" is ErrNotDescription. Strings are kept only when withStrings is set. Header
+// "arxgo-text: <relPath>" is ErrNotDescription. Notes are kept only when withNotes is set. Header
 // fields end at the first block; a line that is neither a block title nor an item ends the blocks,
-// so text an operator appended is ignored.
-func ReadCatiaText(path, relPath string, withStrings bool) (CatiaText, error) {
+// so text an operator appended, and the strings: block of a sidecar written before notes, are
+// ignored.
+func ReadCatiaText(path, relPath string, withNotes bool) (CatiaText, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return CatiaText{}, err
@@ -52,10 +53,10 @@ func ReadCatiaText(path, relPath string, withStrings bool) (CatiaText, error) {
 			block, inBlocks = &text.Properties, true
 		case line == "components:":
 			block, inBlocks = &text.Components, true
-		case line == "strings:":
+		case line == "notes:":
 			block, inBlocks = nil, true
-			if withStrings {
-				block = &text.Strings
+			if withNotes {
+				block = &text.Notes
 			}
 		case strings.HasPrefix(line, "- ") && inBlocks:
 			if block != nil {
@@ -131,8 +132,8 @@ func WriteCatiaIndexHeader(w io.Writer, h CatiaIndexHeader) error {
 }
 
 // WriteCatiaIndexSection writes the section of one moved CATIA file: its identity fields, the
-// sidecar path and truncated flag, then the properties, components and, when present, strings
-// blocks.
+// sidecar path and truncated flag, then the properties, components and notes blocks that are not
+// empty.
 func WriteCatiaIndexSection(w io.Writer, s CatiaIndexSection) error {
 	var b strings.Builder
 	writeBuilder(&b, "\n## "+quoteValue(s.RelPath)+"\n\n")
@@ -149,7 +150,7 @@ func WriteCatiaIndexSection(w io.Writer, s CatiaIndexSection) error {
 	for _, block := range []struct {
 		title string
 		items []string
-	}{{"properties:", s.Properties}, {"components:", s.Components}, {"strings:", s.Strings}} {
+	}{{"properties:", s.Properties}, {"components:", s.Components}, {"notes:", s.Notes}} {
 		if err := writeItems(w, block.title, block.items); err != nil {
 			return err
 		}

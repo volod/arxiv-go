@@ -44,8 +44,8 @@ func TestExtractXML3DXML(t *testing.T) {
 	if !slices.Equal(info.Components, want) {
 		t.Fatalf("components %q", info.Components)
 	}
-	if !slices.Contains(info.Strings, "FixtureRoot") || !slices.Contains(info.Strings, "FixtureInst") {
-		t.Fatalf("names: %q", info.Strings)
+	if len(info.Notes) != 0 || info.Product != (Product{}) {
+		t.Fatalf("3dxml names are not notes or properties: %+v", info)
 	}
 }
 
@@ -54,7 +54,7 @@ func TestExtractXMLBrokenRoot(t *testing.T) {
 	if !info.TextFailed || info.ErrorKind != ErrorKindXML || info.Format != FormatXML {
 		t.Fatalf("broken xml: %+v", info)
 	}
-	if len(info.Components) != 0 || len(info.Strings) != 0 || info.Release != ReleaseUnknown {
+	if len(info.Components) != 0 || len(info.Notes) != 0 || info.Release != ReleaseUnknown {
 		t.Fatalf("cleared: %+v", info)
 	}
 }

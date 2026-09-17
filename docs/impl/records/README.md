@@ -5,7 +5,7 @@ Copy the [template](template.md) at task start to `NNNN-<group>-<task-id>.md` us
 Records preserve full scope and evidence after [plan](../plan.md) removal;
 [current state](../current.md) links them.
 
-Next unused sequence: `0058`.
+Next unused sequence: `0060`.
 
 | Record | Scope | Result |
 | --- | --- | --- |
@@ -66,3 +66,5 @@ Next unused sequence: `0058`.
 | [0055 Self-locating metadata](0055-catia-record-source-location-in-metadata.md) | `archive:` second line of video and CATIA descriptions and of text sidecars; sidecar identity block copied from the owned description (WAL-recorded path, then naming order); identity counted against the 1 MiB cap first; preflight sidecar estimate + 4 KiB; manual recipes simplified | Accepted; `make ci` and `make test-integration` pass on Linux; real-binary split/restore checked; Windows cross-compiled |
 | [0056 CATIA text index](0056-catia-implement-catia-text-index.md) | `arxgo catia-index`: one Markdown document of every moved CATIA file from the WAL-recorded owned description and sidecar, walk order, `Missing text` with reasons, `--strings`, `--out`, deterministic `history_at`; reserved `arxgo-catia-text.md` excluded from scans; read-only with lock inspection | Accepted; `make ci` and `make test-integration` pass on Linux; real binary on 2000 generated files; Windows cross-compiled |
 | [0057 Registry and metadata checkpoint](0057-catia-review-registry-and-metadata.md) | Review of registry schemas, archive view, reuse and stamp, descriptions, sidecars, index and cap accounting on a disposable copy of the operator archive; four defects repaired (detection of restored files, `moved_at` session clock, rune-aware value quoting, `file_size` of empty files); twelve notes dispositioned, three routed; registry and text index prepared for the operator approval | Accepted: `proceed-with-nonblocking-notes`; `make ci` and `make test-integration` pass on Linux, real-archive round trip byte-identical; Windows cross-compiled and vetted |
+| [0058 CATIA notes and properties](0058-catia-extract-catia-notes-and-properties.md) | Descriptive text replaces the strings harvest: V5 dictionary strings, root product properties and material, RTF notes with a letter filter; `notes:` in sidecars and the index; `catia-index --strings` removed | Accepted; `make ci` and `make test-integration` pass on Linux; real-archive extraction and binary run checked; Windows cross-compiled |
+| [0059 Approve stage 4 on an operator CATIA copy](0059-catia-approve-stage-4-on-operator-catia-copy.md) | Operator decision after a trial on a disposable copy of the CATIA tree; sidecar properties and notes, repeated captions, directory times and format-pattern limits accepted as specified; seven routed notes closed | Accepted by the operator; `catia-archive` shipped |

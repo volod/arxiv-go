@@ -99,7 +99,7 @@ var defaultHandlers = Handlers{
 		return runSession(ctx, cfg, log, archive.RestoreBody(rc))
 	},
 	CatiaIndex: func(ctx context.Context, o CatiaIndexOptions, log *slog.Logger) int {
-		cfg := archive.CatiaIndexConfig{Archive: o.Archive, Out: o.Out, Strings: o.Strings}
+		cfg := archive.CatiaIndexConfig{Archive: o.Archive, Out: o.Out}
 		lockHooks(&cfg.Lock)
 		return exitCode(archive.CatiaIndex(ctx, cfg, log))
 	},

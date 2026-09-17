@@ -28,7 +28,6 @@ func extractXMLFile(ctx context.Context, info Info, r io.Reader) Info {
 func parse3DXML(ctx context.Context, info Info, r io.Reader) (Info, error) {
 	dec := xml.NewDecoder(r)
 	dec.Strict = true
-	str := newStringSet()
 	var comps []string
 	var capture *string
 	var buf strings.Builder
@@ -58,15 +57,9 @@ func parse3DXML(ctx context.Context, info Info, r io.Reader) (Info, error) {
 				capture, buf = firstCapture(&info.Created)
 			}
 			for _, a := range t.Attr {
-				harvestASCIIValue(a.Value, str)
-				if name := a.Name.Local; name == "associatedFile" {
+				if a.Name.Local == "associatedFile" {
 					if base, ok := fileRef(a.Value); ok {
 						comps = append(comps, base)
-					}
-				}
-				if name := a.Name.Local; (name == "name") && (t.Name.Local == "Reference3D" || t.Name.Local == "Instance3D") {
-					if v := strings.TrimSpace(a.Value); v != "" {
-						str.addDirect(v)
 					}
 				}
 				if base, ok := urnFile(a.Value); ok {
@@ -78,7 +71,6 @@ func parse3DXML(ctx context.Context, info Info, r io.Reader) (Info, error) {
 			if capture != nil {
 				buf.WriteString(s)
 			}
-			harvestASCIIValue(s, str)
 			if base, ok := urnFile(s); ok {
 				comps = append(comps, base)
 			}
@@ -92,8 +84,6 @@ func parse3DXML(ctx context.Context, info Info, r io.Reader) (Info, error) {
 		}
 	}
 	info.Components = append(info.Components, comps...)
-	info.Strings = append(info.Strings, str.list(nil)...)
-	info.Truncated = info.Truncated || str.truncated
 	return info, nil
 }
 
@@ -109,14 +99,12 @@ func finishXML(info Info) Info {
 		info.Release = "3DXML " + info.SchemaVersion
 	}
 	info.Components = uniqueSorted(info.Components)
-	info.Strings = uniqueSorted(subtract(info.Strings, info.Components))
 	return info
 }
 
 func textFailed(info Info, err error) Info {
 	info.TextFailed = true
 	info.Components = nil
-	info.Strings = nil
 	info.SchemaVersion = ""
 	info.Title = ""
 	info.Author = ""
@@ -191,43 +179,6 @@ func uniqueSorted(in []string) []string {
 	}
 	sortByte(out)
 	return out
-}
-
-func subtract(all, drop []string) []string {
-	if len(drop) == 0 {
-		return all
-	}
-	m := make(map[string]struct{}, len(drop))
-	for _, d := range drop {
-		m[d] = struct{}{}
-	}
-	out := all[:0]
-	for _, v := range all {
-		if _, skip := m[v]; skip {
-			continue
-		}
-		out = append(out, v)
-	}
-	return out
-}
-
-func (s *stringSet) addDirect(v string) {
-	if s == nil {
-		return
-	}
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return
-	}
-	if _, ok := s.m[v]; ok {
-		return
-	}
-	if s.n+len(v) > sidecarCap {
-		s.truncated = true
-		return
-	}
-	s.m[v] = struct{}{}
-	s.n += len(v)
 }
 
 type limitReader struct {

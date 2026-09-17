@@ -25,4 +25,4 @@ notes.txt,notes.txt,txt,17,false,text/plain,false,false,false,false,false,archiv
 size/at-threshold.bin,at-threshold.bin,bin,64,true,application/octet-stream,true,false,false,false,false,archive,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 size/below-threshold.bin,below-threshold.bin,bin,63,false,application/octet-stream,true,false,false,false,false,archive,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 sub/arxgo-registry.csv,arxgo-registry.csv,txt,28,false,text/plain,false,false,false,false,false,archive,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-unicode-файл-é.txt,unicode-файл-é.txt,txt,8,false,text/plain,false,false,false,false,false,archive,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+unicode-Ж-é.txt,unicode-Ж-é.txt,txt,8,false,text/plain,false,false,false,false,false,archive,2024-05-01T10:22:03Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,

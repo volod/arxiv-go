@@ -27,7 +27,7 @@ func TestReadCatiaTextRoundTripsRenderedSidecar(t *testing.T) {
 		RelPath: rel, Archive: "/data/archive", ExtractedAt: time.Date(2026, 9, 16, 10, 0, 0, 0, time.UTC),
 		Identity: TextIdentity{FileSize: "8 (8 B)", Catia: "CATProduct | V5_CFV2 | V5R30 | 2 components", Description: "cad/x.md"},
 		Info: catia.Info{Format: catia.FormatV5, Release: "V5R30", BuildLevel: " spaced ",
-			Components: []string{"a.CATPart", "b\\c.CATPart"}, Strings: []string{"assembly note", "line\nbreak"}},
+			Components: []string{"a.CATPart", "b\\c.CATPart"}, Notes: []string{"assembly note", "line\nbreak"}},
 	})
 	p := writeTemp(t, "s.text.md", string(body)+"operator appendix\n- not an item of ours\n")
 	text, err := ReadCatiaText(p, rel, true)
@@ -40,15 +40,28 @@ func TestReadCatiaTextRoundTripsRenderedSidecar(t *testing.T) {
 	}
 	if strings.Join(text.Properties, "|") != `release: V5R30|build_level: " spaced "` ||
 		strings.Join(text.Components, "|") != `a.CATPart|"b\\c.CATPart"` ||
-		strings.Join(text.Strings, "|") != `assembly note|"line\nbreak"` {
-		t.Fatalf("blocks %q %q %q", text.Properties, text.Components, text.Strings)
+		strings.Join(text.Notes, "|") != `assembly note|"line\nbreak"` {
+		t.Fatalf("blocks %q %q %q", text.Properties, text.Components, text.Notes)
 	}
 	if id := TextIdentityOfSidecar(text); id.Description != "" || id.FileSize != "8 (8 B)" {
 		t.Fatalf("identity %+v", id)
 	}
-	noStrings, err := ReadCatiaText(p, rel, false)
-	if err != nil || noStrings.Strings != nil || len(noStrings.Components) != 2 {
-		t.Fatalf("without strings: %+v %v", noStrings, err)
+	noNotes, err := ReadCatiaText(p, rel, false)
+	if err != nil || noNotes.Notes != nil || len(noNotes.Components) != 2 {
+		t.Fatalf("without notes: %+v %v", noNotes, err)
+	}
+}
+
+// A sidecar written before notes existed ends its blocks at strings:, which the index does not
+// repeat.
+func TestReadCatiaTextIgnoresEarlierStringsBlock(t *testing.T) {
+	rel := "fixture.CATPart"
+	p := writeTemp(t, "old.text.md", "arxgo-text: fixture.CATPart\ntruncated: false\nproperties:\n- release: V5R30\n"+
+		"components:\n- a.CATPart\nstrings:\n- harvested run\nnotes:\n- not a block of this sidecar\n")
+	text, err := ReadCatiaText(p, rel, true)
+	if err != nil || strings.Join(text.Properties, "|") != "release: V5R30" || strings.Join(text.Components, "|") != "a.CATPart" ||
+		text.Notes != nil {
+		t.Fatalf("earlier sidecar: %+v %v", text, err)
 	}
 }
 
@@ -68,7 +81,7 @@ func TestReadCatiaTextRejectsForeignFiles(t *testing.T) {
 	if text, err := ReadCatiaText(bom, "fixture.CATPart", false); err != nil || text.Fields["truncated"] != "true" {
 		t.Fatalf("BOM sidecar: %+v %v", text, err)
 	}
-	long := writeTemp(t, "long.text.md", "arxgo-text: fixture.CATPart\nstrings:\n- "+strings.Repeat("x", catiaTextLineLimit)+"\n")
+	long := writeTemp(t, "long.text.md", "arxgo-text: fixture.CATPart\nnotes:\n- "+strings.Repeat("x", catiaTextLineLimit)+"\n")
 	if _, err := ReadCatiaText(long, "fixture.CATPart", true); err == nil || errors.Is(err, ErrNotDescription) {
 		t.Fatalf("over-long line: %v", err)
 	}
@@ -89,14 +102,14 @@ func TestWriteCatiaIndexDocument(t *testing.T) {
 		Files: 2, Components: 1, MissingText: 1}))
 	must(WriteCatiaIndexSection(&b, CatiaIndexSection{RelPath: "cad/a.CATProduct", Text: "cad/a.CATProduct.text.md", Truncated: "false",
 		Identity:  TextIdentity{Catia: "CATProduct | V5_CFV2 | unknown | 1 component", Description: "cad/a.CATProduct.md"},
-		CatiaText: CatiaText{Properties: []string{"release: V5R30"}, Components: []string{"b.CATPart"}, Strings: []string{"note text"}}}))
+		CatiaText: CatiaText{Properties: []string{"release: V5R30"}, Components: []string{"b.CATPart"}, Notes: []string{"note text"}}}))
 	must(WriteCatiaIndexSection(&b, CatiaIndexSection{RelPath: "new\nline.CATPart"}))
 	must(WriteMissingText(&b, []MissingText{{RelPath: "new\nline.CATPart", Reason: MissingNotRecorded}}))
 	want := "# arxgo CATIA text index\n\narchive: /data/archive\ncatia_archive: /mnt/catia\nhistory_at: 2026-09-16T09:00:00Z\n" +
 		"files: 2\ncomponents: 1\nmissing_text: 1\n" +
 		"\n## cad/a.CATProduct\n\nfile_name: a.CATProduct\ncatia: CATProduct | V5_CFV2 | unknown | 1 component\n" +
 		"description: cad/a.CATProduct.md\ntext: cad/a.CATProduct.text.md\ntruncated: false\n" +
-		"properties:\n- release: V5R30\ncomponents:\n- b.CATPart\nstrings:\n- note text\n" +
+		"properties:\n- release: V5R30\ncomponents:\n- b.CATPart\nnotes:\n- note text\n" +
 		"\n## \"new\\nline.CATPart\"\n\nfile_name: \"new\\nline.CATPart\"\n" +
 		"\n## Missing text\n\n- not_recorded: \"new\\nline.CATPart\"\n"
 	if b.String() != want {

@@ -10,13 +10,15 @@ Accepted work: [0043 CATIA classification](../records/0043-catia-implement-catia
 [0050 stage-4 proof](../records/0050-catia-prove-stage-4-on-generated-archive.md);
 [0055 self-locating metadata](../records/0055-catia-record-source-location-in-metadata.md);
 [0056 CATIA text index](../records/0056-catia-implement-catia-text-index.md);
-[0057 registry and metadata checkpoint](../records/0057-catia-review-registry-and-metadata.md).
+[0057 registry and metadata checkpoint](../records/0057-catia-review-registry-and-metadata.md);
+[0058 CATIA notes and properties](../records/0058-catia-extract-catia-notes-and-properties.md);
+[0059 operator approval](../records/0059-catia-approve-stage-4-on-operator-catia-copy.md).
 Specification: [CATIA files](../../openspec/stage-4-catia/catia.md);
 [split and restore](../../openspec/stage-4-catia/split-restore.md). CATIA split, `--catia-text`
 sidecars, `catia-index` and CATIA restore ship and are proven through the built binary on a generated archive and
-on a disposable copy of the operator archive. Every agent task and both checkpoints are accepted; the
-capability stays planned until the operator approval `approve-stage-4-on-operator-catia-copy` is
-recorded.
+on a disposable copy of the operator archive. Every agent task and both checkpoints are accepted, and
+the operator approved stage 4 for production use after a trial on a copy of the CATIA tree; the
+capability is shipped.
 
 ## Classification (`internal/catia`, `internal/scanner`)
 
@@ -51,8 +53,8 @@ the same way as `arxgo-videos.csv`.
 
 `catia.Extract` / `ExtractPath` reads one CATIA file in pure Go. Kind comes from the file name;
 format from the leading bytes (`V5_CFV2`, `zip`, `xml`, or `unknown`). Memory is bounded by the
-component window (4 MiB), ZIP member caps (1024 members, 64 MiB each, 256 MiB total) and the 1 MiB
-sidecar collection cap, not by file size. An extraction error fills empty/unknown fields and sets
+component window (4 MiB), ZIP member caps (1024 members, 64 MiB each, 256 MiB total), the 64 KiB
+product and material windows, 1 MiB per note string and the 1 MiB notes cap, not by file size. An extraction error fills empty/unknown fields and sets
 `ErrorKind`; it never panics. A broken 3dxml root is `TextFailed` (no sidecar body).
 
 - **V5.** Length-prefixed string properties: `LastSaveVersion` (first wins; `<Release>` / `<ServicePack>`
@@ -62,15 +64,33 @@ sidecar collection cap, not by file size. An extraction error fills empty/unknow
   unique-sort. A missing window is `0 components`.
 - **3dxml.** Raw XML or `archive/zip`. Unsafe ZIP names (`..`, absolute, volume) are skipped. Header
   `SchemaVersion` becomes release `3DXML <version>`. `ReferenceRep` `associatedFile` and `urn:3DXML:`
-  file parts become components (external URLs ignored); `Reference3D` / `Instance3D` `name` values
-  go to strings.
-- **Strings.** ASCII 0x20-0x7E and UTF-16LE runs, at least 6 characters with 3 ASCII letters,
-  excluding component names, unique-sorted. ZIP 3dxml harvests XML text and attributes, not
-  compressed bytes.
+  file parts become components (external URLs ignored). Object names are not extracted.
+- **Descriptive text** ([0058](../records/0058-catia-extract-catia-notes-and-properties.md);
+  spec: [descriptive text](../../openspec/stage-4-catia/catia.md#descriptive-text)). Only a V5
+  document is read; `.cgr` and unknown formats are not read past their head. `v5dict.go` reads V5
+  dictionary strings (length byte 1-49 for up to 48 bytes, or 0 and a uint32 count; valid UTF-8
+  without control characters other than tab and line breaks) at three markers, each found while
+  streaming:
+  - `productReader`: the run from `\x0bASMPRODUCT` to `_BagRepsList` (64 strings, 64 KiB) gives
+    `part_number` (the string after `ASMPRODUCT`) and the values after `_Revision`, `_Definition`,
+    `_Nomenclature`, `_Source` and `_DescriptionRef`; a following attribute name, the property's
+    CATIA parameter name and the `Unknown` source are left out (`catia.Product`).
+  - `materialReader`: the string after the first `String`, `Material` pair, unless `None` or an
+    attribute name.
+  - `noteReader` (`notes.go`): a dictionary string starting `{{\fonttbl` or `{\rtf` and ending `}`
+    (at most 1 MiB). A candidate is abandoned at its first ASCII control byte and searched again
+    from its second byte, so a false length prefix cannot hide the strings after it. `rtfPlain`
+    (`rtf.go`) skips `fonttbl`, `colortbl`, `stylesheet`, `info` and `\*` groups, turns `\par` and
+    `\line` into line breaks, decodes `\uN` and ASCII `\'hh`, drops other control words, trims
+    lines and drops empty ones. `noteText` keeps a note with three letters, two distinct, outside
+    symbol tags such as `<DEGREE>`. Notes are unique in file order under the 1 MiB cap
+    (`truncated`).
+  The earlier harvest of ASCII and UTF-16LE printable runs (`strings.go`) is removed.
 - **Report.** `RenderDescription` with `Catia` set writes `catia:` instead of `created:` / `video:`.
   `CatiaLine` is `kind | format | release | N component(s)`. `RenderCatiaText` writes the
-  `arxgo-text:` sidecar (archive, identity block, properties, components, strings) with the 1 MiB
-  cap and `truncated`; see [self-locating metadata](#self-locating-metadata-internalreport-internalarchive).
+  `arxgo-text:` sidecar (archive, identity block, properties, components, notes) with the 1 MiB
+  cap and `truncated`. V5 properties follow `release` and `build_level` in the order `part_number`,
+  `revision`, `definition`, `nomenclature`, `source`, `description`, `material`; see [self-locating metadata](#self-locating-metadata-internalreport-internalarchive).
 
 CATIA split calls `ExtractPath` on the placed destination for the description (the run context,
 so Ctrl+C can stop a large-file pass). With `--catia-text`, a second `ExtractPath` after `commit`
@@ -217,7 +237,7 @@ A description or sidecar copied into a search index still says which archive and
 - **Cap.** The marker, `archive`, `extracted_at` and `truncated` lines are reserved first. Identity
   lines are kept in order while they fit; the first that does not fit drops it, every later identity
   line and all blocks, and sets `truncated: true`. Blocks then fill the remainder as before, so the
-  identity block reduces the room for components and strings.
+  identity block reduces the room for components and notes.
 - **Values** (`report.quoteValue`). A value is quoted when it holds a quote, a backslash or a line
   break, or starts or ends with a white-space character. The edges are decoded as runes: before
   [0057](../records/0057-catia-review-registry-and-metadata.md) the last byte of a two-byte letter
@@ -226,8 +246,9 @@ A description or sidecar copied into a search index still says which archive and
 
 ## CATIA text index (`internal/archive`, `internal/report`, `internal/cli`)
 
-`arxgo catia-index --archive PATH [--out PATH] [--strings]` writes one Markdown document of every
-moved CATIA file ([0056](../records/0056-catia-implement-catia-text-index.md); contract:
+`arxgo catia-index --archive PATH [--out PATH]` writes one Markdown document of every moved CATIA
+file ([0056](../records/0056-catia-implement-catia-text-index.md),
+[0058](../records/0058-catia-extract-catia-notes-and-properties.md); contract:
 [CATIA text index](../../openspec/stage-1-core/contracts.md#catia-text-index)).
 
 - **Source** (`archive.CatiaIndex`, `catia_index.go`). The CATIA run history (`readHistory`) is
@@ -241,23 +262,27 @@ moved CATIA file ([0056](../records/0056-catia-implement-catia-text-index.md); c
   history record, so reruns are byte-identical), `files`, `components`, `missing_text`. A section
   holds `file_name` and the description identity lines (from the sidecar, without `description:`,
   when the description is gone; logged), `text:` and `truncated:`, then the sidecar's
-  `properties:` and `components:` items byte-identical, and `strings:` only with `--strings` (read
-  in a second pass per sidecar, so strings are never held in memory). Files without a usable
+  `properties:`, `components:` and `notes:` items byte-identical (notes read in a second pass per
+  sidecar, so notes are never held in memory). A sidecar written before notes ends its blocks at
+  `strings:`, which is not repeated. Files without a usable
   sidecar keep their section and are listed once under a final `## Missing text` as
   `- <reason>: <rel_path>` (`not_recorded`, `missing`, `foreign`, `unreadable`), with one warning.
 - **Read-only.** No run directory, run log or lock; the output goes through `fsops.AtomicWrite`.
   `state.InspectLock` classifies an existing lock: live or remote exits 5, stale or unreadable is
   logged. Corrupt history exits 5, an interrupt 130 with an earlier output unchanged, a write
   failure 1. Missing text keeps exit 0.
-- **CLI** (`cli/catia_index.go`). Only `--archive`, `--log-level`, `--log-format`, `--out` and
-  `--strings` (`ARXGO_OUT`, `ARXGO_STRINGS`) are accepted. `--out` is absolute, not a directory,
+- **CLI** (`cli/catia_index.go`). Only `--archive`, `--log-level`, `--log-format` and `--out`
+  (`ARXGO_OUT`) are accepted; `--strings` was removed and exits 2. `--out` is absolute, not a directory,
   with an existing parent, and not run state, a registry, a part file or an existing arxgo
   description or sidecar (case-folded on Windows); exit 2 otherwise. An operator file named by
   `--out` is replaced.
 - **Reserved name.** `arxgo-catia-text.md` directly under a walked root is excluded from scans
   (`scanner.CatiaIndexName`), so the default output never becomes a registry row or a candidate.
-- **Scale.** On 2000 generated V5 files the index takes 0.10 s and 26 MB RSS (1.4 MB document;
-  20.6 MB with `--strings` in 0.19 s).
+- **Scale.** On 2000 generated V5 files the index took 0.10 s and 26 MB RSS (1.4 MB document).
+  With notes, 400 files sampled from a disposable copy of the operator archive gave a 0.85 MB
+  document in 0.03 s: identity lines 50%, notes 24%, components 13%. Extraction over the whole copy
+  (8036 V5 files) takes 8.2 s: 6460 with product properties (502 descriptions, 3097 definitions,
+  2447 materials), 1702 with notes, 61544 notes of 1.9 MB, none truncated.
 
 ## CATIA restore (`internal/cli`, `internal/archive`)
 
@@ -338,8 +363,9 @@ file. Names and properties are invented. Through the binary only:
   `catia_done` and `texts_done` equal to the file count in the resumed report, `arxgo-videos.csv`
   unchanged, each mirror root holding only its own payload and registry; a rerun moves and writes
   nothing and leaves `arxgo-catia.csv` byte-identical;
-- `catia-index` after the rerun: sections equal to the `moved` rows, no missing text, a
-  byte-identical rerun, and a `--strings --out` document that differs only by `strings:` blocks;
+- every V5 sidecar carries the planted description and note and no sidecar has `strings:`;
+- `catia-index` after the rerun: sections equal to the `moved` rows, no missing text, section blocks
+  equal to their sidecar's, a byte-identical rerun, and `--strings` exiting 2;
 - `restore --catia --transfer copy` killed, then `restore --transfer copy` (video) killed, which
   first rolls the CATIA run forward; `restore --catia` rolls the video run forward and completes
   (registries retired, CATIA archive empty); `restore` completes; reruns exit 0;
@@ -401,3 +427,9 @@ restored files ([archive registry](archive-registry.md#incremental-update)), the
 `moved_at`, value quoting at multi-byte edges and `file_size` of empty files, and prepared the file
 registry and the CATIA text index of that run as review input for the operator approval, kept
 outside the repository.
+
+The operator approved stage 4 on that review input and a trial on a disposable copy of the CATIA
+tree ([0059](../records/0059-catia-approve-stage-4-on-operator-catia-copy.md)). Sidecar properties,
+material and notes are accepted as specified, including repeated title-block captions and the names
+notes carry; directory modification times are not restored by a round trip, and no change was
+requested.

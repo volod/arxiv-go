@@ -210,7 +210,7 @@ preview remains.
 description, so occupancy, conflict naming, restore and recovery reuse that check. The `video:` and
 `created:` fields are omitted; a `catia:` summary line is written instead
 ([accessible metadata](../stage-4-catia/catia.md#accessible-metadata)). Component names, properties
-and harvested strings are not written here.
+and notes are not written here.
 
 ```markdown
 arxgo: cad/fixture-part.CATPart
@@ -252,11 +252,16 @@ truncated: false
 properties:
 - release: V5R30 SP5
 - build_level: 2026-01-01.00.00
+- part_number: FIXTURE-100
+- revision: B
+- definition: fixture assembly
+- source: made
+- description: invented assembly for the contract example
 components:
 - fixture-part.CATPart
 - fixture-sub.CATProduct
-strings:
-- fixture assembly note
+notes:
+- "1. Invented first requirement.\n2. Invented second requirement."
 ```
 
 | Field or block | Content |
@@ -268,9 +273,9 @@ strings:
 | `description` | archive-relative slash path of the owned description the values come from; omitted, with the fields above, when split finds no owned description (a warning is logged) |
 | `extracted_at` | RFC 3339 UTC |
 | `truncated` | `true` when the 1 MiB cap or a 3dxml ZIP limit dropped items |
-| `properties:` | `- key: value` items in a fixed order: `release`, `build_level` (V5); `schema_version`, `title`, `author`, `generator`, `created` (3dxml); omitted when empty |
+| `properties:` | `- key: value` items in a fixed order: `release`, `build_level`, `part_number`, `revision`, `definition`, `nomenclature`, `source`, `description`, `material` (V5); `schema_version`, `title`, `author`, `generator`, `created` (3dxml); omitted when empty |
 | `components:` | sorted unique base names; omitted when empty |
-| `strings:` | sorted unique printable runs not listed as components; omitted when empty |
+| `notes:` | plain text of the file's RTF texts that pass the note filter, unique, in file order, line breaks escaped; omitted when empty ([descriptive text](../stage-4-catia/catia.md#notes)) |
 
 Restore `--descriptions delete` removes the sidecar only when the first line is
 `arxgo-text: <rel_path>` (first 64 KiB). Extraction and sidecar rules:
@@ -316,9 +321,13 @@ truncated: false
 properties:
 - release: V5R30 SP5
 - build_level: 2026-01-01.00.00
+- part_number: FIXTURE-100
+- description: invented assembly for the contract example
 components:
 - fixture-part.CATPart
 - fixture-sub.CATProduct
+notes:
+- "1. Invented first requirement.\n2. Invented second requirement."
 
 ## Missing text
 
@@ -335,8 +344,7 @@ components:
 | `## <rel_path>` | one section per moved CATIA file in walk order, preceded by a blank line; `rel_path` quoted when it needs escaping |
 | identity lines | `file_name`, then `file_size`, `file_mime`, `sha256`, `modified`, `catia`, `moved_to`, `url` and `description` as in the [text sidecar](#catia-text-sidecar), from the owned description; from the sidecar without `description` when the description is gone |
 | `text`, `truncated` | archive-relative path of the owned sidecar and its `truncated` value; omitted when the file is listed under `Missing text` |
-| `properties:`, `components:` | the sidecar's blocks, items byte-identical; omitted when empty |
-| `strings:` | the sidecar's block, only with `--strings` |
+| `properties:`, `components:`, `notes:` | the sidecar's blocks, items byte-identical; omitted when empty. A `strings:` block of an earlier sidecar is not repeated |
 | `## Missing text` | last section, only when some file has no usable owned sidecar: `- <reason>: <rel_path>` with reason `not_recorded`, `missing`, `foreign` or `unreadable` |
 
 ## WAL record

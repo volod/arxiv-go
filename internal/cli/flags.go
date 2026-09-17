@@ -33,7 +33,6 @@ type settings struct {
 	previewMaxItems                          int
 	catiaText                                bool
 	out                                      string
-	includeStrings                           bool
 
 	// reserved maps an unavailable feature flag name to its value, recording whether it was given.
 	reserved map[string]*reservedValue
@@ -148,7 +147,6 @@ func boolField(s *settings, name string) *bool {
 		"follow-symlinks": &s.followSymlinks, "redetect": &s.redetect, "create-dirs": &s.createDirs,
 		"overwrite": &s.overwrite, "registry-update": &s.registryUpdate,
 		"video": &s.video, "catia": &s.catia, "catia-text": &s.catiaText,
-		"strings": &s.includeStrings,
 	}
 	return fields[name]
 }

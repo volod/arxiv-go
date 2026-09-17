@@ -12,13 +12,12 @@ import (
 // only the archive root and the console log settings of Common apply.
 type CatiaIndexOptions struct {
 	Common
-	Out     string // absolute output path
-	Strings bool
+	Out string // absolute output path
 }
 
 func buildCatiaIndexOptions(s *settings, fsys rootFS) (CatiaIndexOptions, error) {
 	v := &validator{}
-	o := CatiaIndexOptions{Common: Common{LogLevel: parseLevel(s.logLevel), LogFormat: s.logFormat}, Strings: s.includeStrings}
+	o := CatiaIndexOptions{Common: Common{LogLevel: parseLevel(s.logLevel), LogFormat: s.logFormat}}
 	archive, _, ok, _ := checkDir(fsys, "--archive", s.archive, false, v)
 	o.Archive = archive
 	if !ok && s.out == "" {

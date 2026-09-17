@@ -64,7 +64,7 @@ func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	mkdirAll(t, filepath.Join(root, filepath.FromSlash(g.dirAtDescription)))
 	mkdirAll(t, filepath.Join(root, "empty", "nested"))
 
-	docDirs := []string{"docs", "docs/a", "docs/a/x", "docs/a/x/y/z", "docs/b", "docs/with space", "docs/кирилиця"}
+	docDirs := []string{"docs", "docs/a", "docs/a/x", "docs/a/x/y/z", "docs/b", "docs/with space", "docs/fixture-dir-Р"}
 	for _, dir := range docDirs {
 		for i := 0; i < 40; i++ {
 			rel := fmt.Sprintf("%s/note-%02d.txt", dir, i)

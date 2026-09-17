@@ -209,7 +209,7 @@ func TestCatiaRestoreDirectoryAndConflictPolicies(t *testing.T) {
 		t.Fatal("unaffected CATIA file not restored")
 	}
 	for _, row := range readCatiaRegistry(t, r.archive) {
-		if want := map[bool]string{true: report.StatusMoved, false: report.StatusRestored}[row.RelPath == deep || strings.HasSuffix(row.RelPath, "чертеж-fixture.CATDrawing") || row.RelPath == conflict]; row.Status != want {
+		if want := map[bool]string{true: report.StatusMoved, false: report.StatusRestored}[row.RelPath == deep || strings.HasSuffix(row.RelPath, "Р-fixture.CATDrawing") || row.RelPath == conflict]; row.Status != want {
 			t.Errorf("%s status %s, want %s", row.RelPath, row.Status, want)
 		}
 	}

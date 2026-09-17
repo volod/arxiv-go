@@ -15,7 +15,7 @@ arxgo split   --archive PATH --video-archive PATH [common flags] [scan flags] [s
 arxgo split   --catia --archive PATH --catia-archive PATH [--catia-text] [common flags] [scan flags] [split flags]
 arxgo restore --archive PATH --video-archive PATH [common flags] [restore flags]
 arxgo restore --catia --archive PATH --catia-archive PATH [common flags] [restore flags]
-arxgo catia-index --archive PATH [--out PATH] [--strings] [--log-level LEVEL] [--log-format FORMAT]
+arxgo catia-index --archive PATH [--out PATH] [--log-level LEVEL] [--log-format FORMAT]
 arxgo version
 arxgo help [operation]
 ```
@@ -143,7 +143,6 @@ Used by `catia-index` only ([text index](../stage-4-catia/catia.md#text-index)).
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--out PATH` | `<archive>/arxgo-catia-text.md` | Output document; replaced atomically |
-| `--strings` | `false` | Include the `strings:` blocks of the text sidecars |
 
 `--metadata` doubles as the "type of metadata" option from the requirements: `file` needs no
 external tool; `media` needs `ffprobe` for non-ISO-BMFF containers.

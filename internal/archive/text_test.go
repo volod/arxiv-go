@@ -41,7 +41,7 @@ func TestCatiaTextSidecarsMatchContractAndRerunIsNoop(t *testing.T) {
 		!strings.Contains(product, "- fixture-sub.CATProduct\n") {
 		t.Fatalf("product sidecar:\n%s", product)
 	}
-	drawing := "cad/deep/чертеж-fixture.CATDrawing"
+	drawing := "cad/deep/Р-fixture.CATDrawing"
 	if got := string(mustRead(t, textSidecar(r.archive, drawing))); !strings.HasPrefix(got, "arxgo-text: "+drawing+"\n") {
 		t.Fatalf("unicode sidecar:\n%s", got)
 	}

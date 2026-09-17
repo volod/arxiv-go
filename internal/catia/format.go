@@ -26,8 +26,9 @@ const (
 	zipMaxMember   = 64 << 20
 	zipMaxTotal    = 256 << 20
 	xmlFileCap     = zipMaxMember
-	minStringRun   = 6
-	minStringAlpha = 3
+	dictWindow     = 64 << 10
+	dictMaxStrings = 64
+	noteValueMax   = 1 << 20
 )
 
 var (

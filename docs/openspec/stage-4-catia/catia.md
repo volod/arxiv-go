@@ -8,7 +8,8 @@ Owner: `catia-archive`. Flags: [CLI](../stage-1-core/cli.md). Move behavior:
 A mixed archive holds CATIA CAD files that are large and awkward to share with the document tree.
 The operator needs those files marked in the file registry, moved with the same safety as video,
 and described by Markdown that a person can read without CATIA. Optional extracted text makes
-assembly membership and other embedded strings searchable in the document archive.
+assembly membership, product properties and the notes written on drawings searchable in the
+document archive.
 
 ## Kinds
 
@@ -105,8 +106,8 @@ move commits, never affects the original, and a failure logs a warning, records 
 does not roll back the move (the stage-2 preview rule). Transactions, reruns and restore:
 [CATIA split and restore](split-restore.md#text-sidecars).
 
-The sidecar is opt-in because harvested strings can include the authoring user id and absolute
-paths of the authoring workstation. The description never contains them.
+The sidecar is opt-in because product properties and notes can name people, for example the
+signatures of a drawing's title block. The description never contains them.
 
 ### Components of V5 documents
 
@@ -145,31 +146,93 @@ draws. An empty list is a valid result, not an error.
   `properties:`.
 - Components: the `associatedFile` attribute of `ReferenceRep` and the file part of `urn:3DXML:`
   references, reduced to their base names; `http:`, `https:` and other external URLs are ignored.
-  The `name` attributes of `Reference3D` and `Instance3D` go to `strings:`.
+- The `name` attributes of `Reference3D` and `Instance3D` are object names, not descriptions, and
+  are not extracted. A 3dxml has no `notes:` block.
 - An XML syntax error in the root member is `text_failed` with no sidecar; an error in another
   member is logged and that member is skipped.
 
-### Strings
+## Descriptive text
 
-Every kind also harvests printable runs for search:
+The sidecar keeps text a person wrote or chose, not whatever bytes happen to be printable. An
+earlier harvest of printable ASCII and UTF-16LE runs filled sidecars with format vocabulary, font
+and line-type names, style catalogs and decoded binary data, and it could not see UTF-8 text in
+other scripts at all. Measured on a disposable copy of the operator archive, about 7 in 10
+harvested items were strings found in at least 100 files, and most strings unique to one file were
+binary noise. That harvest is removed. A V5 document contributes the product properties, the
+material and the notes below; a `.cgr` or a file of unknown format contributes none of them.
 
-- ASCII runs of bytes 0x20-0x7E, and UTF-16LE runs of the same characters, at least 6 characters
-  long and containing at least 3 ASCII letters, trimmed of surrounding spaces;
-- runs already listed under `components:` are excluded; the rest are deduplicated and sorted
-  byte-wise under `strings:`.
+### V5 dictionary strings
 
-For a ZIP `.3dxml` the harvest reads the XML text content and attribute values rather than the
-compressed bytes.
+A V5 container stores the names and string values of its objects as length-prefixed UTF-8
+strings. A length byte `n` from 1 to 49 gives `n - 1` bytes of text (at most 48); a length byte 0
+is followed by a little-endian uint32 byte count, which is used from 49 bytes up. The extractor
+reads such a string only at the markers below, and accepts it only when its bytes are valid UTF-8
+without control characters other than tab, line feed and carriage return. A string that fails
+the check ends that read. It never scans for strings at other offsets.
+
+### Product properties
+
+The root product of a `.CATPart` or `.CATProduct` is a run of dictionary strings: `ASMPRODUCT`,
+the part number, then attribute names that start with `_`, each directly followed by its value when
+one is stored. The extractor reads the run at the first `ASMPRODUCT` string (length byte 11) up to
+the string `_BagRepsList`, reading at most 64 strings in a window of 64 KiB, and fills these
+properties:
+
+| Source | Property | Value left out when it |
+| --- | --- | --- |
+| the string after `ASMPRODUCT` | `part_number` | starts with `_` |
+| the string after `_Revision` | `revision` | starts with `_` or is `Revision` |
+| the string after `_Definition` | `definition` | starts with `_` or is `Definition` |
+| the string after `_Nomenclature` | `nomenclature` | starts with `_` or is `Nomenclature` |
+| the string after `_Source` | `source` | starts with `_`, is `Source` or is `Unknown` (CATIA's unset source) |
+| the string after `_DescriptionRef` | `description` | starts with `_` or is `Product Description` |
+
+A value that begins with `_` is the next attribute name, so that property has no stored value. A
+value equal to the property's CATIA parameter name means a parameter or design table drives the
+property and the run holds the parameter's name, not its value. Other attributes, instance
+properties of the children of a product, and user-defined properties are not read.
+
+The material is the string after the pair `String`, `Material` (the string parameter CATIA adds
+when a material is applied), at its first occurrence and within 64 KiB of it, as property
+`material`. It is left out when it starts with `_` or is `None`. It is a best-effort reading: the pair is found by its bytes, and a
+material name stored elsewhere in the container is not recognized.
+
+### Notes
+
+Drawing texts and 3D annotation texts are stored as RTF in dictionary strings. A dictionary string
+of at most 1 MiB whose text starts with `{{\fonttbl` or `{\rtf` and ends with `}` is converted to
+plain text:
+
+1. Groups that start with `\fonttbl`, `\colortbl`, `\stylesheet`, `\info` or `\*` are skipped
+   with everything inside them.
+2. `\par` and `\line` become line breaks and `\tab` a space. `\\`, `\{` and `\}` become their
+   character. `\uN` becomes the code point N (N plus 65536 when negative), and the fallback
+   character after it is skipped. `\'hh` becomes its byte when that byte is below 0x80, and is
+   dropped otherwise. Every other control word or control symbol is dropped, a control word with
+   its numeric parameter and one space after it. Unescaped braces and raw line breaks of the RTF
+   source are dropped.
+3. Each line is trimmed of white space, empty lines are removed, and the remaining lines are
+   joined with line feeds.
+
+A note is kept when, outside CATIA symbol tags (`<` then upper-case ASCII letters, digits or `_`
+then `>`, such as `<DEGREE>`), it has at least three letters and at least two distinct letters
+ignoring case. The tags stay in the kept text. This drops bare numbers, single letters and
+placeholders made of one repeated letter. Notes are deduplicated and listed under `notes:` in the
+order of their first occurrence in the file.
+
+Every text of a drawing is a note, including the captions of a title block and of other frame
+templates, which repeat across drawings. Telling template text from written text needs the
+drawing's object structure or statistics over many files, and neither is part of this rule.
 
 ### Caps and encoding
 
 - The sidecar is UTF-8 without BOM with `\n` line endings. Values are escaped as description values
   are ([contracts](../stage-1-core/contracts.md#video-description)).
 - The rendered sidecar is capped at 1 MiB. Blocks are filled in order (`properties:`,
-  `components:`, `strings:`); the first item that does not fit ends the file after the last
-  complete item and sets `truncated: true`. Collection stops once the cap is reached, so memory
-  stays bounded.
-- Harvested strings and component names are never logged at info or higher; debug logs record
+  `components:`, `notes:`); the first item that does not fit ends the file after the last
+  complete item and sets `truncated: true`. Collection stops once the collected notes reach the
+  cap, so memory stays bounded.
+- Properties, component names and notes are never logged at info or higher; debug logs record
   counts only.
 
 ## Self-locating metadata
@@ -212,7 +275,7 @@ names the operator's host or user.
 at once needs them in one document, and assembling that in the shell means guessing sidecar names
 instead of reading the ownership the WAL recorded.
 
-`arxgo catia-index --archive PATH [--out PATH] [--strings]` writes one Markdown document from the
+`arxgo catia-index --archive PATH [--out PATH]` writes one Markdown document from the
 owned descriptions and sidecars that the CATIA run history records
 ([contract](../stage-1-core/contracts.md#catia-text-index)):
 
@@ -223,8 +286,7 @@ owned descriptions and sidecars that the CATIA run history records
 - one `## <rel_path>` section per CATIA file whose replayed CATIA history ends `moved` (the rows
   `arxgo-catia.csv` marks `moved`), in walk order, holding the identity block of its owned
   description (the sidecar identity fields and `description:`), then `text:` and `truncated:` of its
-  owned sidecar and the sidecar's `properties:` and `components:` blocks;
-- `strings:` only with `--strings`, because harvested runs dominate the size;
+  owned sidecar and the sidecar's `properties:`, `components:` and `notes:` blocks;
 - `--out` defaults to `<archive>/arxgo-catia-text.md`, a [reserved path](../spec.md#reserved-paths);
 - files without a usable owned sidecar keep their section and are listed once under a final
   `## Missing text` section with a reason, not skipped silently: `not_recorded` (no completed text
@@ -249,9 +311,14 @@ and it must not name run state, a registry, a part file, or an existing arxgo de
 sidecar (exit 2). Another existing file named by `--out` is replaced. An index written inside the
 archive under another name is an ordinary file for the next scan.
 
+A sidecar written before [descriptive text](#descriptive-text) holds a `strings:` block and no
+`notes:`; the index reads the blocks before it and repeats no `strings:` block. Deleting such
+sidecars and splitting again with `--catia-text` writes them anew
+([text sidecars](split-restore.md#text-sidecars)).
+
 Evaluation: the section count equals the `moved` rows of `arxgo-catia.csv`; a file whose sidecar was
-deleted appears under `Missing text`; removing the `strings:` blocks from the `--strings` output
-gives the default output byte for byte; a rerun writes a byte-identical document.
+deleted appears under `Missing text`; each section's `properties:`, `components:` and `notes:`
+blocks equal its sidecar's byte for byte; a rerun writes a byte-identical document.
 
 Excluded: other output formats, chunking for an embedding model, and any write to a description,
 sidecar or registry.
@@ -263,15 +330,19 @@ spec examples, log fixtures, records and committed docs must not copy names, pat
 strings from that tree; records may report aggregate counts only (files, kinds, how many yielded
 components). Tests build synthetic files in `t.TempDir()` with invented names such as
 `fixture-part.CATPart` and planted format markers (`V5_CFV2`, `CATOctetArray`, `FINJPL`, the
-property keys above, `Manifest.xml`). Those identifiers belong to the published file formats, not
-to archive content.
+property keys above, `ASMPRODUCT` and its attribute names, `String` `Material`, RTF control words,
+`Manifest.xml`). Those identifiers belong to the file formats, not to archive content. Planted
+property values and notes are invented.
 
 ## Exclusions
 
 - No CATIA kernel, CAA, COM, geometry tessellation, or decoding of the embedded preview image
   (a later refinement could extract the V5 `CATPreview` stream as a PNG preview).
-- No part number, revision or nomenclature fields: V5 stores them in undocumented structures. They
-  may appear under `strings:`.
+- No harvest of printable runs from binary content. Product properties, the material and notes
+  come only from the dictionary strings named in [descriptive text](#descriptive-text); the V5
+  format is undocumented, so a file stored differently yields none of them.
+- No instance or user-defined properties, parameters, relations, feature names or 3dxml object
+  names, and no detection of drawing-frame or title-block template text.
 - No new Go module dependency.
 - No cloud upload of the CATIA archive (stage 3 publishes video only).
 - No moving CATIA and video in one run; the payload kind is exclusive.
@@ -288,6 +359,15 @@ to archive content.
   without both the token is `unknown`.
 - A ZIP `.3dxml` with a `..` member, an oversized member and an external URL reference is read
   within the limits; a broken root member is `text_failed`.
+- A V5 fixture with a planted `ASMPRODUCT` run yields `part_number`, `revision`, `definition`,
+  `nomenclature`, `source` and `description`, and leaves out attributes without a value, parameter
+  names and the `Unknown` source; a planted `String` `Material` pair yields `material` and `None`
+  yields none.
+- Planted RTF strings in the short and the long length form yield plain notes with line breaks,
+  field results and symbol tags; groups, control words and invalid strings are dropped; numbers,
+  single letters and one-letter placeholders are not notes; notes are unique in file order; the
+  same file read in chunks that split every marker and length prefix gives the same result.
+- `.cgr` fixtures and 3dxml object names yield no notes, and no sidecar has a `strings:` block.
 - The sidecar respects the 1 MiB cap and `truncated`; extraction of a large synthetic file keeps
   memory bounded (window and cap, not file size).
 - No test or spec file contains strings harvested from the experimental `bin/` tree.
