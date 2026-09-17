@@ -18,8 +18,10 @@ containing only ISO BMFF files; successful ISO BMFF parsing itself does not invo
 
 `scan` and `split` (default `--metadata file`) read detected MP4, MOV, M4A, M4V and 3GP files with `go-mp4` and add
 flat `media_*` columns to their registry rows ([0040](../records/0040-split-flatten-operator-csv-outputs.md),
-[0041](../records/0041-metadata-collect-iso-metadata-by-default.md)). The completed CSV omits a metadata
-column that is empty in every row. The normalized data contains container, duration,
+[0041](../records/0041-metadata-collect-iso-metadata-by-default.md)). Every metadata column is
+written, also when it is empty in every row
+([0052](../records/0052-registry-stabilize-registry-columns.md)). The normalized data contains
+container, duration,
 estimated bit rate, first video stream's display dimensions and rotation, frame rate, codecs,
 stream counts, audio presence, creation time and selected text tags. Unknown sample-entry codecs
 remain as four-character codes. A track's kind comes from the `hdlr` directly inside `mdia`; the

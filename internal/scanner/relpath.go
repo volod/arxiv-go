@@ -2,16 +2,20 @@ package scanner
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// retiredRegistryName matches a payload registry restore retired: <stem>.restored-<run-id>.csv.
+var retiredRegistryName = regexp.MustCompile(`^arxgo-(videos|catia)\.restored-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}\.csv$`)
 
 // reservedName reports the names arxgo owns directly under a walked root.
 func reservedName(name string) bool {
 	switch name {
-	case StateDirName, RegistryName, VideoRegistryName, CatiaRegistryName:
+	case StateDirName, RegistryName, VideoRegistryName, CatiaRegistryName, CatiaIndexName:
 		return true
 	}
-	return false
+	return retiredRegistryName.MatchString(name)
 }
 
 // Reserved reports whether the relative slash path rel is owned by arxgo: the state directory or a

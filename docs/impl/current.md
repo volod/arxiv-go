@@ -16,15 +16,17 @@ linked here in the same change.
 | [Project foundation](current/project-foundation.md) | Module, CLI contract (flags, `.env` file, validation, exit codes, logger, signals), `make setup`, Make targets, CI, planning tooling | Shipped; operations validate options and run the lock/checkpoint session |
 | [Crash safety](current/crash-safety.md) | Filesystem primitives; run lock, `.arxgo/` layout, checkpoints, run log, progress, report, WAL and recovery (including a run that a new run replaces), disk-space preflight | Shipped; session used by scan, split and restore |
 | [Media metadata](current/media-metadata.md) | Pure-Go MP4/MOV/M4A metadata, bounded ffprobe parsing for other audio/video formats and ISO fallback, audio-only classification, tool discovery | Shipped; Linux tests and generated-archive scan pass; Windows cross-compiled |
-| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped; default scan fills ISO BMFF media columns |
+| [Archive registry](current/archive-registry.md) | Directory walker, file type detection, resumable `scan` operation: `arxgo-registry.csv`, candidate list, statistics, exit 6 for skipped entries | Shipped; default scan fills ISO BMFF media columns; every registry keeps its full header ([0052](records/0052-registry-stabilize-registry-columns.md)); moved files keep rows with `location`, owned artifacts have none, unchanged registries stay untouched ([0053](records/0053-registry-preserve-archive-registry.md)); unchanged files are not opened again, `--redetect` forces detection ([0054](records/0054-registry-reuse-registry-detection.md)); restored files are detected once ([0057](records/0057-catia-review-registry-and-metadata.md)) |
 | [Video split](current/video-split.md) | Resumable split transactions, same-device rename, cross-device copy, recovery, video descriptions and `arxgo-videos.csv` | Shipped |
 | [Video restore](current/video-restore.md) | Restore videos with directory, conflict, description and registry policies; crash recovery; the stage-1 end-to-end proof | Shipped; stage-1 checkpoint, generated-archive proof and operator archive-copy trial accepted |
 | [Media previews](current/media-previews.md) | ffmpeg runner, planning, sample and PNG encoding, split/restore WAL integration, registry/description links, release bundles | Shipped; stage-2 checkpoint accepted after repairs, including a split/restore round trip on real archive footage |
-| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars; `restore --catia` with owned description and text sidecar cleanup | In progress; classification, payload executor, extraction, CATIA split, text sidecars, CATIA restore and the stage-4 proof shipped; stage-4 checkpoint remains |
+| [CATIA archive](current/catia-archive.md) | Built-in CATIA kind table, `is_catia` on every scan, file-registry column order, reserved `arxgo-catia.csv`; the payload split/restore executor; pure-Go CATIA extraction and `catia:` / text-sidecar rendering; `split --catia` with CATIA descriptions and `arxgo-catia.csv`; `--catia-text` post-commit sidecars with product properties and drawing notes; `archive:` in descriptions and sidecars, sidecar identity block; `restore --catia` with owned description and text sidecar cleanup; read-only `catia-index` document with reserved `arxgo-catia-text.md` | Shipped; classification, payload executor, extraction, CATIA split, text sidecars, text index, CATIA restore, the stage-4 proof, the stage-4 checkpoint, the registry-and-metadata checkpoint ([0057](records/0057-catia-review-registry-and-metadata.md)) and notes and properties ([0058](records/0058-catia-extract-catia-notes-and-properties.md)) accepted; operator approval on an archive copy accepted ([0059](records/0059-catia-approve-stage-4-on-operator-catia-copy.md)) |
 
 `arxgo help [op]`, `arxgo version` and full flag validation work. `scan` writes the resumable file
 registry; default `--metadata file` fills ISO BMFF `media_*` columns for MP4, MOV, M4A, M4V and 3GP
 without ffprobe; `--metadata media` requires `ffprobe` (exit 3 with download links when it is missing).
+A rescan or split opens only files that are new or changed since the last registry
+([0054](records/0054-registry-reuse-registry-detection.md)).
 `split` moves videos transactionally, writes video descriptions, optionally generates sample clips and
 PNG frames with FFmpeg, and regenerates `arxgo-videos.csv` in both roots.
 `restore` returns videos from the video archive and can delete their recorded previews. `make dist`
@@ -47,9 +49,22 @@ and deletes owned descriptions and text sidecars
 next restore deletes the previews or text sidecars an interrupted, replaced restore left
 ([0049](records/0049-catia-repair-replaced-restore-sidecar-cleanup.md)); `make test-integration` proves both
 payloads with seeded kills and a byte-identical round trip on a generated archive
-([0050](records/0050-catia-prove-stage-4-on-generated-archive.md)). The stage-4 checkpoint ran the
+([0050](records/0050-catia-prove-stage-4-on-generated-archive.md)). Descriptions and sidecars name
+their archive root, and each sidecar repeats its description's identity fields
+([0055](records/0055-catia-record-source-location-in-metadata.md)); `catia-index` writes one
+read-only Markdown document of every moved CATIA file from the recorded descriptions and sidecars,
+listing files without text ([0056](records/0056-catia-implement-catia-text-index.md)). The stage-4 checkpoint ran the
 built binary over a disposable copy of the operator archive, repaired five defects and routed the
 registry-schema and metadata-completeness gaps to their own tasks
-([0051](records/0051-catia-review-stage-4-catia.md)); `catia-archive` stays planned until those are
-accepted, and stage 3 cloud publishing may now start. The next work is reported by
-`make plan-status`.
+([0051](records/0051-catia-review-stage-4-catia.md)). The registry-and-metadata checkpoint ran the
+built binary over that archive copy again, found registries, descriptions, sidecars and the index
+consistent with the run history, repaired detection of restored files, description value quoting,
+`moved_at` clock and empty-file `file_size`, and prepared the registry and text index as review
+input for the operator approval ([0057](records/0057-catia-review-registry-and-metadata.md)).
+Sidecars and the index now carry V5 product properties, the material and plain-text drawing notes
+instead of harvested printable strings, and `catia-index` has no `--strings` option
+([0058](records/0058-catia-extract-catia-notes-and-properties.md)).
+The operator approved stage 4 for production use after a trial on a copy of the CATIA tree
+([0059](records/0059-catia-approve-stage-4-on-operator-catia-copy.md)); `catia-archive` is shipped
+and stage 3 cloud publishing is next.
+The next work is reported by `make plan-status`.

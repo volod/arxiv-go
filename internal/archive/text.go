@@ -16,6 +16,10 @@ import (
 
 const catiaTextNeedCap = 1 << 20
 
+// textIdentityReserve is the preflight estimate of a sidecar's header beyond its extracted text: the
+// archive root, file name, the identity block repeated from the description and the timestamps.
+const textIdentityReserve = 4 << 10
+
 // extractCatia is the text-sidecar extractor; tests replace it to inject failures.
 var extractCatia = catia.ExtractPath
 
@@ -30,11 +34,13 @@ type splitTexts struct {
 	w       *state.WAL
 	idx     *eventIndex
 	ctx     context.Context
-	earlier []string // CATIA files earlier runs already moved
+	earlier []string          // CATIA files earlier runs already moved
+	hints   map[string]string // rel_path -> description rel_path recorded by earlier runs
 }
 
 func startTextSidecars(ctx context.Context, v *catiaSplit, w *state.WAL) (postCommit, error) {
-	t := &splitTexts{s: v.s, w: w, idx: v.idx, ctx: ctx, earlier: v.movedRels()}
+	t := &splitTexts{s: v.s, w: w, idx: v.idx, ctx: ctx, earlier: v.movedRels(),
+		hints: movedDescriptions(v.history)}
 	if err := t.catchUp(w.Committed()); err != nil {
 		return nil, t.stop(err)
 	}
@@ -138,7 +144,9 @@ func (t *splitTexts) generate(rel string) error {
 		}
 		return t.finishFailed(begin.TxID, rel, reason)
 	}
-	body := report.RenderCatiaText(report.CatiaTextInput{RelPath: rel, ExtractedAt: t.s.cfg.Now(), Info: info})
+	body := report.RenderCatiaText(report.CatiaTextInput{
+		RelPath: rel, Archive: t.s.cfg.Archive, Identity: t.identity(rel), ExtractedAt: t.s.cfg.Now(), Info: info,
+	})
 	if err := publishSidecar(t.s.cfg.FS, t.s.cfg.Crash, path, body); err != nil {
 		if err := t.ctx.Err(); err != nil {
 			return err
@@ -275,12 +283,11 @@ func estimateTextBytes(v *catiaSplit) (int64, error) {
 	return n, nil
 }
 
+// textNeed is the preflight estimate of one sidecar: the extracted text is bounded by the file
+// size, the header by textIdentityReserve, and the whole sidecar by the 1 MiB cap.
 func textNeed(size int64) int64 {
 	if size <= 0 {
 		return 0
 	}
-	if size < catiaTextNeedCap {
-		return size
-	}
-	return catiaTextNeedCap
+	return min(addSat(size, textIdentityReserve), catiaTextNeedCap)
 }

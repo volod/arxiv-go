@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/volod/arxiv-go/internal/fsops"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/state"
 	"github.com/volod/arxiv-go/test/fixtures/testmp4"
 )
@@ -110,6 +112,20 @@ func TestSplitMovesOnlyVideosAndRerunIsNoop(t *testing.T) {
 			}
 			checkSplit(t, src, dst)
 		})
+	}
+}
+
+// Regression: NewMarkdownDescription defaulted Now to the wall clock, so a writer built without a
+// clock, as the CLI builds it, never took the session clock for moved_at.
+func TestSplitDescriptionUsesSessionClock(t *testing.T) {
+	r, src, _ := splitFixture(t)
+	cfg, c := splitConfig(r, "auto")
+	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
+		t.Fatalf("split = %+v", res)
+	}
+	d, err := report.ReadDescriptionFile(src + ".md")
+	if want := cfg.Now().UTC().Format(time.RFC3339); err != nil || d["moved_at"] != want {
+		t.Fatalf("moved_at = %q, %v; want the session clock %s", d["moved_at"], err, want)
 	}
 }
 

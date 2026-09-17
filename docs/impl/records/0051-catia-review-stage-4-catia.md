@@ -84,7 +84,7 @@ Specs amended: [type detection](../../openspec/stage-1-core/registry.md#type-det
 [`--verify`](../../openspec/stage-1-core/cli.md), [split step 5](../../openspec/stage-1-core/split-restore.md#split),
 [WAL record and run report](../../openspec/stage-1-core/contracts.md#wal-record),
 [text sidecars](../../openspec/stage-4-catia/split-restore.md#text-sidecars). New behavior specified
-for the routed work: [column stability](../../openspec/stage-1-core/registry.md#column-stability),
+for the routed work: [registry stability](../../openspec/stage-1-core/registry.md#registry-stability),
 [self-locating metadata](../../openspec/stage-4-catia/catia.md#self-locating-metadata),
 [text index](../../openspec/stage-4-catia/catia.md#text-index).
 

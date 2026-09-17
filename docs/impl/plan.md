@@ -26,105 +26,6 @@ plan: no task waits for it, and Windows-only audit notes are routed there.
 
 ## Agent Implementation Tasks
 
-### Archive registry -- `archive-registry`
-
-#### stabilize-registry-columns
-
-A registry's header depends on what the archive currently holds, so the same tree yields different
-schemas from one command to the next and a downstream loader breaks.
-
-- Serves: `archive-registry` -- [Column stability](../openspec/stage-1-core/registry.md#column-stability)
-- Agent status: CLEAR
-- Dependencies: [Stage-4 checkpoint](records/0051-catia-review-stage-4-catia.md).
-- User-visible outcome: `--registry-columns full` writes every canonical column of every registry
-  on every run, so a spreadsheet, database or search index sees one stable schema.
-- Scope boundary: The flag, its validation and plumbing into the three CSV writers, and the
-  `previews` / `text_rel_path` asymmetry between the payload registries. No column order, value or
-  row change; no new columns.
-- Data and artifact paths: `internal/report/csv_compact.go`, `internal/report/videos.go`,
-  `internal/report/catia_registry.go`, `internal/cli/`.
-- Execution path: Table tests over the three writers in both modes; a CLI test for the invalid
-  value; a scan-then-split fixture comparing headers.
-- Acceptance gates: In `full` mode a scan before and after a split of the same tree writes
-  byte-identical headers, and a payload registry has the same header with and without
-  `--verify hash`; `compact` reproduces the current output byte for byte; an invalid mode exits 2;
-  `make ci` passes.
-- Documentation target: `docs/impl/current/archive-registry.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
-### CATIA archive -- `catia-archive`
-
-#### record-source-location-in-metadata
-
-A description or text sidecar harvested into a search index no longer sits next to its file, and
-nothing inside it says which archive the path belongs to; a sidecar says nothing about the file
-beyond its path.
-
-- Serves: `catia-archive` -- [Self-locating metadata](../openspec/stage-4-catia/catia.md#self-locating-metadata)
-- Agent status: CLEAR
-- Dependencies: [Stage-4 checkpoint](records/0051-catia-review-stage-4-catia.md).
-- User-visible outcome: Every description and text sidecar names its archive root, and each sidecar
-  carries the identity block of its description, so a harvested document stands alone.
-- Scope boundary: The shared description renderer and the sidecar renderer, the archive root passed
-  into them, and the sidecar cap accounting. Both payloads share the renderer, so the video
-  description gains `archive:` in the same change. No marker-line change, no new registry column,
-  no rewrite of descriptions earlier runs wrote.
-- Data and artifact paths: `internal/report/description.go`, `internal/report/catia.go`,
-  `internal/archive/split_description.go`, `internal/archive/text.go`.
-- Execution path: Renderer table tests; a CATIA split fixture comparing sidecar and description
-  fields; a cap test whose identity block alone exceeds 1 MiB.
-- Acceptance gates: `archive:` is the second line of both files; a hash-verified split writes the
-  same `sha256`, `file_size` and `catia` values in sidecar and description; an oversized identity
-  block yields `truncated: true` with no blocks; `restore --descriptions delete` still removes
-  both; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
-#### implement-catia-text-index
-
-Extracted CATIA text lands in one sidecar per file; reading or feeding a whole archive at once
-means assembling them in the shell by guessing sidecar names.
-
-- Serves: `catia-archive` -- [Text index](../openspec/stage-4-catia/catia.md#text-index)
-- Agent status: CLEAR
-- Dependencies: `record-source-location-in-metadata`.
-- User-visible outcome: `arxgo catia-index` writes one Markdown document of every moved CATIA
-  file's metadata, properties and components, with harvested strings only on request.
-- Scope boundary: A read-only operation reading the CATIA run history, owned descriptions and owned
-  sidecars; `--out` and `--strings`; the reserved default output path. No extraction, no write to a
-  description, sidecar or registry, no other output format.
-- Data and artifact paths: `internal/archive/catia_index.go`, `internal/cli/`,
-  `docs/guide/manual-linux.md`, `docs/guide/manual-windows.md`.
-- Execution path: Fixture archive split with `--catia-text`, then the index built and compared;
-  a deleted sidecar covering the `Missing text` section.
-- Acceptance gates: Section count equals the `moved` rows of `arxgo-catia.csv`; a missing sidecar is
-  listed once and not skipped silently; `--strings` is the only difference between the two outputs;
-  a rerun is byte-identical; `make ci` passes.
-- Documentation target: `docs/impl/current/catia-archive.md`
-- Review checkpoint: `review-registry-and-metadata`.
-
-#### review-registry-and-metadata
-
-Review registry schema stability and the metadata a detached reader sees before cloud work starts.
-
-- Serves: `catia-archive` -- [Development integrity](../openspec/spec.md#development-integrity)
-- Agent status: CLEAR
-- Task kind: checkpoint
-- Dependencies: `stabilize-registry-columns`; `record-source-location-in-metadata`;
-  `implement-catia-text-index`.
-- User-visible outcome: Registry schemas and metadata documents are coherent across commands and
-  payloads, and stage 3 can start without reopening them.
-- Scope boundary: Column mode plumbing, payload registry symmetry, description and sidecar field
-  order and escaping, index correctness against the run history, cap accounting. No speculative
-  refactor.
-- Data and artifact paths: The records of the three tasks above, `internal/report/`,
-  `internal/archive/`.
-- Execution path: Invariant-to-evidence table, targeted tests, routed notes.
-- Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
-  passes.
-- Documentation target: `docs/impl/current.md`
-- Review checkpoint: none; this is the bounded checkpoint.
-
 ### Cloud publishing -- `cloud-publishing`
 
 #### research-cloud-target-apis
@@ -233,9 +134,12 @@ Review cloud publishing security, resume and link invariants.
 - Task kind: checkpoint
 - Dependencies: `prove-cloud-targets-on-test-accounts`.
 - User-visible outcome: Stage 3 is coherent, secrets are contained and the binary remains static.
-- Scope boundary: Publish WAL/recovery, secret redaction, token cache permissions, binary size and
-  `CGO_ENABLED=0` build, link rewrite consistency. No speculative refactor.
-- Data and artifact paths: Stage-3 records, `internal/cloud/`.
+- Scope boundary: Publish WAL/recovery and its cost in the archive view's history replay, secret
+  redaction, token cache permissions, binary size and `CGO_ENABLED=0` build, link rewrite
+  consistency. No speculative refactor.
+- Data and artifact paths: Stage-3 records, the note routed by the
+  [registry and metadata checkpoint](records/0057-catia-review-registry-and-metadata.md#audit-handoff),
+  `internal/cloud/`, `internal/archive/history.go`.
 - Execution path: Invariant-to-evidence table, targeted tests, routed notes.
 - Acceptance gates: Notes dispositioned; verdicts recorded; blockers repaired first; `make ci`
   passes.
@@ -243,19 +147,6 @@ Review cloud publishing security, resume and link invariants.
 - Review checkpoint: none; this is the bounded checkpoint.
 
 ## Human-Assisted Tasks
-
-### CATIA archive -- `catia-archive`
-
-#### approve-stage-4-on-operator-catia-copy
-
-- Serves: `catia-archive` -- [Success criteria](../openspec/spec.md#success-criteria)
-- Human status: HUMAN-GATED
-- Dependencies: [Stage-4 proof](records/0050-catia-prove-stage-4-on-generated-archive.md).
-- Requested input or decision: Run `split --catia --catia-text`, interrupt, resume and
-  `restore --catia` on a disposable copy of the experimental CATIA tree; review descriptions,
-  sidecars (usefulness of `strings:`, and whether user ids or workstation paths are acceptable in
-  them), logs and timings; accept, or file defects. Records keep aggregate counts only.
-- Unblocks: Production use of stage 4. Stage-3 development does not wait for this decision.
 
 ### Cloud publishing -- `cloud-publishing`
 

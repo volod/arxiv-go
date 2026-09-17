@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/volod/arxiv-go/internal/catia"
 	"github.com/volod/arxiv-go/internal/media"
@@ -27,6 +28,7 @@ const descriptionHeaderLimit = 64 << 10
 // DescriptionInput is the data for one video description. Empty optional fields are omitted.
 type DescriptionInput struct {
 	RelPath  string
+	Archive  string // absolute archive root, written as archive: directly after the marker
 	FileSize int64
 	FileMIME string
 	SHA256   string
@@ -38,7 +40,8 @@ type DescriptionInput struct {
 	Catia    *catia.Info // when set, a CATIA description: no created: or video: fields
 }
 
-// RenderDescription returns a description: one "key: value" line per field, the marker first, no blank lines.
+// RenderDescription returns a description: one "key: value" line per field, the marker first and the
+// archive root second, no blank lines.
 // Preview links are appended later by ReplacePreviewLinks.
 func RenderDescription(in DescriptionInput) []byte {
 	var b strings.Builder
@@ -51,9 +54,8 @@ func RenderDescription(in DescriptionInput) []byte {
 		}
 	}
 	field(DescriptionMarker, in.RelPath)
-	if in.FileSize > 0 {
-		field("file_size", strconv.FormatInt(in.FileSize, 10)+" ("+FormatSize(in.FileSize)+")")
-	}
+	field("archive", in.Archive)
+	field("file_size", strconv.FormatInt(in.FileSize, 10)+" ("+FormatSize(in.FileSize)+")")
 	field("file_mime", in.FileMIME)
 	field("sha256", in.SHA256)
 	if in.Catia == nil && in.Media != nil && in.Media.Error == "" {
@@ -244,9 +246,12 @@ func ReplacePreviewLinks(data []byte, links []PreviewLink) []byte {
 }
 
 // quoteValue double-quotes a value that would not read back unchanged: leading or trailing space,
-// a quote, a backslash or a line break.
+// a quote, a backslash or a line break. The edges are decoded as runes: the last byte of a
+// multi-byte character is not a character of its own.
 func quoteValue(v string) string {
-	need := strings.ContainsAny(v, "\"\\\n\r") || unicode.IsSpace(rune(v[0])) || unicode.IsSpace(rune(v[len(v)-1]))
+	first, _ := utf8.DecodeRuneInString(v)
+	last, _ := utf8.DecodeLastRuneInString(v)
+	need := strings.ContainsAny(v, "\"\\\n\r") || unicode.IsSpace(first) || unicode.IsSpace(last)
 	if !need {
 		return v
 	}

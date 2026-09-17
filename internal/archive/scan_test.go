@@ -101,14 +101,14 @@ func TestScanGoldenRegistry(t *testing.T) {
 	}
 }
 
-func TestScanEmptyArchiveWritesHeaderOnly(t *testing.T) {
+func TestScanEmptyArchiveWritesFullHeaderOnly(t *testing.T) {
 	r := newRoots(t)
 	res, _ := runScan(t, context.Background(), scanSessionConfig(r, newClock(), 5), testScanConfig(r))
 	if res.Status != StatusCompleted {
 		t.Fatalf("status = %v (%v)", res.Status, res.Err)
 	}
 	got := string(mustRead(t, filepath.Join(r.archive, "arxgo-registry.csv")))
-	if got != strings.Join(report.RegistryHeader[:report.FileRegistryKeep], ",")+"\n" {
+	if got != strings.Join(report.RegistryHeader, ",")+"\n" {
 		t.Errorf("registry = %q", got)
 	}
 }

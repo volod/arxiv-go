@@ -7,7 +7,13 @@ The flat CSV metadata layout was delivered in
 [0040](../records/0040-split-flatten-operator-csv-outputs.md); default ISO BMFF collection in
 [0041](../records/0041-metadata-collect-iso-metadata-by-default.md). `is_catia` and the current
 file-registry column order were added in
-[0043](../records/0043-catia-implement-catia-classification.md).
+[0043](../records/0043-catia-implement-catia-classification.md). Every registry keeps its full header
+since [0052](../records/0052-registry-stabilize-registry-columns.md); the preserved archive view,
+`location`, the registry stamp and unchanged-file rule since
+[0053](../records/0053-registry-preserve-archive-registry.md); reuse of unchanged rows and
+`--redetect` since [0054](../records/0054-registry-reuse-registry-detection.md); detection of
+restored files and the real-archive review of schema, view and reuse in
+[0057](../records/0057-catia-review-registry-and-metadata.md).
 Specification: [archive registry](../../openspec/stage-1-core/registry.md); formats in
 [contracts](../../openspec/stage-1-core/contracts.md#file-registry-csv). The capability is shipped
 for both `--metadata file` and `--metadata media`; media fields are described in
@@ -38,11 +44,12 @@ arxgo scan --archive /data/archive --large-threshold 500MiB --video-extensions b
   files that cannot be opened or read get no row; each is logged once, counted in `skipped` by
   reason and listed in the report's `issues`. The required columns are `rel_path`, `file_name`,
   `file_type`, `file_size`, `is_large`, `file_mime`, `is_binary`, `is_media`, `is_picture`,
-  `is_video`, `is_catia`, then compactable metadata. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
+  `is_video`, `is_catia`, then `location` and the flat metadata columns. Default `--metadata file` writes `mtime` and, for detected MP4, MOV, M4A, M4V
   and 3GP, flat `media_*` columns from the ISO BMFF parser (a parse failure sets `media_error`).
   `--metadata media` requires `ffprobe` ([tool discovery](media-metadata.md#tool-discovery-internalmedia))
-  and fills those columns for other audio/video files and ISO failures. A completed registry omits
-  metadata columns that are empty in every row ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)).
+  and fills those columns for other audio/video files and ISO failures
+  ([0041](../records/0041-metadata-collect-iso-metadata-by-default.md)). The registry always has the
+  full header, also on an empty archive ([full schema](#full-schema)).
 - Outputs: `report.RegistryWriter` (`encoding/csv`, `\n` line ends, compact JSON without HTML
   escaping) writes `<registry>.arxgo-part` and counts bytes; video rows also go to
   `candidates.jsonl` in the run directory (`archive.ReadCandidates` reads it back). On completion
@@ -171,8 +178,148 @@ and legacy Office documents). An AppleDouble sidecar keeps an empty `file_type`,
 extension in its name belongs to the file it describes
 ([0051](../records/0051-catia-review-stage-4-catia.md)).
 
-The set of columns a registry carries still depends on the archive's current content, because a
-column empty in every row is dropped: the same tree yields a 28-column file registry from
-`scan --metadata media` and a 12-column one from a `scan` after its videos moved out.
-[Column stability](../../openspec/stage-1-core/registry.md#column-stability) specifies the
-`--registry-columns` flag that fixes this; it is open work.
+## Full schema
+
+([0052](../records/0052-registry-stabilize-registry-columns.md);
+[spec](../../openspec/stage-1-core/registry.md#full-schema).) `arxgo-registry.csv`,
+`arxgo-videos.csv` and `arxgo-catia.csv` are written with every column their writer knows
+(`report.RegistryHeader`, `report.VideoHeader`, `report.CatiaHeader`), in contract order, on every
+run of `scan`, `split` and `restore`; a column empty in every row has empty cells. The scan no
+longer rewrites its part file after the walk, and no writer drops columns. The same tree therefore
+yields a byte-identical 40-column file-registry header from an empty archive, a video tree, the
+same tree after `split` and a CATIA tree, and a payload registry has the same header with or
+without `--verify hash`, previews and `--catia-text`.
+
+Readers still accept registries from earlier builds that omitted optional columns: the file and
+video registries require their leading columns (`report.FileRegistryRequired`, 11;
+`report.VideoRegistryRequired`, 11) and read any canonical-order subset of the metadata columns;
+the CATIA registry reads any canonical-order subset of columns 11-16. A missing column is empty,
+and the next write of that file has the full header.
+
+## Archive view
+
+([0053](../records/0053-registry-preserve-archive-registry.md);
+[spec](../../openspec/stage-1-core/registry.md#archive-view).) The file registry of the archive
+describes the archive the operator curated. `scan` and the scan phase of `split` share
+`archive.Scan`. Restore's scan of a mirror root (`ScanConfig.mirror`) does none of the following.
+
+- **History** (`archive_view.go`): `loadArchiveView` reads the run history of both payloads
+  (`readHistory`) and never reads `arxgo-videos.csv` or `arxgo-catia.csv`. `replayMoves` applies
+  the payload registry rules run by run: a committed split makes a file moved (a later abort never
+  undoes it), a committed restore takes it back. The mirror root, size and mtime come from the run
+  that last moved the file.
+- **Owned artifacts** join the walker's `SkipPaths`: previews and text sidecars recorded by their
+  event index (complete, generating or deleting), plus descriptions recorded by `described` and not
+  removed since. A restore records the owned description both when it deletes it and when
+  `--descriptions keep` leaves it. A description a restore recorded therefore stays owned while
+  `report.InspectDescription` still finds its marker. A file the operator writes there later is an
+  ordinary file with a row. Split no longer adds preview skip paths itself.
+- **Preserved rows** (`scan_preserved.go`): before the walk, every moved rel_path after the resume
+  cursor that `--exclude` (checked on each ancestor, like pruning) and reserved paths do not cover
+  gets a row from the first source that has one. Sources are resolved on the scan worker pool: the
+  stamped base row; detection of `<mirror>/<rel_path>` through the same `inspect`/`fileRow` path as
+  a present file (audio-only refinement included); any readable base row (`registry-row-kept`
+  warning); a row rebuilt from the replayed payload registry and WAL (`registry-row-reconstructed`
+  warning). Base rows get `is_large` and `is_catia` recomputed. Warnings are logged only and leave
+  the exit code alone.
+- **Merge**: the writer emits queued preserved rows whose key precedes each walked entry, so rows
+  stay in walk order. A walked entry other than a directory at a preserved key drops that row
+  (presence wins). Rows after the last entry are written only after a completed walk. A preserved
+  row advances the cursor, so a scan synced after them and stopped before placement resumes
+  without duplicates. Preserved rows never reach `candidates.jsonl`, and statistics other than
+  `preserved` and the generic `files`/`bytes` counters count present rows only.
+- **Placement** (`registry_base.go`): `placeRegistry` hashes the part file while comparing it with
+  the existing registry. Equal bytes remove the part and keep the file with its modification time
+  (`registry` `unchanged`). Otherwise `fsops.Replace` places it (`written`). The payload registries
+  use `writeFileIfChanged` for both copies, also when restore updates them.
+- **Stamp**: `.arxgo/registry.json` (`state.RegistryStamp`) is written after every non-dry-run
+  archive scan, with the placed size and SHA-256 and `scan_started_at` from `ScanStats.StartedAt`.
+  `StartedAt` is kept in the checkpoint across processes and is the scan start of the first
+  process. The stamp also records the detection settings: version, metadata mode, and the
+  effective sorted video extension list without dots. A base row counts as stamped only when path,
+  size, SHA-256 and settings all match.
+- **Location updates** (`registry_location.go`): after execute and the payload registry, split
+  sets the payload location on the rows of the files its WAL committed. It parses its scan's
+  registry, rewrites it through the part file and placement, and stamps it. It never detects.
+  `restore --registry-update` reads the stamped registry only while it matches its stamp, sets
+  `archive` on rows whose replayed status is restored, updates the stamp's size and SHA-256, and
+  never adds or removes a row.
+- The retired payload registries `arxgo-videos.restored-<run-id>.csv` and
+  `arxgo-catia.restored-<run-id>.csv` are reserved at a root (`scanner.Reserved`), so a restore that
+  retires them leaves the file registry unchanged.
+- Readers accept a registry without `location` (every row `archive`) and reject an unknown
+  `location` value. The report's `scan` section and the `scan summary` line carry `preserved` and
+  `registry`.
+
+Evidence on a generated archive through the built binary: scan, video split with previews,
+CATIA split with `--catia-text`, and rescans left the registry byte-identical with the same
+modification time. Deleting the registry and stamp rebuilt it byte-identically. An added video
+added one row. Both restores set `location` back to `archive`, and the scans after them left the
+registry untouched.
+
+## Incremental update
+
+([0054](../records/0054-registry-reuse-registry-detection.md);
+[spec](../../openspec/stage-1-core/registry.md#incremental-update).) Every scan still walks the
+whole tree, but it opens a file for detection only when its row in the previous registry cannot be
+reused.
+
+- **Base** (`registry_base.go`): each archive scan opens the registry at the target path, hashes
+  it and compares it with `.arxgo/registry.json`. The file is the base when the stamp names it with
+  that size and SHA-256. Its rows are reusable when the stamp's version, `--metadata` mode and
+  effective video extension list also equal the run's and `--redetect` is not given. The file stays
+  open during the scan and is closed before the new registry is placed.
+- **Rule** (`scan_reuse.go`): the base is read row by row in walk order next to the walker, so memory
+  does not grow with the registry. A present regular file takes its base row when the row has
+  `location` `archive`, is not a symlink row, and has the same `file_size` and `mtime` (to the
+  second), and the file's mtime truncated to the second is earlier than the stamp's
+  `scan_started_at`. Such a file is never opened: no signature read, no ISO BMFF parse, no
+  ffprobe. `is_large` and `is_catia` are recomputed. A symlink always has its link text read and
+  counts as reused when the text and mtime match. A future mtime, a change in the base scan start
+  second, a changed size, a changed setting and a file at the path of a moved file are detected. A
+  base row out of walk order or unparseable ends reuse for the rest of the scan with a warning.
+- **Restored files** (`archiveView.restored`, `baseStream.restoredSinceBase`): the view keeps the
+  commit time of the restore that last returned each moved file (`restoreCommitTimes`). A present
+  file whose restore committed at or after the base scan start, to the second, is detected, because
+  `restore --registry-update` set its row back to `archive` without detection and that row may have
+  been kept or reconstructed while a mirror was unreadable. The first scan after a restore opens the
+  restored files once and the next reuses them
+  ([0057](../records/0057-catia-review-registry-and-metadata.md)).
+- **Limit**: a same-size change that keeps the old modification time is not seen; `arxgo scan
+  --redetect` (or `split --redetect`) detects every present file and every mirror copy and rewrites
+  the rows. Permissions are not checked either: a file that became unreadable keeps its row until
+  a detection. A reused row keeps its `media_error`, while the `media metadata unavailable` warning
+  belongs to the scan that detected the file. Both are accepted limits
+  ([0057](../records/0057-catia-review-registry-and-metadata.md#audit-handoff)).
+- **Resume**: a fresh scan stores `registry_base` (`{size, sha256}` of a stamped base) together
+  with a reset cursor, offsets and statistics. A resumed scan whose base now has another identity
+  (deleted, edited, replaced) logs `base registry changed since the checkpoint; scanning again from
+  the start` and restarts, keeping the first process's `started_at`.
+- **Statistics**: `reused` counts present rows taken from the base, in the `scan summary` line, the
+  checkpoint and the report.
+- **Split** (`split.go`): after its scan, split reads the scan's registry once. Preview planning,
+  `arxgo-videos.csv`, `arxgo-catia.csv` and the description writer take `file_mime` and media values
+  from those rows. A description writer that read the registry during recovery before the scan gets
+  the scan's rows. Split still probes a video whose row has no usable media values when it plans
+  previews.
+- `report.RegistryReader` streams a registry; `ReadRegistry` uses it.
+
+Evidence on a disposable copy of the operator archive (4031 files, 66.8 GiB), through the built
+binary with `--metadata media` ([0057](../records/0057-catia-review-registry-and-metadata.md)):
+an unchanged rescan opened no file; the scans after a killed and resumed CATIA split and an
+interrupted video split with previews opened no file in the archive or either mirror and left the
+registry untouched, with only `location` changed on the moved rows; a rebuild without registry and
+stamp and every `--redetect` were byte-identical; after both restores the first scan opened exactly
+the restored files, and once two added files were removed again the registry equalled the first
+scan's byte for byte.
+
+**History cost.** Every archive scan replays the WAL of every split and restore run. Measured
+([0057](../records/0057-catia-review-registry-and-metadata.md#audit-handoff)): about 2 us and 0.7 KB of
+memory per WAL record, linearly; one split and restore of both payloads of that archive (31,849
+records) loads in 78 ms and 45 MB, 50 such histories in 3.1 s and 1.2 GB. Routed to
+`review-stage-3-cloud` as `AUD-review-registry-and-metadata-1`.
+
+Evidence through the built binary on 20,000 random files and 3 generated clips (openat traced):
+the second scan opened no archive file and reported `reused` 20003. A split after adding a clip
+opened only that clip. The scan after the split opened nothing and left the registry
+byte-identical, and `--redetect` wrote the same bytes after opening every file.

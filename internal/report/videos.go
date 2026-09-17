@@ -21,6 +21,10 @@ var PayloadHeader = []string{
 // PayloadRegistryKeep is the number of payload registry columns shared by every payload.
 const PayloadRegistryKeep = 10
 
+// VideoRegistryRequired is the number of video-registry columns every reader requires (rel_path
+// through previews). Writers always write the full VideoHeader.
+const VideoRegistryRequired = 11
+
 // VideoHeader is the fixed column order of arxgo-videos.csv: the payload columns, previews, then the
 // flat metadata columns.
 var VideoHeader = []string{}
@@ -105,8 +109,8 @@ func videoRowOf(p PayloadRow, previews string, meta Metadata) VideoRow {
 	}
 }
 
-// WriteVideoCSV writes the header and rows in walk order to w. Metadata columns that are empty
-// in every row are omitted.
+// WriteVideoCSV writes the full header and rows in walk order to w. A column empty in every row is
+// written with empty cells.
 func WriteVideoCSV(w io.Writer, rows []VideoRow) error {
 	cw := csv.NewWriter(w)
 	record := make([]string, len(VideoHeader))
@@ -114,18 +118,17 @@ func WriteVideoCSV(w io.Writer, rows []VideoRow) error {
 	for _, r := range rows {
 		r.Payload().cells(record)
 		record[PayloadRegistryKeep] = r.Previews
-		copy(record[VideoRegistryKeep:], MetadataCells(r.Metadata))
+		copy(record[VideoRegistryRequired:], MetadataCells(r.Metadata))
 		data = append(data, append([]string(nil), record...))
 	}
-	header, data := dropEmptyColumns(VideoHeader, VideoRegistryKeep, data)
-	if err := cw.Write(header); err != nil {
+	if err := cw.Write(VideoHeader); err != nil {
 		return err
 	}
 	return cw.WriteAll(data)
 }
 
-// LoadVideoCSV reads a video registry. A missing file returns (nil, nil). Omitted empty
-// metadata columns are treated as empty.
+// LoadVideoCSV reads a video registry. Metadata columns missing from a registry written by an
+// earlier build that omitted them are treated as empty.
 func LoadVideoCSV(r io.Reader) ([]VideoRow, error) {
 	cr := csv.NewReader(r)
 	records, err := cr.ReadAll()
@@ -135,7 +138,7 @@ func LoadVideoCSV(r io.Reader) ([]VideoRow, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("video registry: empty file")
 	}
-	keep, err := checkRequiredHeader(records[0], VideoHeader, VideoRegistryKeep)
+	keep, err := checkRequiredHeader(records[0], VideoHeader, VideoRegistryRequired)
 	if err != nil {
 		return nil, fmt.Errorf("video registry: %w", err)
 	}

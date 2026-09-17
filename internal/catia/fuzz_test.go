@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"unicode/utf8"
 )
 
 func FuzzExtract(f *testing.F) {
@@ -13,6 +14,8 @@ func FuzzExtract(f *testing.F) {
 	f.Add([]byte{0x00, 0x05, 0x16, 0x07})
 	f.Add(v5File(v5LastSave(30, 5), v5Window(componentChunk("fixture-part.CATPart"))))
 	f.Add([]byte(sample3DXML))
+	f.Add(v5File(dictRun("ASMPRODUCT", "FIXTURE-100", "_Revision", "B", "_BagRepsList", "String", "Material", "fixture alloy")))
+	f.Add(v5File(dict(rtf(`{\ql invented\par note \u945?}`)), dict(`{\rtf1 x}`)))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		names := []string{"fixture-part.CATPart", "fixture-product.CATProduct", "fixture-drawing.CATDrawing", "fixture.cgr", "fixture.3dxml"}
 		for _, name := range names {
@@ -23,7 +26,11 @@ func FuzzExtract(f *testing.F) {
 			_ = info.Format
 			_ = info.Release
 			_ = info.Components
-			_ = info.Strings
+			for _, note := range info.Notes {
+				if !utf8.ValidString(note) || note == "" {
+					t.Fatalf("note %q", note)
+				}
+			}
 		}
 	})
 }

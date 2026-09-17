@@ -41,7 +41,7 @@ func TestRegistryWriterQuotingAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{row.RelPath, row.FileName, "mp4", "42", "false", "video/mp4", "true", "true", "false", "true", "false"}
+	want := []string{row.RelPath, row.FileName, "mp4", "42", "false", "video/mp4", "true", "true", "false", "true", "false", "archive"}
 	want = append(want, MetadataCells(meta)...)
 	if len(records) != 2 || !reflect.DeepEqual(records[0], RegistryHeader) || !reflect.DeepEqual(records[1], want) {
 		t.Errorf("records = %q", records)
@@ -128,8 +128,45 @@ func TestFileRegistryHeaderOrder(t *testing.T) {
 		"rel_path", "file_name", "file_type", "file_size", "is_large", "file_mime",
 		"is_binary", "is_media", "is_picture", "is_video", "is_catia",
 	}
-	if got := RegistryHeader[:FileRegistryKeep]; !reflect.DeepEqual(got, want) {
+	if got := RegistryHeader[:FileRegistryRequired]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required header = %q, want %q", got, want)
+	}
+	if got := RegistryHeader[FileRegistryRequired]; got != "location" {
+		t.Fatalf("column 12 = %q, want location", got)
+	}
+	if got := RegistryHeader[FileRegistryRequired+1:]; !reflect.DeepEqual(got, MetadataHeader) {
+		t.Fatalf("metadata columns = %q", got)
+	}
+}
+
+func TestRegistryLocationRoundTripAndValidation(t *testing.T) {
+	var b strings.Builder
+	path := filepath.Join(t.TempDir(), "reg.csv")
+	w, err := CreateRegistry(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, loc := range []string{LocationArchive, LocationVideoArchive, LocationCatiaArchive} {
+		if err := w.Write(RegistryRow{RelPath: loc + ".bin", FileName: loc + ".bin", Location: loc}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := LoadRegistry(path)
+	if err != nil || len(rows) != 3 {
+		t.Fatalf("rows = %+v (%v)", rows, err)
+	}
+	for _, row := range rows {
+		if row.RelPath != row.Location+".bin" {
+			t.Errorf("row %s: location %q", row.RelPath, row.Location)
+		}
+	}
+	b.WriteString(strings.Join(RegistryHeader, ","))
+	b.WriteString("\na,a,,0,false,,false,false,false,false,false,mirror" + strings.Repeat(",", len(MetadataHeader)) + "\n")
+	if _, err := ReadRegistry(strings.NewReader(b.String())); err == nil || !strings.Contains(err.Error(), "location") {
+		t.Fatalf("unknown location accepted: %v", err)
 	}
 }
 
@@ -151,12 +188,9 @@ func TestRegistryRoundTripFlagsAndMetadata(t *testing.T) {
 	row := RegistryRow{
 		RelPath: "cad/fixture-part.CATPart", FileName: "fixture-part.CATPart", FileSize: 12,
 		FileType: "catpart", FileMIME: "application/octet-stream",
-		IsBinary: true, IsCatia: true, IsLarge: true, Metadata: meta,
+		IsBinary: true, IsCatia: true, IsLarge: true, Location: LocationCatiaArchive, Metadata: meta,
 	}
 	if err := w.Write(row); err != nil || w.Close() != nil {
-		t.Fatal(err)
-	}
-	if err := DropEmptyCSVColumns(path, FileRegistryKeep); err != nil {
 		t.Fatal(err)
 	}
 	got, err := LoadRegistry(path)

@@ -20,8 +20,9 @@ type scanItem struct {
 	ft    scanner.FileType
 	media *media.MediaInfo
 	link  string
-	err   error         // detection or readlink error
-	done  chan struct{} // closed when detection finished; nil when the entry needs none
+	base  *report.RegistryRow // base registry row that may be reused instead of detection
+	err   error               // detection or readlink error
+	done  chan struct{}       // closed when detection finished; nil when the entry needs none
 }
 
 // pipeline walks the root in order, detects file types on a bounded worker pool and writes rows in
@@ -57,11 +58,15 @@ func (r *scanRun) pipeline(ctx context.Context) error {
 	}, func(e scanner.Entry) error {
 		it := &scanItem{e: e}
 		if e.Err == nil && (e.Kind == scanner.KindFile || e.Kind == scanner.KindSymlink) {
-			it.done = make(chan struct{})
-			select {
-			case jobs <- it:
-			case <-wctx.Done():
-				return context.Cause(wctx)
+			it.base, _ = r.reuse.at(e)
+			// A reused regular file is never opened; a symlink's link text is always read.
+			if it.base == nil || e.Kind == scanner.KindSymlink {
+				it.done = make(chan struct{})
+				select {
+				case jobs <- it:
+				case <-wctx.Done():
+					return context.Cause(wctx)
+				}
 			}
 		}
 		select {
@@ -83,7 +88,12 @@ func (r *scanRun) pipeline(ctx context.Context) error {
 	case werr != nil:
 		return werr
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Only a completed walk proves the remaining moved files absent; written earlier, they would
+	// move the cursor past entries a resumed walk still has to deliver.
+	return r.writeRemainingPreserved()
 }
 
 func isCancel(err error) bool {
@@ -98,7 +108,11 @@ func (r *scanRun) inspect(ctx context.Context, it *scanItem) {
 	}
 	switch it.e.Kind {
 	case scanner.KindFile:
-		it.ft, it.err = scanner.Detect(it.e.Path, it.e.Info.Size(), r.detect)
+		detect := scanner.Detect
+		if r.cfg.detectFile != nil {
+			detect = r.cfg.detectFile
+		}
+		it.ft, it.err = detect(it.e.Path, it.e.Info.Size(), r.detect)
 		if it.err == nil && it.ft.IsMedia && !it.ft.IsPicture {
 			it.media = r.readMedia(ctx, it.e.Path, it.ft.MIME)
 		}
@@ -116,6 +130,9 @@ func (r *scanRun) writeAll(ctx context.Context, order <-chan *scanItem) error {
 		}
 		if err := ctx.Err(); err != nil {
 			return context.Cause(ctx)
+		}
+		if err := r.writePreservedBefore(it.e.Key, it.e.Kind == scanner.KindDir); err != nil {
+			return err
 		}
 		if err := r.write(it); err != nil {
 			r.healthy = false
@@ -161,6 +178,9 @@ func (r *scanRun) write(it *scanItem) error {
 		}
 		meta := report.FileMetadata(e.Info.ModTime())
 		meta.LinkTarget = it.link
+		if it.base != nil && it.err == nil && it.link == it.base.Metadata.LinkTarget {
+			st.Reused++
+		}
 		st.Symlinks++
 		r.s.Stats.Files.Add(1)
 		return r.reg.Write(report.RegistryRow{RelPath: e.Rel, FileName: path.Base(e.Rel), FileType: "symlink", Metadata: meta})
@@ -169,7 +189,32 @@ func (r *scanRun) write(it *scanItem) error {
 		r.skip(e.Rel, scanner.ReasonUnreadable, it.err.Error())
 		return nil
 	}
-	size, ft := e.Info.Size(), it.ft
+	var row report.RegistryRow
+	ft := it.ft
+	if it.base != nil {
+		row, st.Reused = r.baseRow(*it.base, report.LocationArchive), st.Reused+1
+		ft = rowFileType(row)
+	} else {
+		row = r.fileRow(it)
+		ft.IsVideo = row.IsVideo
+	}
+	st.AddFile(row.FileSize, row.FileMIME, state.FileFlags{Binary: row.IsBinary, Media: row.IsMedia, Picture: row.IsPicture,
+		Video: row.IsVideo, Catia: row.IsCatia, Large: row.IsLarge})
+	r.s.Stats.Files.Add(1)
+	r.s.Stats.Bytes.Add(row.FileSize)
+	if err := r.reg.Write(row); err != nil {
+		return err
+	}
+	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
+		return nil
+	}
+	return r.cand.write(Candidate{RelPath: e.Rel, Size: row.FileSize, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})
+}
+
+// fileRow is the registry row of a detected regular file. An audio-only media parse clears
+// is_video.
+func (r *scanRun) fileRow(it *scanItem) report.RegistryRow {
+	e, ft := it.e, it.ft
 	if it.media != nil {
 		if it.media.Error != "" {
 			r.s.Log.Warn("media metadata unavailable", "rel_path", e.Rel, "error", it.media.Error)
@@ -180,23 +225,13 @@ func (r *scanRun) write(it *scanItem) error {
 			ft.IsVideo = false
 		}
 	}
-	st.AddFile(size, ft.MIME, state.FileFlags{Binary: ft.IsBinary, Media: ft.IsMedia, Picture: ft.IsPicture, Video: ft.IsVideo, Catia: ft.IsCatia, Large: ft.IsLarge})
-	r.s.Stats.Files.Add(1)
-	r.s.Stats.Bytes.Add(size)
 	meta := report.FileMetadata(e.Info.ModTime())
 	meta.Media = it.media
-	row := report.RegistryRow{
-		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: size, FileType: ft.Type, FileMIME: ft.MIME,
+	return report.RegistryRow{
+		RelPath: e.Rel, FileName: path.Base(e.Rel), FileSize: e.Info.Size(), FileType: ft.Type, FileMIME: ft.MIME,
 		IsBinary: ft.IsBinary, IsMedia: ft.IsMedia, IsPicture: ft.IsPicture, IsVideo: ft.IsVideo, IsCatia: ft.IsCatia, IsLarge: ft.IsLarge,
-		Metadata: meta,
+		Location: report.LocationArchive, Metadata: meta,
 	}
-	if err := r.reg.Write(row); err != nil {
-		return err
-	}
-	if r.cfg.Candidate == nil || !r.cfg.Candidate(e.Rel, ft) {
-		return nil
-	}
-	return r.cand.write(Candidate{RelPath: e.Rel, Size: size, MTime: e.Info.ModTime().UTC(), MIME: ft.MIME, FileType: ft.Type})
 }
 
 // readMedia collects container metadata. File mode uses the pure-Go ISO parser only; media mode

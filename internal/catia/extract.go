@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-// Error kinds logged by callers at warn. Harvested names are never included.
+// Error kinds logged by callers at warn. Extracted names and text are never included.
 const (
 	ErrorKindRead   = "read"
 	ErrorKindZip    = "zip"
@@ -17,7 +17,7 @@ const (
 	ErrorKindCancel = "canceled"
 )
 
-// Info is accessible metadata and harvested text from one CATIA file.
+// Info is accessible metadata and descriptive text from one CATIA file.
 type Info struct {
 	Kind          string
 	Format        string
@@ -28,12 +28,25 @@ type Info struct {
 	Author        string
 	Generator     string
 	Created       string
+	Product       Product
 	Components    []string
-	Strings       []string
+	Notes         []string // plain text of RTF texts, unique, in file order
 	Truncated     bool
 	TextFailed    bool
 	ErrorKind     string
 	Err           error
+}
+
+// Product is the root product properties of a V5 document and its applied material. Empty fields
+// were not stored or were left out by the extraction rules.
+type Product struct {
+	PartNumber   string
+	Revision     string
+	Definition   string
+	Nomenclature string
+	Source       string
+	Description  string
+	Material     string
 }
 
 // Extract reads one CATIA file from r. name is the file name used for kind and V5 self-name

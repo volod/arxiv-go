@@ -22,8 +22,8 @@ type catiaRoots struct {
 	catia string
 }
 
-// v5Product is a synthetic V5 document with a LastSaveVersion property and a component window
-// naming two invented components and itself.
+// v5Product is a synthetic V5 document with a LastSaveVersion property, a component window naming
+// two invented components and itself, a root product run and an invented RTF note.
 func v5Product(self string) []byte {
 	var b bytes.Buffer
 	b.WriteString("V5_CFV2\x00")
@@ -41,6 +41,14 @@ func v5Product(self string) []byte {
 		b.WriteString("\x01;\x01\x04File\x00C:\\cad\\" + name + "Z\"")
 	}
 	b.WriteString("\x08FINJPL trailing assembly note")
+	for _, s := range []string{"ASMPRODUCT", "FIXTURE-PRODUCT", "_Revision", "B", "_DescriptionRef", "invented assembly", "_BagRepsList"} {
+		b.WriteByte(byte(len(s) + 1)) // V5 dictionary string, short form
+		b.WriteString(s)
+	}
+	note := `{{\fonttbl{\f1 FixtureFont;}}{\ql Invented requirement one.\par}{\ql Invented requirement two.}}`
+	b.WriteByte(0) // long form
+	b.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(note))))
+	b.WriteString(note)
 	return b.Bytes()
 }
 
@@ -54,10 +62,10 @@ func catiaFixture(t *testing.T) (catiaRoots, map[string][]byte) {
 		t.Fatal(err)
 	}
 	files := map[string][]byte{
-		"fixture-product.CATProduct":         v5Product("fixture-product.CATProduct"),
-		"cad/deep/fixture.CATPart":           []byte("V5_CFV2\x00 small part without markers"),
-		"cad/deep/чертеж-fixture.CATDrawing": []byte("V5_CFV2\x00 drawing"),
-		"cad/view.3dxml":                     []byte(`<?xml version="1.0"?><Model_3dxml><Header><SchemaVersion>4.3</SchemaVersion></Header></Model_3dxml>`),
+		"fixture-product.CATProduct":    v5Product("fixture-product.CATProduct"),
+		"cad/deep/fixture.CATPart":      []byte("V5_CFV2\x00 small part without markers"),
+		"cad/deep/Р-fixture.CATDrawing": []byte("V5_CFV2\x00 drawing"),
+		"cad/view.3dxml":                []byte(`<?xml version="1.0"?><Model_3dxml><Header><SchemaVersion>4.3</SchemaVersion></Header></Model_3dxml>`),
 	}
 	for rel, data := range files {
 		writeScanFile(t, r.archive, rel, data)

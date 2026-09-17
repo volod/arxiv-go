@@ -111,7 +111,6 @@ func readZipMember(f *zip.File, b *zipBudget) ([]byte, bool, error) {
 
 func mergeXML(dst, src Info, prefer bool) Info {
 	dst.Components = append(dst.Components, src.Components...)
-	dst.Strings = append(dst.Strings, src.Strings...)
 	dst.Truncated = dst.Truncated || src.Truncated
 	if prefer || dst.SchemaVersion == "" {
 		if src.SchemaVersion != "" {

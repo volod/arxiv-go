@@ -180,10 +180,11 @@ func payloadRowsByPath(s *Session, rows []report.PayloadRow) map[string]report.P
 	return out
 }
 
-// writeRegistryCopies atomically writes data as the payload registry in both roots.
+// writeRegistryCopies atomically writes data as the payload registry in both roots; a copy that
+// already holds data is left untouched.
 func (sp *payloadSpec) writeRegistryCopies(s *Session, data []byte) error {
 	for _, path := range registryPaths(s, sp.registry) {
-		if err := s.cfg.FS.AtomicWriteFile(path, data, 0o644); err != nil {
+		if err := writeFileIfChanged(s.cfg.FS, path, data); err != nil {
 			return err
 		}
 	}

@@ -66,13 +66,12 @@ func collectVideoRows(s *Session, c SplitConfig) ([]report.VideoRow, error) {
 	return merged, nil
 }
 
-// fileRegistryRows indexes the file registry the split scan wrote, to complete registry rows.
+// fileRegistryRows are the rows of the split scan by rel_path, to complete registry rows.
 func fileRegistryRows(s *Session, c SplitConfig) map[string]report.RegistryRow {
-	regRows, err := report.LoadRegistry(c.Scan.Registry)
-	if err != nil {
-		s.Log.Warn(s.payload.noun+" registry: file registry unavailable", "error", err)
+	if c.scanRowsErr != nil {
+		s.Log.Warn(s.payload.noun+" registry: file registry unavailable", "error", c.scanRowsErr)
 	}
-	return report.RegistryByPath(regRows)
+	return c.scanRows
 }
 
 // finishURL sets the url of a payload row: the --base-url link of a moved row, otherwise a file URL

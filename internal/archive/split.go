@@ -11,6 +11,7 @@ import (
 
 	"github.com/volod/arxiv-go/internal/fsops"
 	"github.com/volod/arxiv-go/internal/media"
+	"github.com/volod/arxiv-go/internal/report"
 	"github.com/volod/arxiv-go/internal/scanner"
 	"github.com/volod/arxiv-go/internal/state"
 )
@@ -29,6 +30,12 @@ type SplitConfig struct {
 	// CatiaText writes owned text sidecars after each CATIA commit and for earlier moved files
 	// that still lack one. Ignored for the video payload.
 	CatiaText bool
+
+	// scanRows are the file registry rows of the run's scan by rel_path, read once after the scan;
+	// previews, descriptions and the payload registry take metadata from them instead of reading
+	// the files again. scanRowsErr is the error reading them.
+	scanRows    map[string]report.RegistryRow
+	scanRowsErr error
 }
 
 // SplitBody scans, preflights, and executes the payload's candidate list in walk order. The caller must
@@ -46,9 +53,12 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 		candidate := s.payload.candidate
 		c.Scan.Candidate = func(_ string, ft scanner.FileType) bool { return candidate(ft) }
 	}
-	if _, err := Scan(ctx, s, c.Scan); err != nil {
+	scanned, err := Scan(ctx, s, c.Scan)
+	if err != nil {
 		return err
 	}
+	rows, err := report.LoadRegistry(c.Scan.Registry)
+	c.scanRows, c.scanRowsErr = report.RegistryByPath(rows), err
 	w, err := s.OpenWAL()
 	if err != nil {
 		return err
@@ -110,7 +120,10 @@ func Split(ctx context.Context, s *Session, c SplitConfig) error {
 	if err := post.stop(err); err != nil {
 		return err
 	}
-	return hooks.writeRegistry(c)
+	if err := hooks.writeRegistry(c); err != nil {
+		return err
+	}
+	return updateSplitLocations(s, c.Scan, scanned, w.Committed().Paths())
 }
 
 // syncCommittedCounter makes the WAL authoritative after a crash: a committed transaction may
@@ -165,13 +178,19 @@ func countRemaining(list string, w *state.WAL) (Candidates, error) {
 // Markdown writer when none is configured.
 func splitDescriptions(ctx context.Context, s *Session, c SplitConfig) SplitDescriptionWriter {
 	if c.Descriptions == nil {
-		return NewMarkdownDescription(DescriptionConfig{
+		m := NewMarkdownDescription(DescriptionConfig{
 			Archive: s.cfg.Archive, Mirror: s.cfg.Payload.Root, BaseURL: c.BaseURL,
 			Registry: c.Scan.Registry, Version: s.cfg.Version, Payload: s.payload.kind, Verify: c.Verify,
 			FS: s.cfg.FS, Crash: s.cfg.Crash, Now: s.cfg.Now, Log: s.Log, Ctx: ctx,
 		})
+		m.useRows(c.scanRows)
+		return m
 	}
 	if m, ok := c.Descriptions.(*MarkdownDescription); ok {
+		m.useRows(c.scanRows)
+		if m.cfg.Archive == "" {
+			m.cfg.Archive = s.cfg.Archive
+		}
 		if s.cfg.Crash != nil {
 			m.cfg.Crash = s.cfg.Crash
 		}
@@ -182,6 +201,17 @@ func splitDescriptions(ctx context.Context, s *Session, c SplitConfig) SplitDesc
 		m.useContext(ctx)
 	}
 	return c.Descriptions
+}
+
+// useRows gives the writer the rows of the run's scan. They replace rows it read from the registry
+// file earlier, for example while recovery wrote descriptions before the scan.
+func (m *MarkdownDescription) useRows(rows map[string]report.RegistryRow) {
+	if rows == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rows = rows
 }
 
 // useLog gives a description writer without a logger the run log for extraction warnings.

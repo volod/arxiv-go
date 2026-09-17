@@ -43,7 +43,7 @@ const customVideoExt = "bik"
 func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	t.Helper()
 	g := &genArchive{root: root, videos: map[string]bool{}}
-	projects := []string{"projects/2024", "projects/2025/q1", "projects/видео", "old/deep/er/tapes", "with space/a,b"}
+	projects := []string{"projects/2024", "projects/2025/q1", "projects/fixture-\u00e9\u0436", "old/deep/er/tapes", "with space/a,b"}
 	n := 0
 	for _, dir := range projects {
 		for i := 0; i < 6; i++ {
@@ -64,7 +64,7 @@ func generateArchive(t *testing.T, root string, rng *rand.Rand) *genArchive {
 	mkdirAll(t, filepath.Join(root, filepath.FromSlash(g.dirAtDescription)))
 	mkdirAll(t, filepath.Join(root, "empty", "nested"))
 
-	docDirs := []string{"docs", "docs/a", "docs/a/x", "docs/a/x/y/z", "docs/b", "docs/with space", "docs/кирилиця"}
+	docDirs := []string{"docs", "docs/a", "docs/a/x", "docs/a/x/y/z", "docs/b", "docs/with space", "docs/fixture-dir-Р"}
 	for _, dir := range docDirs {
 		for i := 0; i < 40; i++ {
 			rel := fmt.Sprintf("%s/note-%02d.txt", dir, i)
@@ -192,7 +192,7 @@ func isArxgoOutput(rel string) bool {
 	if rel == ".arxgo" || strings.HasPrefix(rel, ".arxgo/") {
 		return true
 	}
-	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" ||
+	return !strings.Contains(rel, "/") && (rel == "arxgo-registry.csv" || rel == "arxgo-catia-text.md" ||
 		strings.HasPrefix(rel, "arxgo-videos.") || strings.HasPrefix(rel, "arxgo-catia."))
 }
 

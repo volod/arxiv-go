@@ -37,8 +37,8 @@ func TestScanClassifiesCatiaAndNotVideo(t *testing.T) {
 	path := filepath.Join(r.archive, "arxgo-registry.csv")
 	raw := mustRead(t, path)
 	header := strings.Split(strings.TrimSuffix(string(raw[:bytes.IndexByte(raw, '\n')]), "\r"), ",")
-	if want := report.RegistryHeader[:report.FileRegistryKeep]; len(header) < len(want) || strings.Join(header[:len(want)], ",") != strings.Join(want, ",") {
-		t.Fatalf("header = %q, want prefix %q", header, want)
+	if want := report.RegistryHeader; strings.Join(header, ",") != strings.Join(want, ",") {
+		t.Fatalf("header = %q, want %q", header, want)
 	}
 	rows, err := report.LoadRegistry(path)
 	if err != nil {

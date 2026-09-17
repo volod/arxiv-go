@@ -50,7 +50,9 @@ type videoSplit struct {
 	plans   []*videoPreviews
 }
 
-func (v *videoSplit) prepare(_ context.Context, c *SplitConfig) error {
+// prepare stops the run on a corrupt operator registry and removes unfinished preview part files.
+// The scan excludes recorded previews itself (archive view), so a preview never becomes a candidate.
+func (v *videoSplit) prepare(_ context.Context, _ *SplitConfig) error {
 	s := v.s
 	// A corrupt operator registry must stop the run before the first archive move.
 	rows, err := loadVideoRegistry(s)
@@ -69,7 +71,6 @@ func (v *videoSplit) prepare(_ context.Context, c *SplitConfig) error {
 		}
 	}
 	v.rows = rows
-	c.Scan.SkipPaths = append(c.Scan.SkipPaths, v.idx.skipPaths()...)
 	return nil
 }
 

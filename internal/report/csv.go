@@ -12,13 +12,30 @@ import (
 	"github.com/volod/arxiv-go/internal/media"
 )
 
-// RegistryHeader is the canonical column order of the file registry (required
-// columns followed by MetadataHeader); see
-// docs/openspec/stage-1-core/contracts.md#file-registry-csv.
+// RegistryHeader is the canonical column order of the file registry (required columns, location,
+// then MetadataHeader); see docs/openspec/stage-1-core/contracts.md#file-registry-csv.
 var RegistryHeader = []string{
 	"rel_path", "file_name", "file_type", "file_size", "is_large", "file_mime",
-	"is_binary", "is_media", "is_picture", "is_video", "is_catia",
+	"is_binary", "is_media", "is_picture", "is_video", "is_catia", LocationColumn,
 }
+
+// FileRegistryRequired is the number of file-registry columns every reader requires (rel_path
+// through is_catia). Writers always write the full RegistryHeader.
+const FileRegistryRequired = 11
+
+// LocationColumn is column 12 of the file registry. A registry from an earlier build has none; its
+// rows are read with LocationArchive.
+const LocationColumn = "location"
+
+// Values of the location column: where the file is now.
+const (
+	LocationArchive      = "archive"
+	LocationVideoArchive = "video-archive"
+	LocationCatiaArchive = "catia-archive"
+)
+
+// registryMetadataStart is the index of the first metadata column in RegistryHeader.
+const registryMetadataStart = FileRegistryRequired + 1
 
 func init() { RegistryHeader = append(RegistryHeader, MetadataHeader...) }
 
@@ -51,7 +68,10 @@ type RegistryRow struct {
 	IsVideo   bool
 	IsCatia   bool
 	IsLarge   bool
-	Metadata  Metadata
+	// Location is LocationArchive for a present row, or the mirror of a preserved row; empty is
+	// written as LocationArchive.
+	Location string
+	Metadata Metadata
 }
 
 // RegistryWriter writes registry rows to a part file and tracks the byte offset of the data
@@ -138,7 +158,7 @@ func openTruncated(path string, offset int64) (*os.File, error) {
 	return f, nil
 }
 
-// Write buffers one row. Required cells follow RegistryHeader indices 0-10.
+// Write buffers one row in RegistryHeader order.
 func (w *RegistryWriter) Write(r RegistryRow) error {
 	w.record[0], w.record[1], w.record[2] = r.RelPath, r.FileName, r.FileType
 	w.record[3] = strconv.FormatInt(r.FileSize, 10)
@@ -146,7 +166,11 @@ func (w *RegistryWriter) Write(r RegistryRow) error {
 	w.record[6], w.record[7] = strconv.FormatBool(r.IsBinary), strconv.FormatBool(r.IsMedia)
 	w.record[8], w.record[9] = strconv.FormatBool(r.IsPicture), strconv.FormatBool(r.IsVideo)
 	w.record[10] = strconv.FormatBool(r.IsCatia)
-	copy(w.record[FileRegistryKeep:], MetadataCells(r.Metadata))
+	w.record[11] = r.Location
+	if r.Location == "" {
+		w.record[11] = LocationArchive
+	}
+	copy(w.record[registryMetadataStart:], MetadataCells(r.Metadata))
 	return w.csv.Write(w.record)
 }
 

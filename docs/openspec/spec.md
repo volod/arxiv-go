@@ -151,7 +151,9 @@ any mutation. Details: [tool discovery](stage-1-core/metadata.md#tool-discovery)
 
 - `<root>/.arxgo/` in either root: run lock, state, write-ahead logs, checkpoints and run logs.
 - `<archive>/arxgo-registry.csv`, `<archive>/arxgo-videos.csv`, `<archive>/arxgo-catia.csv` and
-  the same names inside the video archive and CATIA archive roots.
+  the same names inside the video archive and CATIA archive roots, and the payload registries a
+  restore retired, `arxgo-videos.restored-<run-id>.csv` and `arxgo-catia.restored-<run-id>.csv`,
+  directly under those roots.
 - `<archive>/arxgo-catia-text.md`, the default output of the
   [CATIA text index](stage-4-catia/catia.md#text-index).
 - Temporary transfer files ending in `.arxgo-part`, and preview part files named
@@ -164,6 +166,7 @@ any mutation. Details: [tool discovery](stage-1-core/metadata.md#tool-discovery)
 | `scan` | yes | registry output only | 1 |
 | `split` | no | moves videos (or CATIA with `--catia`), writes descriptions and registries | 1 (previews: 2, CATIA: 4, upload: 3) |
 | `restore` | no | moves videos or CATIA back, removes or keeps descriptions, previews and CATIA text | 1 (previews: 2, CATIA: 4) |
+| `catia-index` | no | index document output only | 4 |
 
 The full contract is in the [CLI specification](stage-1-core/cli.md).
 
@@ -176,12 +179,12 @@ acceptance evidence exist. Registry order is the implementation line followed by
 | --- | --- | --- | --- | --- | --- |
 | 1 | `project-foundation` | 1 | shipped | Cross-compiles for Linux/Windows, CLI contract tests, Linux CI, plan/doc lint pass | [Current](../impl/current/project-foundation.md) |
 | 2 | `crash-safety` | 1 | shipped | Crash injection at every transaction step recovers to a consistent state; preflight refuses insufficient space | [Current](../impl/current/crash-safety.md) |
-| 3 | `archive-registry` | 1 | planned | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output; one registry schema whatever the archive currently holds | [Open work](../impl/plan.md#archive-registry----archive-registry) |
+| 3 | `archive-registry` | 1 | shipped | Synthetic tree fixtures produce exact CSV rows, flags, order and resume output; one registry schema and one archive inventory whatever the archive currently holds; unchanged rows reused | [Current](../impl/current/archive-registry.md) |
 | 4 | `media-metadata` | 1 | shipped | Generated MP4/MOV/M4A fixtures and captured ffprobe JSON parse to expected fields; missing-tool paths exit 3 | [Current](../impl/current/media-metadata.md) |
 | 5 | `video-split` | 1 | shipped | Byte-identical videos in mirrored tree, descriptions, registries, same/cross-device paths, idempotent rerun | [Current](../impl/current/video-split.md) |
 | 6 | `video-restore` | 1 | shipped | Split-then-restore round trip reproduces the original tree; missing-directory and conflict policies | [Current](../impl/current/video-restore.md) |
 | 7 | `media-previews` | 2 | shipped | Sample/frame count, duration, resolution clamp, naming and restore cleanup on generated fixtures | [Current](../impl/current/media-previews.md) |
-| 8 | `catia-archive` | 4 | planned | Synthetic CATIA fixtures classify, split, restore and optionally extract text; video default is unchanged | [Open work](../impl/plan.md#catia-archive----catia-archive) |
+| 8 | `catia-archive` | 4 | shipped | Synthetic CATIA fixtures classify, split, restore and optionally extract text; video default is unchanged | [Current](../impl/current/catia-archive.md) |
 | 9 | `cloud-publishing` | 3 | planned | Resumable upload, link rewrite and idempotent re-publish against recorded API fixtures and a test tenant | [Open work](../impl/plan.md#cloud-publishing----cloud-publishing) |
 
 ## Development integrity

@@ -22,7 +22,9 @@ that returns a cross-device error rechecks space for all remaining videos as cop
 the copy path. The destination keeps the archive-relative path. Newly created parent directories
 keep the source permission bits on Linux and each new directory's parent is fsynced. A
 directory-flush error after a successful rename is treated as placed. Non-video files stay in
-place.
+place. After the execute phase split writes `arxgo-videos.csv` and then sets `location`
+`video-archive` on the file-registry rows of the videos it moved
+([archive view](archive-registry.md#archive-view)).
 
 Each candidate has a WAL transaction. An incomplete transfer before `placed` is aborted and
 retried; at or after `placed`, recovery writes the description, verifies the destination, removes a
@@ -77,8 +79,9 @@ mounted or renamed elsewhere ([0034](../records/0034-preview-repair-stage-2-prev
 Placement and its failure handling (destination conflict, cross-device fallback, changed source)
 are shared with restore in `archive/transfer.go`.
 Rows are sorted by the walk-order key. The CSV uses flat metadata columns, omits the duplicate
-video path, supplies a local `file://` URL when no base URL is set, and omits metadata columns that
-are empty in every row. `--dry-run` still scans and
+video path, supplies a local `file://` URL when no base URL is set, and writes every column, also one
+empty in every row ([0052](../records/0052-registry-stabilize-registry-columns.md)).
+`--dry-run` still scans and
 reports a plan without moving videos or writing descriptions or
 registries; the normal run directory under `.arxgo` is still written.
 

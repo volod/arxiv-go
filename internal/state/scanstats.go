@@ -3,6 +3,7 @@ package state
 import (
 	"maps"
 	"sort"
+	"time"
 )
 
 // CountBytes is a number of registry rows and the bytes they describe.
@@ -20,11 +21,14 @@ func (c *CountBytes) add(size int64) {
 // scan cursor and the output offsets they describe, so a resumed scan continues them exactly.
 type ScanStats struct {
 	// Complete is set once the registry has been renamed into place.
-	Complete bool  `json:"complete,omitempty"`
-	Files    int64 `json:"files"`    // regular files with a registry row
-	Dirs     int64 `json:"dirs"`     // directories, including unreadable ones
-	Symlinks int64 `json:"symlinks"` // symlinks with a registry row
-	Bytes    int64 `json:"bytes"`    // bytes of regular files with a row
+	Complete bool `json:"complete,omitempty"`
+	// StartedAt is the start of the scan phase of the run's first process, to the second; the
+	// registry stamp records it as scan_started_at.
+	StartedAt time.Time `json:"started_at,omitzero"`
+	Files     int64     `json:"files"`    // regular files with a registry row
+	Dirs      int64     `json:"dirs"`     // directories, including unreadable ones
+	Symlinks  int64     `json:"symlinks"` // symlinks with a registry row
+	Bytes     int64     `json:"bytes"`    // bytes of regular files with a row
 
 	Binary  CountBytes `json:"binary"`
 	Media   CountBytes `json:"media"`
@@ -40,7 +44,24 @@ type ScanStats struct {
 	MIME map[string]CountBytes `json:"mime,omitempty"`
 	// Skipped counts entries without a row by reason (unreadable, special).
 	Skipped map[string]int64 `json:"skipped,omitempty"`
+
+	// Reused counts the present rows taken from the base registry without detection.
+	Reused int64 `json:"reused"`
+	// Preserved counts the rows of payload files split moved out of the archive; no other
+	// statistic counts them.
+	Preserved CountBytes `json:"preserved,omitzero"`
+	// Registry is RegistryWritten or RegistryUnchanged once the scan completed.
+	Registry string `json:"registry,omitempty"`
 }
+
+// Registry outcomes of a completed scan.
+const (
+	RegistryWritten   = "written"
+	RegistryUnchanged = "unchanged"
+)
+
+// AddPreserved counts a preserved row.
+func (s *ScanStats) AddPreserved(size int64) { s.Preserved.add(size) }
 
 // FileFlags are the registry flags of one regular file, as counted by AddFile.
 type FileFlags struct {
@@ -87,8 +108,8 @@ func (s *ScanStats) SkippedTotal() int64 {
 	return n
 }
 
-// Rows returns the number of registry rows.
-func (s *ScanStats) Rows() int64 { return s.Files + s.Symlinks }
+// Rows returns the number of registry rows, preserved rows included.
+func (s *ScanStats) Rows() int64 { return s.Files + s.Symlinks + s.Preserved.Count }
 
 // Clone returns a deep copy.
 func (s *ScanStats) Clone() *ScanStats {
@@ -137,7 +158,11 @@ type ScanSummary struct {
 	Large    CountBytes       `json:"large"`
 	TopMIME  []MIMEBytes      `json:"top_mime"`
 	Skipped  map[string]int64 `json:"skipped,omitempty"`
-	ElapsedS float64          `json:"elapsed_s"`
+	// Reused, Preserved and Registry: see ScanStats.
+	Reused    int64      `json:"reused"`
+	Preserved CountBytes `json:"preserved"`
+	Registry  string     `json:"registry,omitempty"`
+	ElapsedS  float64    `json:"elapsed_s"`
 }
 
 // TopMIMECount is the number of MIME types kept in the summary.
@@ -148,6 +173,7 @@ func (s *ScanStats) Summary(elapsedS float64) *ScanSummary {
 	return &ScanSummary{
 		Files: s.Files, Dirs: s.Dirs, Symlinks: s.Symlinks, Bytes: s.Bytes,
 		Binary: s.Binary, Media: s.Media, Picture: s.Picture, Video: s.Video, Catia: s.Catia, Large: s.Large,
-		TopMIME: s.TopMIMEs(TopMIMECount), Skipped: maps.Clone(s.Skipped), ElapsedS: elapsedS,
+		TopMIME: s.TopMIMEs(TopMIMECount), Skipped: maps.Clone(s.Skipped),
+		Reused: s.Reused, Preserved: s.Preserved, Registry: s.Registry, ElapsedS: elapsedS,
 	}
 }

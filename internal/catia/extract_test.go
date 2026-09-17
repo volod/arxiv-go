@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -106,36 +105,22 @@ func TestExtractV5OversizeWindowEmpty(t *testing.T) {
 
 func TestExtractLargeStreamBounded(t *testing.T) {
 	const n = 32 << 20
-	r := io.MultiReader(bytes.NewReader(magicV5), io.LimitReader(zeroReader{}, n), bytes.NewReader(v5Prop("LastSaveVersion", lastSaveXML(30, 5))))
+	tail := slices.Concat(v5Prop("LastSaveVersion", lastSaveXML(30, 5)), dict(rtf(`{\ql invented late note}`)))
+	r := io.MultiReader(bytes.NewReader(magicV5), io.LimitReader(zeroReader{}, n), bytes.NewReader(tail))
 	info := Extract(context.Background(), r, "fixture-part.CATPart")
 	if info.Err != nil {
 		t.Fatal(info.Err)
 	}
-	if info.Release != "V5R30 SP5" {
-		t.Fatalf("release %q", info.Release)
-	}
-	total := 0
-	for _, s := range info.Strings {
-		total += len(s)
-	}
-	if total > sidecarCap {
-		t.Fatalf("strings collected %d bytes", total)
+	if info.Release != "V5R30 SP5" || !slices.Equal(info.Notes, []string{"invented late note"}) {
+		t.Fatalf("release %q notes %q", info.Release, info.Notes)
 	}
 }
 
-func TestExtractCGRStrings(t *testing.T) {
-	body := []byte("xxxx searchable text here yyyy")
-	utf16 := utf16LE("utf16 searchable run")
-	data := append(append([]byte("CGR!"), body...), utf16...)
+func TestExtractCGRMeta(t *testing.T) {
+	data := append([]byte("CGR!xxxx invented text"), utf16LE("utf16 invented run")...)
 	info := Extract(context.Background(), bytes.NewReader(data), "fixture.cgr")
-	if info.Kind != KindCGR || info.Format != FormatUnknown {
+	if info.Kind != KindCGR || info.Format != FormatUnknown || info.Release != ReleaseUnknown || len(info.Notes) != 0 {
 		t.Fatalf("cgr meta: %+v", info)
-	}
-	if !contains(info.Strings, "searchable text here") && !containsPrefix(info.Strings, "searchable") {
-		t.Fatalf("ascii harvest missing: %q", info.Strings)
-	}
-	if !contains(info.Strings, "utf16 searchable run") && !containsPrefix(info.Strings, "utf16 searchable") {
-		t.Fatalf("utf16 harvest missing: %q", info.Strings)
 	}
 }
 
@@ -235,19 +220,6 @@ func utf16LE(s string) []byte {
 		out = append(out, s[i], 0)
 	}
 	return out
-}
-
-func contains(list []string, want string) bool {
-	return slices.Contains(list, want)
-}
-
-func containsPrefix(list []string, prefix string) bool {
-	for _, s := range list {
-		if strings.Contains(s, prefix) {
-			return true
-		}
-	}
-	return false
 }
 
 func itoa(n int) string {

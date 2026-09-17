@@ -41,7 +41,7 @@ func TestCatiaTextSidecarsMatchContractAndRerunIsNoop(t *testing.T) {
 		!strings.Contains(product, "- fixture-sub.CATProduct\n") {
 		t.Fatalf("product sidecar:\n%s", product)
 	}
-	drawing := "cad/deep/чертеж-fixture.CATDrawing"
+	drawing := "cad/deep/Р-fixture.CATDrawing"
 	if got := string(mustRead(t, textSidecar(r.archive, drawing))); !strings.HasPrefix(got, "arxgo-text: "+drawing+"\n") {
 		t.Fatalf("unicode sidecar:\n%s", got)
 	}
@@ -330,16 +330,15 @@ func TestResumedSplitCountsDurableTextDone(t *testing.T) {
 	}
 }
 
-// A text sidecar is Markdown, never a CATIA candidate, so hiding it from the scan the way preview
-// clips are hidden would only drop a real archive file from the operator's file registry.
-func TestCatiaSplitKeepsTextSidecarsInFileRegistry(t *testing.T) {
+// A text sidecar is an owned artifact of its moved CATIA file, like a description: the file registry
+// keeps describing the archive as it was before the split, so neither has a row, also in the
+// registry a second split writes after replaying the first run's text events.
+func TestCatiaSplitExcludesTextSidecarsFromFileRegistry(t *testing.T) {
 	r, files := catiaFixture(t)
 	cfg, c := catiaTextConfig(r, "auto")
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
 		t.Fatalf("split = %+v", res)
 	}
-	// A second split replays the first run's text events; that is where the sidecars used to
-	// disappear from the registry it writes.
 	cfg, c = catiaTextConfig(r, "auto")
 	cfg.NewRun = true
 	if res := runSplit(t, cfg, c); res.Status != StatusCompleted {
@@ -350,18 +349,29 @@ func TestCatiaSplitKeepsTextSidecarsInFileRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	byPath := report.RegistryByPath(rows)
+	descriptions := map[string]string{}
+	for _, row := range readCatiaRegistry(t, r.archive) {
+		descriptions[row.RelPath] = row.DescriptionRelPath
+	}
+	// The operator's notes at the default description path are not owned and keep their row.
+	if _, ok := byPath["cad/deep/fixture.CATPart.md"]; !ok {
+		t.Error("foreign file at a description path lost its row")
+	}
 	for rel := range files {
 		sidecar := rel + ".text.md"
 		if !exists(filepath.Join(r.archive, filepath.FromSlash(sidecar))) {
 			t.Fatalf("%s: sidecar missing on disk", sidecar)
 		}
-		row, ok := byPath[sidecar]
-		if !ok {
-			t.Errorf("%s: no file registry row", sidecar)
-			continue
+		if descriptions[rel] == "" {
+			t.Fatalf("%s: no description recorded", rel)
 		}
-		if row.IsCatia || row.IsVideo {
-			t.Errorf("%s: is_catia=%v is_video=%v, want both false", sidecar, row.IsCatia, row.IsVideo)
+		for _, owned := range []string{sidecar, descriptions[rel]} {
+			if _, ok := byPath[owned]; ok {
+				t.Errorf("%s: owned artifact has a file registry row", owned)
+			}
+		}
+		if row, ok := byPath[rel]; !ok || row.Location != report.LocationCatiaArchive || !row.IsCatia {
+			t.Errorf("%s: preserved row %+v (present %v)", rel, row, ok)
 		}
 	}
 }

@@ -94,8 +94,8 @@ func TestWalkExcludesReservedPathsSkipPathsAndGlobs(t *testing.T) {
 	root := t.TempDir()
 	makeTree(t, root,
 		".arxgo/lock", ".arxgo/runs/r/wal.jsonl", "arxgo-registry.csv", "arxgo-videos.csv", "arxgo-catia.csv",
-		"video.mp4.arxgo-part", "sub/clip.mp4.arxgo-part", "sub/clip.mp4",
-		"sub/.arxgo/kept", "sub/arxgo-registry.csv", // reserved names only at the root
+		"arxgo-catia-text.md", "video.mp4.arxgo-part", "sub/clip.mp4.arxgo-part", "sub/clip.mp4",
+		"sub/.arxgo/kept", "sub/arxgo-registry.csv", "sub/arxgo-catia-text.md", // reserved names only at the root
 		"custom/reg.csv", "videos/v.mp4", "videos-2/v.mp4",
 		"x.tmp", "sub/x.tmp", "cache/a/b", "cache2/c", "deep/node_modules/m.js", "keep.txt",
 	)
@@ -104,7 +104,7 @@ func TestWalkExcludesReservedPathsSkipPathsAndGlobs(t *testing.T) {
 		SkipPaths: []string{filepath.Join(root, "custom", "reg.csv"), filepath.Join(root, "videos"), filepath.Dir(root), root},
 	})
 	want := []string{"cache2", "cache2/c", "custom", "deep", "keep.txt",
-		"sub", "sub/.arxgo", "sub/.arxgo/kept", "sub/arxgo-registry.csv", "sub/clip.mp4", "sub/x.tmp",
+		"sub", "sub/.arxgo", "sub/.arxgo/kept", "sub/arxgo-catia-text.md", "sub/arxgo-registry.csv", "sub/clip.mp4", "sub/x.tmp",
 		"videos-2", "videos-2/v.mp4"}
 	if !slices.Equal(rels(got), want) {
 		t.Fatalf("got %q\nwant %q", rels(got), want)

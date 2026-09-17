@@ -23,10 +23,10 @@ func TestCatiaRegistryColumnsAndRoundTrip(t *testing.T) {
 	if err := WriteCatiaCSV(&b, rows); err != nil {
 		t.Fatal(err)
 	}
-	// text_rel_path and catia_release are empty in every row and omitted; a zero component count is kept.
-	wantCSV := "rel_path,file_name,status,url,description_rel_path,file_size,sha256,transfer,run_id,file_mime,catia_kind,catia_format,catia_components,mtime\n" +
-		"cad/fixture-part.CATPart,fixture-part.CATPart,moved,file:///m/cad/fixture-part.CATPart,cad/fixture-part.CATPart.md,4096,,rename,r1,application/octet-stream,CATPart,V5_CFV2,0,2026-09-15T12:00:00Z\n" +
-		"cad/view.3dxml,view.3dxml,conflict,,,0,,,,,,,,\n"
+	// text_rel_path and catia_release are empty in every row and still written; a zero component count is kept.
+	wantCSV := want + "\n" +
+		"cad/fixture-part.CATPart,fixture-part.CATPart,moved,file:///m/cad/fixture-part.CATPart,cad/fixture-part.CATPart.md,4096,,rename,r1,application/octet-stream,,CATPart,V5_CFV2,,0,2026-09-15T12:00:00Z\n" +
+		"cad/view.3dxml,view.3dxml,conflict,,,0,,,,,,,,,,\n"
 	if b.String() != wantCSV {
 		t.Fatalf("csv:\n%s\nwant\n%s", b.String(), wantCSV)
 	}

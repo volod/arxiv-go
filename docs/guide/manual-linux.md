@@ -4,36 +4,137 @@
 `--catia`, its CATIA files to a separate CATIA archive), and restores them. Try the workflow on a disposable copy of representative data before using it on an
 irreplaceable archive.
 
-## Unpack and configure the Linux bundle
+## Install arxgo
 
-Download the `arxgo-<version>-linux-amd64.tar.gz` bundle for Linux amd64. It contains `arxgo`,
-`ffmpeg`, `ffprobe`, `.env.example`, this manual, `LICENSES/` and `SHA256SUMS`. The tools are
-already beside `arxgo`; no separate installation or Go toolchain is needed. The bundle never
-contains a configured `.env` file.
-`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence,
-`LICENSES/FFmpeg-SOURCE.txt` gives build provenance and the FFmpeg 9.0.1 source link, and
-`LICENSES/arxgo-MIT.txt` covers arxgo itself.
+There are two ways to get `arxgo` on a Linux amd64 host. A release bundle is ready to run and needs
+nothing else installed. A source build needs Go, Git and GNU Make, and is the way to get changes
+that are not released yet or to build on a host that cannot reach the releases.
 
-From the directory containing the downloaded archive, extract and verify it:
+### Download a release bundle
+
+Every release `v<version>` publishes three files on https://github.com/volod/arxiv-go/releases:
+
+- `arxgo-<version>-linux-amd64.tar.gz`, the Linux bundle;
+- `arxgo-<version>-windows-amd64.zip`, the Windows bundle;
+- `SHA256SUMS`, the checksums of both bundles.
+
+The Linux bundle contains `arxgo`, `ffmpeg`, `ffprobe`, `.env.example`, this manual, `LICENSES/`
+and its own `SHA256SUMS`. The tools are already beside `arxgo`; no separate installation or Go
+toolchain is needed. The bundle never contains a configured `.env` file.
+`LICENSES/GPL-3.0.txt` is the bundled FFmpeg licence, `LICENSES/FFmpeg-SOURCE.txt` gives build
+provenance and the FFmpeg 9.0.1 source link, and `LICENSES/arxgo-MIT.txt` covers arxgo itself.
+
+Download the bundle and the release checksums, and check the download:
 
 ```bash
-mkdir arxgo-linux
-tar -xzf arxgo-*-linux-amd64.tar.gz -C arxgo-linux
-cd arxgo-linux
+VERSION=0.2.0   # the release to install
+BASE=https://github.com/volod/arxiv-go/releases/download/v$VERSION
+curl -fLO "$BASE/arxgo-$VERSION-linux-amd64.tar.gz"
+curl -fLO "$BASE/SHA256SUMS"
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+If the repository requires signing in, download the same two files from the releases page in a
+browser, or with the GitHub CLI:
+`gh release download "v$VERSION" -R volod/arxiv-go -p "arxgo-$VERSION-linux-amd64.tar.gz" -p SHA256SUMS`.
+
+Extract the bundle into its own directory, check its files and run it:
+
+```bash
+mkdir "arxgo-$VERSION"
+tar -xzf "arxgo-$VERSION-linux-amd64.tar.gz" -C "arxgo-$VERSION"
+cd "arxgo-$VERSION"
 sha256sum -c SHA256SUMS
 ./arxgo version
 ./arxgo help
 ```
 
+To move to a newer release, extract it into a new directory and copy your `.env` there.
+
+### Build from source
+
+Build on the target host, or on any Linux amd64 host and copy the result to the target. The build
+needs:
+
+- Go 1.27 or newer; no C compiler, because the executable is static (`CGO_ENABLED=0`);
+- Git and GNU Make;
+- `curl`, `tar`, `gzip` and `unzip` to download the pinned FFmpeg tools, and `zip` for
+  `make dist`;
+- network access to go.dev, the Go module proxy and GitHub, and to Docker Hub, where the pinned
+  Linux FFmpeg build is fetched by its digest.
+
+Install the system packages:
+
+```bash
+# Debian, Ubuntu
+sudo apt-get update
+sudo apt-get install -y git make curl tar gzip unzip zip
+
+# Fedora, RHEL, Rocky Linux, AlmaLinux
+sudo dnf install -y git make curl tar gzip unzip zip
+```
+
+Install Go from go.dev. Distribution packages (`golang`, `golang-go`) are often older than 1.27.
+The commands below install the latest stable release into `/usr/local/go`, replacing any Go
+already installed there:
+
+```bash
+GO_VERSION=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n 1)   # for example go1.27.1
+curl -fLO "https://go.dev/dl/$GO_VERSION.linux-amd64.tar.gz"
+sha256sum "$GO_VERSION.linux-amd64.tar.gz"   # compare with the checksum listed on https://go.dev/dl/
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf "$GO_VERSION.linux-amd64.tar.gz"
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+export PATH=$PATH:/usr/local/go/bin
+go version
+```
+
+Without root access, extract the archive into your home directory instead
+(`mkdir -p ~/.local && tar -C ~/.local -xzf "$GO_VERSION.linux-amd64.tar.gz"`) and add
+`$HOME/.local/go/bin` to `PATH` the same way.
+
+Get the source and build:
+
+```bash
+git clone https://github.com/volod/arxiv-go.git
+cd arxiv-go
+make setup
+bin/arxgo version
+```
+
+If the repository requires signing in, clone it with SSH instead
+(`git clone git@github.com:volod/arxiv-go.git`) after adding your SSH key to GitHub.
+
+`make setup` builds `bin/arxgo` for Linux and `bin/arxgo.exe` for Windows, downloads the pinned
+`ffmpeg` and `ffprobe` for both into `bin/` and checks their SHA-256 against
+`packaging/ffmpeg.lock`, and creates `bin/.env` from `.env.example` with mode 0600. It is safe to
+run again: it never overwrites `bin/.env`, and tools that already match their checksums are not
+downloaded again. `bin/` now holds what a bundle holds, so run `bin/arxgo` or `cd bin` and use the
+examples below. `make build` alone builds only `bin/arxgo` and needs no network once the Go module
+cache is filled.
+
+To update a source build, pull and build again, then compare `bin/.env` with `.env.example` for
+new settings:
+
+```bash
+git pull
+make setup
+```
+
+`make dist` writes the same bundles and `SHA256SUMS` as a release into `dist/`, for copying to
+hosts without Go. `make ci` runs the project checks.
+
+## Configure
+
 If you prefer saved settings, copy the template beside the executable and edit only the values
-you need:
+you need (a source build already has `bin/.env`):
 
 ```bash
 cp .env.example .env
 chmod 600 .env
 ```
 
-The bundled `.env.example` explains every setting. For example, set
+The `.env.example` file explains every setting. For example, set
 `ARXGO_ARCHIVE=/data/archive` and `ARXGO_VIDEO_ARCHIVE=/mnt/video` in `.env` if you do not want
 to repeat the roots. Keep `.env` private and do not put it in the archive being processed.
 `arxgo` reads `.env` from its executable directory; flags override process variables, which
@@ -46,8 +147,9 @@ other. For example, `/data/archive` and `/mnt/video` are valid if `/mnt/video` i
 `/data/archive`. `split` can create a missing video root when its parent exists. The source
 archive must already exist.
 
-The examples below run from the extracted bundle directory. If you move the executable, keep
-`ffmpeg` and `ffprobe` beside it so preview and media options continue to work.
+The examples below run from the directory that holds `arxgo`: the extracted bundle, or `bin/` of a
+source build. If you move the executable, keep `ffmpeg` and `ffprobe` beside it so preview and
+media options continue to work.
 
 ## Catalog the archive
 
@@ -69,6 +171,40 @@ elsewhere and `--video-extensions braw,r3d` when a format lacks a recognizable s
 CATIA extensions (`.CATPart`, `.CATProduct`, `.CATDrawing`, `.cgr`, `.3dxml`) cannot appear in
 `--video-extensions`. `--exclude` globs are relative to the archive root; repeat the flag for
 multiple patterns.
+
+Every CSV arxgo writes (`arxgo-registry.csv`, `arxgo-videos.csv`, `arxgo-catia.csv`) has all
+of its columns on every run of every command, in a fixed order; a column that no row fills is
+written with empty cells. A spreadsheet, database or search index therefore sees one schema per
+file, whatever the archive holds. A registry written by an earlier build that left out empty
+columns is still read, and the next run writes it with every column.
+
+The file registry describes the archive you curated, not only what is currently under its root.
+After `split`, each moved video or CATIA file keeps its row, unchanged except for column 12,
+`location`: `video-archive` or `catia-archive` instead of `archive`. Descriptions, previews and
+text sidecars arxgo wrote never get a row. A later scan adds rows only for files you added, and
+drops rows only for files you deleted from the archive yourself. `restore --registry-update` sets
+`location` back to `archive`. When a run finds nothing to change, it leaves the CSV untouched, so
+its modification time shows when the archive last changed. arxgo keeps a stamp of the last
+registry in `.arxgo/registry.json`. If the registry and the stamp are lost, the next scan rebuilds
+the moved rows from the video and CATIA archive copies. A copy it cannot read gives a row rebuilt
+from the run history and a `registry-row-reconstructed` warning. A registry from an earlier build
+without `location` is read as if every file were in the archive. Restore's retired copies,
+`arxgo-videos.restored-<run-id>.csv` and `arxgo-catia.restored-<run-id>.csv`, are arxgo files and
+have no row.
+
+A scan or split after an earlier registry does not read unchanged files again. A file keeps its
+row without being opened when its size and modification time (to the second) match its row and it
+was last modified before the previous scan started; everything else is detected. The first scan
+after an upgrade, or after changing `--metadata` or `--video-extensions`, detects every file.
+`--large-threshold` changes only `is_large`, so it needs no detection. The `scan summary` line and
+the run report count the rows taken over as `reused`. A tool that rewrites a file but keeps its
+size and modification time is not noticed: run once with `--redetect` to detect every file again.
+The registry it writes is the one a scan without the flag would write for an unchanged archive.
+Neither is a file whose permissions changed so that it can no longer be read: it keeps its row until
+`--redetect` reports it as skipped. A reused row keeps its `media_error`, but the `media metadata
+unavailable` warning is logged only by the scan that detected the file. Files that a restore
+returned since the previous scan are detected once by the next scan, because restore puts their
+rows back without reading them.
 
 ## Move videos to a video archive
 
@@ -163,19 +299,40 @@ archive with `--catia`. It is a separate run from the video split; one run moves
 `/data/archive/cad/bracket.CATPart` becomes `/mnt/catia/cad/bracket.CATPart`, and
 `cad/bracket.CATPart.md` in the main archive describes it with the usual description fields and a
 `catia:` summary line such as `catia: CATProduct | V5_CFV2 | V5R30 SP5 | 12 components` (kind,
-format, release, number of referenced documents). It never lists names or other text from inside
-the file. `--catia-text` writes a second owned file `cad/bracket.CATPart.text.md` whose first line
-is `arxgo-text: cad/bracket.CATPart`, with harvested properties, component names and printable
-strings. Those strings can include authoring user ids and workstation paths; leave the flag unset
-unless that is wanted. If `<rel_path>.text.md` already holds a file that is not this sidecar, the
-owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed extraction leaves the
-CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful split moves nothing
-and writes only missing sidecars. `--catia-text` without `--catia` exits 2. Videos, the video
-archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`: the same first
-ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`, `catia_format`,
-`catia_release`, `catia_components` and `mtime` (a column empty in every row is omitted).
-Transfer modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos.
-A damaged or unrecognized CATIA file is still moved; its summary then says `unknown`.
+format, release, number of referenced documents). It never lists names or other text from inside the
+file. `--catia-text` writes a second owned file `cad/bracket.CATPart.text.md` whose first line is
+`arxgo-text: cad/bracket.CATPart`. It holds the properties CATIA stores for a part or product
+(`part_number`, `revision`, `definition`, `nomenclature`, `source`, `description`, `material`), the
+names of the referenced documents, and `notes:`: the plain text of every text written on a drawing
+or in a 3D annotation, including the captions and signatures of a title block. Numbers, single
+letters and placeholders such as `XXX` are left out, and nothing is taken from the binary data
+around them. Properties and notes can name people; leave the flag unset unless that is wanted. Both
+files name the archive on their second line (`archive: /data/archive`), and the
+sidecar repeats the description's identity fields (`file_name`, `file_size`, `file_mime`, `sha256`,
+`modified`, `catia`, `moved_to`, `url`) and names it (`description: cad/bracket.CATPart.md`), so
+either file still says what it is about when copied out of the archive. Files written by earlier
+releases are not rewritten and lack these lines. If `<rel_path>.text.md` already holds a file that
+is not this sidecar, the owned file is `<rel_path>.arxgo.text.md` (then an indexed name). A failed
+extraction leaves the CATIA file moved and exits 6 (`texts_failed`). Rerunning after a successful
+split moves nothing and writes only missing sidecars. `--catia-text` without `--catia` exits 2.
+Sidecars written by earlier releases hold a `strings:` block of harvested fragments instead of
+`notes:`, and a rerun keeps them. To rewrite them, delete those owned sidecars and split again; the
+split moves nothing and extracts the text from the files in the CATIA archive:
+
+```bash
+ARCHIVE=/data/archive
+find "$ARCHIVE" -name '*.text.md' -not -path "$ARCHIVE/.arxgo/*" -print0 |
+while IFS= read -r -d '' text; do
+  head -n 1 "$text" | grep -q '^arxgo-text: ' && grep -qx 'strings:' "$text" && rm -- "$text"
+done
+./arxgo split --catia --catia-text --archive "$ARCHIVE" --catia-archive /mnt/catia
+```
+
+Videos, the video archive and `arxgo-videos.csv` are not touched. Both roots get `arxgo-catia.csv`:
+the same first ten columns as `arxgo-videos.csv`, then `text_rel_path`, `catia_kind`,
+`catia_format`, `catia_release`, `catia_components` and `mtime`, all written on every run. Transfer
+modes, `--verify`, `--base-url`, conflicts, `--min-free` and reruns work as for videos. A damaged or
+unrecognized CATIA file is still moved; its summary then says `unknown`.
 
 The CATIA archive must not be the main archive, the video archive, or inside either (or contain
 them). `--catia` cannot be combined with `--video`, `--video-archive` on the command line,
@@ -186,13 +343,33 @@ a `--video` or `--catia` flag on the command line overrides it.
 
 ## Collect CATIA text for a search index
 
-`--catia-text` leaves one sidecar next to each description. To feed them to a search engine, a
-vector database or a language model, assemble them first. These recipes read only; run them while
-the descriptions and sidecars are still in the archive, that is before a `restore --descriptions
-delete`. Set `ARCHIVE` to the archive root; it is the one thing the files themselves do not name.
+`--catia-text` leaves one sidecar next to each description. `arxgo catia-index` assembles them into
+one Markdown document, reading the ownership the split recorded instead of guessing sidecar names.
+Run it while the descriptions and sidecars are still in the archive, that is before a
+`restore --descriptions delete`:
 
-One self-contained document per CATIA file, written outside the archive so the next scan does not
-register them:
+```bash
+./arxgo catia-index --archive /data/archive
+./arxgo catia-index --archive /data/archive --out /data/catia-index.md
+```
+
+The document (default `/data/archive/arxgo-catia-text.md`, which `scan` never registers) has a
+header with the archive, the CATIA archive and counts, then one `## <rel_path>` section per moved
+CATIA file: the description's fields (`catia:` summary, size, hash, `moved_to`), the sidecar path,
+`properties:`, `components:` and `notes:`, copied from the sidecar. It is compact enough to give to
+a language model. A `strings:` block of an earlier sidecar is not copied; rewrite such sidecars as
+shown above to get their notes. Title-block captions repeat in every drawing's notes. Files whose
+sidecar is missing are listed at the end under `## Missing text` with a reason (`not_recorded`:
+split never wrote one, rerun `split --catia --catia-text`; `missing`, `foreign`: the recorded file
+was deleted or replaced). The command only reads: it starts no run, and a rerun over an unchanged
+archive writes the same bytes. The header's `history_at` is the time of the newest recorded CATIA
+split or restore step, not the time the document was written, so deleting a sidecar changes the
+`Missing text` section and the counts but not `history_at`. It exits 5 while another arxgo run holds
+the archive lock.
+
+For a search index that wants one document per file, copy the sidecars instead: each already names
+its archive and repeats its description's fields. Copy them outside the archive so the next scan
+does not register them:
 
 ```bash
 ARCHIVE=/data/archive
@@ -202,36 +379,15 @@ find . -name '*.text.md' -not -path './.arxgo/*' -print0 |
 while IFS= read -r -d '' text; do
   rel=${text#./}; rel=${rel%.text.md}
   mkdir -p "$OUT/$(dirname "$rel")"
-  { printf 'archive: %s\n' "$ARCHIVE"; cat "$rel.md"; tail -n +2 "$text"; } > "$OUT/$rel.catia.md"
+  cp "$text" "$OUT/$rel.catia.md"
 done
 ```
 
-One aggregated assembly index: each file's `catia:` summary line and its component list, without
-the harvested `strings:` blocks. This is the form worth giving to a language model; on an archive
-of 2255 CATIA files it is under 1 MB, while the same index with strings is about 65 MB.
-
-```bash
-cd "$ARCHIVE"
-{ printf '# CATIA assembly index\n\narchive: %s\n' "$ARCHIVE"
-  find . -name '*.text.md' -not -path './.arxgo/*' -print0 | LC_ALL=C sort -z |
-  while IFS= read -r -d '' text; do
-    rel=${text#./}; rel=${rel%.text.md}
-    printf '\n## %s\n\n' "$rel"
-    grep -m1 '^catia: ' "$rel.md"
-    sed -n '/^components:$/,/^strings:$/{/^strings:$/d;p;}' "$text"
-  done
-} > /data/catia-assembly-index.md
-```
-
-Drop the `grep`/`sed` pair and use `tail -n +2 "$rel.md"; tail -n +2 "$text"` instead to keep every
-field and every harvested string.
-
-Both recipes assume the plain names `<rel_path>.md` and `<rel_path>.text.md`. When a foreign file
-forced a fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the split logged it and the
-`text_rel_path` column of `arxgo-catia.csv` holds the real path; those files need the column rather
-than the name pattern. A supported `arxgo catia-index` operation that reads the recorded ownership
-instead of guessing names is
-[specified](../openspec/stage-4-catia/catia.md#text-index) and not yet built.
+A sidecar from an earlier release lacks `archive:` and the description fields; for those, write
+`{ printf 'archive: %s\n' "$ARCHIVE"; cat "$rel.md"; tail -n +2 "$text"; }` instead of the `cp`.
+This recipe derives `rel_path` from the plain name `<rel_path>.text.md`; when a foreign file forced
+a fallback name (`<rel_path>.arxgo.text.md` or an indexed name), the `text_rel_path` column of
+`arxgo-catia.csv` holds the real path, and `catia-index` lists it under the right file.
 
 When the file registry itself feeds an index, scan with `--metadata media` rather than the default
 `--metadata file`: the default fills `media_*` columns only for ISO BMFF containers (MP4, MOV, M4A,
